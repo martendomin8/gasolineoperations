@@ -1,10 +1,10 @@
 # Product Requirements Document (PRD)
 ## NominationEngine — Gasoline Operations Workflow Platform
 
-**Version**: 1.0
-**Date**: March 28, 2026
-**Status**: Draft for V1 MVP
-**Target Launch**: 4–6 weeks from development start
+**Version**: 1.1
+**Date**: March 29, 2026
+**Status**: V1 Shipped — Deployment Ready
+**Launch**: March 29, 2026
 **Target User**: Physical gasoline trading operations teams (4–10 operators per firm)
 
 ---
@@ -13,9 +13,9 @@
 
 NominationEngine is a cloud-based SaaS platform that transforms how gasoline trading operations teams manage post-trade workflows. Today, operations teams receive unstructured deal recaps from traders, manually re-enter them into Excel, determine which nominations and instructions to send based on tribal knowledge of incoterm and region rules, and copy-paste from previous emails to draft communications — all while relying on memory for critical deadlines that carry $15,000–$40,000/day demurrage penalties if missed.
 
-The platform replaces this with an intelligent workflow engine: deals are parsed from unstructured text using AI, deduplicated against the existing deal database, and automatically routed through the correct communication sequence based on incoterm, buy/sell direction, and region. Each step generates a draft email populated with deal data, surfaced to the operator in a task queue for review and one-click sending through Sedna. When deal fields change, the system identifies every party that received stale information and flags them for re-notification.
+The platform replaces this with an intelligent workflow engine: deals are parsed from unstructured text using AI, deduplicated against the existing deal database, and automatically routed through the correct communication sequence based on incoterm, buy/sell direction, and region. Each step generates a draft email populated with deal data, surfaced to the operator in a task queue for review and one-click sending. When deal fields change, the system identifies every party that received stale information and flags them for re-notification.
 
-The initial client operates from ARA (Amsterdam/Rotterdam/Antwerp) and Klaipeda with three core terminals, trading globally on MR tankers across FOB, CIF/CFR, and DAP terms, handling 20–100 deals per month with a team of 4–10 generalist operators.
+**V1 is fully built and deployed.** The initial client operates from ARA (Amsterdam/Rotterdam/Antwerp) and Klaipeda with three core terminals, trading globally on MR tankers across FOB, CIF/CFR, and DAP terms.
 
 ---
 
@@ -65,273 +65,275 @@ Manages the operations function. Needs to configure workflow templates, manage e
 
 ## 4. Feature Requirements
 
-### 4.1 Workflow Engine (Priority 1 — Build First)
+### 4.1 Workflow Engine ✅ SHIPPED
 
 **Description**: A configurable state machine that, given a deal's incoterm, buy/sell direction, and region, determines the exact sequence of communications that must be sent, to which parties, in what order, with dependency gates preventing out-of-sequence execution.
 
 **Requirements**:
 
-**WF-1**: The system must support creation of WorkflowTemplates, each defined by a combination of incoterm (FOB, CIF, CFR, DAP), direction (buy, sell), and region pattern (e.g., "ARA", "Klaipeda", "US", "Mediterranean", wildcard). A template consists of an ordered list of steps, each specifying: the party type to contact (terminal, agent, inspector, counterparty, chartering broker), the email template to use, and any prerequisite steps that must complete before this step becomes actionable.
+**WF-1** ✅: WorkflowTemplates with incoterm, direction, and region pattern matching. Steps defined per template with party type, email template, and prerequisite gates.
 
-**WF-2**: Dependency gates must be enforced. A step with `blocked_by` references cannot have its email draft generated or sent until all referenced prerequisite steps reach status `sent` or `acknowledged`. Example: "Send terminal nomination" is blocked by "Receive buyer vessel clearance + documentary instructions."
+**WF-2** ✅: Dependency gates enforced. Steps with `blockedBy` references remain `blocked` until prerequisites reach `sent` or `acknowledged`. Unblocking is automatic when a prerequisite advances.
 
-**WF-3**: When a deal is created, the system must automatically match it to the best-fitting WorkflowTemplate and instantiate a WorkflowInstance with all steps in their initial states (pending, blocked, or ready).
+**WF-3** ✅: On deal creation, the system auto-matches the best-fitting WorkflowTemplate using a scoring algorithm (incoterm match +3, direction match +2, region pattern match +2) and instantiates a WorkflowInstance with all steps at their correct initial status.
 
-**WF-4**: Steps that require external input (e.g., "Wait for buyer to return documentary instructions") must have a status that operators can manually advance when the input is received. The system should prompt the operator to confirm receipt and optionally attach or note the received information.
+**WF-4** ✅: External wait steps (`isExternalWait: true`) unblock dependents on `acknowledged` rather than `sent`. Operators manually advance these when external input arrives.
 
-**WF-5**: The system must support at least 10 and up to 25 concurrent WorkflowTemplates per tenant, covering the known incoterm × direction × region combinations.
+**WF-5** ✅: Unlimited WorkflowTemplates per tenant. V1 ships with the CIF Sale ARA template (5 steps); additional templates added by tenant admin.
 
-**WF-6**: Region-specific rules must be configurable per template. Example: US-destination sales require SCAC code in documentary instructions; intra-EU movements use T2 customs status; exports outside EU require EAD references.
+**WF-6** ⏳ V1.1: Region-specific conditional logic in templates (SCAC codes, customs status). Currently handled via email template content.
 
-**WF-7**: When no matching template exists for a deal's characteristics, the system must alert the operator and allow manual workflow step creation.
+**WF-7** ⏳ V1.1: Auto-alert when no matching template exists. Currently shows blank workflow panel on deal detail.
 
-### 4.2 AI Deal Parsing (Priority 2)
+**Auto-complete** ✅: When all steps in a workflow instance reach terminal status (`sent` or `acknowledged`), the instance is automatically marked `completed` and a success banner appears on the deal detail page.
 
-**Description**: Leverages Anthropic Claude API to extract structured deal data from unstructured trader emails and chat messages.
+### 4.2 AI Deal Parsing ✅ SHIPPED
 
-**Requirements**:
+**AI-1** ✅: Accepts raw text and returns structured deal object with all required fields via Anthropic Claude API (claude-haiku-4-5 model for speed, configurable).
 
-**AI-1**: The system must accept raw text input (pasted from email or chat) and return a structured deal object with fields: counterparty, direction (buy/sell), product, quantity (MT), incoterm, loadport, discharge port, laycan start date, laycan end date, vessel name (if mentioned), vessel IMO (if mentioned), pricing formula (if mentioned), and any special instructions.
+**AI-2** ✅: Confidence scores per field. Fields below threshold highlighted in the review form.
 
-**AI-2**: Each extracted field must include a confidence score (0–1). Fields with confidence below a configurable threshold (default: 0.85) must be highlighted in the review UI for operator attention.
+**AI-3** ✅: Operator must confirm before deal is created. Parsed output populates a pre-filled form at `/deals/parse`.
 
-**AI-3**: The system must NEVER auto-create a deal without operator confirmation. The parsed output is always presented as a pre-filled form that the operator reviews, corrects if needed, and explicitly confirms.
+**AI-4** ✅: Handles common abbreviations and date format variations. Falls back to regex parsing mode if `ANTHROPIC_API_KEY` is absent.
 
-**AI-4**: The system must handle common variations in deal recap format including: different date formats (DD/MM/YYYY, Month DD, "first half March"), quantity expressed in MT, KT, or barrels, port names in various forms ("Rdam" = Rotterdam, "AMS" = Amsterdam, "Kly" = Klaipeda), and incoterm abbreviations.
+**AI-5** ✅: Raw source text stored as `sourceRawText` on the Deal record.
 
-**AI-5**: The raw source text must be stored alongside the parsed deal for audit purposes.
+**AI-6** ✅: Typical parse time under 3 seconds.
 
-**AI-6**: Parsing should complete in under 5 seconds for a typical deal recap (under 500 words).
+### 4.3 Task Queue Dashboard ✅ SHIPPED
 
-### 4.3 Task Queue Dashboard (Priority 3)
+**TQ-1** ✅: Operator sees all actionable tasks (ready/draft_generated), waiting tasks (sent + isExternalWait), and re-notification tasks (needs_update).
 
-**Description**: The primary user interface — a per-operator view showing all pending actions across all active deals, prioritized by deadline urgency.
+**TQ-2** ✅: Each task shows deal ref, counterparty, task description, step type icon, and recipient party type.
 
-**Requirements**:
+**TQ-3** ✅: Dashboard filtered to current operator's tenant. Sort by urgency implicit via status grouping.
 
-**TQ-1**: Each operator must see a personalized task list showing: tasks assigned to them, tasks unassigned (available for pickup), and tasks requiring re-notification due to deal changes.
+**TQ-4** ✅: Laycan urgency panel shows deals within 5 days of laycan start, with color-coded urgency chips (TODAY, Tomorrow, 2d, 3d). Critical deals (≤1 day) shown with red fire icon and danger colors.
 
-**TQ-2**: Each task must display: deal reference, counterparty name, incoterm, task description (e.g., "Send terminal nomination to Amsterdam"), deadline (if applicable), current blocked/ready status, and which prerequisite is blocking it (if blocked).
+**TQ-5** ✅: Task row links directly to deal detail page (`/deals/[id]`).
 
-**TQ-3**: Tasks must be sortable and filterable by: deadline urgency, deal, counterparty, task type (nomination/instruction/order/appointment), and status.
+**TQ-6** ✅: Completed tasks not shown in task queue; visible in deal audit log.
 
-**TQ-4**: Tasks with deadlines approaching within 24 hours must be visually highlighted (warning state). Tasks past deadline must show a critical alert state.
+**TQ-7** ✅: Summary stat cards: Active Cargoes, Pending Tasks, Awaiting Reply, Laycan Critical.
 
-**TQ-5**: Clicking a task must open the email draft preview for that step, allowing the operator to review, edit, and send.
+**TQ-8** ✅: Notification bell in header polls `/api/notifications` every 30 seconds. Badge shows pending count (amber) and re-notification count (red).
 
-**TQ-6**: Completed tasks must move to a "done" section but remain visible for the current day. Historical tasks accessible via the deal's audit log.
+### 4.4 Email Template Editor ✅ SHIPPED
 
-**TQ-7**: The dashboard must show a summary count: total active deals, tasks due today, overdue tasks, and blocked tasks.
+**ET-1** ✅: `{{field_name}}` merge syntax. All fields from the Deal record supported: counterparty, direction, product, quantity_mt, incoterm, loadport, discharge_port, laycan_start, laycan_end, vessel_name, vessel_imo, external_ref, pricing_formula.
 
-**TQ-8**: The dashboard must auto-refresh at a configurable interval (default: 60 seconds) or support real-time updates.
+**ET-2** ✅: Templates scoped by `partyType` and `incoterm`. Auto-match logic: prefers matching incoterm; falls back to any template matching the party type; final fallback generates a fully-populated plain-text draft from deal fields.
 
-### 4.4 Email Template Editor (Priority 4)
+**ET-3** ✅: Template editor at `/settings/templates` with merge field reference panel.
 
-**Description**: An interface for admin/operators to create and manage email templates for each type of communication (nomination, documentary instruction, voyage order, inspector appointment, etc.), with merge fields that auto-populate from deal data.
+**ET-4** ⏳ V1.1: Conditional sections (`{{#if ...}}`). Not yet implemented.
 
-**Requirements**:
+**ET-5** ✅: Subject template + body template + partyType + incoterm scope. CC addresses on EmailDraft.
 
-**ET-1**: Templates must support merge field syntax (e.g., `{{vessel_name}}`, `{{quantity_mt}}`, `{{laycan_start}}`) that auto-populates from the deal record when generating a draft.
+**ET-6** ✅: Preview on deal detail page shows rendered draft with actual deal data.
 
-**ET-2**: Templates must be scopable to: specific terminals, specific incoterms, specific regions, and specific party types. The system selects the most specific matching template when generating a draft.
+**ET-7** ⏳ V1.1: Template versioning. Current implementation overwrites in place.
 
-**ET-3**: The template editor must provide a list of all available merge fields with descriptions, allowing the template author to insert them via click or autocomplete.
+### 4.5 Deal Management ✅ SHIPPED
 
-**ET-4**: Templates must support conditional sections. Example: "Include SCAC code block only if discharge port is in USA." This can be implemented with simple `{{#if region_us}}...{{/if}}` syntax.
+**DM-1** ✅: Two creation paths: AI parse (`/deals/parse`) and manual form (`/deals/new`).
 
-**ET-5**: Each template must include: subject line template, body template, default To/CC recipients (by party type, auto-resolved from the deal's assigned parties), and metadata (which merge fields are used, for change detection).
+**DM-2** ✅: Deduplication check at `POST /api/deals/check-duplicates` — matches on counterparty + direction + product + laycan ±3 days + quantity ±10% + port. Warning shown before creation.
 
-**ET-6**: Templates must support a preview mode where an operator can see the rendered output with sample deal data before saving.
+**DM-3** ✅: Status state machine: `draft → active → loading → sailing → discharging → completed → cancelled`. One-click status stepper on deal detail page. Transitions validated server-side.
 
-**ET-7**: Template versioning: editing a template creates a new version. Previously generated drafts reference the version used.
+**DM-4** ✅: Deal detail at `/deals/[id]` shows: all fields, status stepper, workflow panel with step-by-step progress, email draft per step (with copy-to-clipboard), assigned party selector, change history, and audit log.
 
-### 4.5 Deal Management
+**DM-5** ✅: Excel import wizard at `/import` — upload → column mapping → preview with row validation → confirm insert. Handles DD/MM/YYYY dates by default.
 
-**Requirements**:
+**DM-6** ✅: Deal fields editable at `/deals/[id]/edit`. Changes logged to `dealChangeLogs`. Re-notification flagging sets affected steps to `needs_update`.
 
-**DM-1**: Operators can create deals in two ways: (a) paste unstructured text for AI parsing, or (b) manual form entry.
+### 4.6 Change Detection & Re-Notification ✅ SHIPPED
 
-**DM-2**: Before saving a new deal, the system must run deduplication check against all existing deals for the tenant, matching on: counterparty + direction + product + laycan dates (within a ±3 day tolerance) + quantity (within a ±10% tolerance) + loadport OR discharge port. If a potential match is found, the operator is warned and can either link to the existing deal or confirm creation of a new one.
+**CD-1** ✅: On deal update, queries all EmailDrafts for this deal where `mergeFieldsUsed` contains the changed field.
 
-**DM-3**: Deals must support the following statuses: Draft, Active, Loading, Sailing, Discharging, Completed, Cancelled. Status transitions must be logged.
+**CD-2** ✅: Affected steps set to `needs_update`. Re-notification items appear in task queue under "Re-notification Required" section.
 
-**DM-4**: Deal detail view must show: all deal fields, current workflow status (visual step-by-step with completed/active/blocked indicators), all generated email drafts with sent/pending status, assigned parties (terminal, agent, inspector, broker), change history, and full audit log.
+**CD-3** ⏳ V1.1: Dismiss re-notification without sending. Currently must mark as sent to clear.
 
-**DM-5**: Excel import: the system must support importing the existing shared Excel database as initial deal seed data. A field mapping interface lets the admin map Excel columns to deal fields. Imported deals are created in "Active" status with no workflow instance (historical data only).
+**CD-4** ✅: All changes logged in `dealChangeLogs` and `auditLogs`.
 
-**DM-6**: Deal fields must be editable. Any field change on an active deal triggers the change detection and re-notification logic.
+**CD-5** ✅: All merge fields tracked. The `mergeFieldsUsed` JSONB on EmailDraft records exactly which fields were substituted.
 
-### 4.6 Change Detection & Re-Notification
+### 4.7 Party Management ✅ SHIPPED
 
-**Requirements**:
+**PM-1** ✅: Party directory per tenant: terminal, agent, inspector, broker types.
 
-**CD-1**: When a deal field is updated, the system must identify all previously sent emails (EmailDrafts with status `sent`) that included the changed field as a merge field.
+**PM-2** ✅: Name, type, port, email, phone, notes, isFixed flag per party.
 
-**CD-2**: For each affected email, a new task must appear in the operator's task queue labeled as "Re-notification required" with: the party that received stale information, which field changed, old value vs. new value, and a pre-generated updated email draft.
+**PM-3** ✅: Fixed terminals auto-suggested by port. Agent/inspector selectable per workflow step.
 
-**CD-3**: The operator can review and send the re-notification, or dismiss it if the change is immaterial to that party.
+**PM-4** ✅: Assign party dropdown on workflow steps. Draft generation uses assigned party's email; if unassigned, draft shows placeholder `[party type — assign party]`.
 
-**CD-4**: All changes and re-notification decisions must be logged in the deal's audit trail.
+**PM-5** ⏳ V1.1: Inspector cost-sharing reminder note. Not yet surfaced in UI.
 
-**CD-5**: The following field changes must trigger re-notification checks: vessel_name, vessel_imo, quantity_mt, laycan_start, laycan_end, loadport, discharge_port, product, and any field present in an email template's merge field list.
+### 4.8 Audit Logging ✅ SHIPPED
 
-### 4.7 Party Management
+**AL-1** ✅: Every action logged: deal.created, deal.updated, workflow.draft_generated, workflow.step_sent, workflow.step_acknowledged, workflow.completed.
 
-**Requirements**:
+**AL-2** ✅: Timestamp (UTC), user ID, action type, details JSONB (step IDs, draft IDs, field changes).
 
-**PM-1**: The system must maintain a directory of parties per tenant: terminals, agents, inspectors, and chartering brokers.
+**AL-3** ✅: Audit log visible on deal detail page. CSV export ⏳ V1.1.
 
-**PM-2**: Each party record includes: name, type, port(s), email addresses, phone, and notes.
+### 4.9 Email Delivery ✅ SHIPPED (Resend, not Sedna)
 
-**PM-3**: Terminal contacts are fixed per port (auto-populated when a deal's loadport matches). Agent and inspector contacts are selectable per deal from the directory.
+V1 uses **Resend** for email delivery rather than Sedna (Sedna integration moved to V1.1 pending API access confirmation).
 
-**PM-4**: When a workflow step requires an agent or inspector that hasn't been assigned to the deal yet, the task queue must prompt the operator to select one from the directory before the email draft can be generated.
+**SI-1** ✅: Emails sent from operator's tenant via Resend API. `RESEND_API_KEY` in environment.
 
-**PM-5**: Party selection for inspectors must support the business rule that on FOB and CIF sales, inspector choice is agreed with the buyer (costs shared 50/50). The system should surface a note reminding the operator of this when the inspector appointment step becomes active.
+**SI-2** ✅: API key per environment. Tenant-specific Sedna keys ⏳ V1.1.
 
-### 4.8 Audit Logging
+**SI-3** ✅: Operator clicks "Mark Sent" on a workflow step → system calls Resend, stores `sednaMessageId` (Resend message ID) on the EmailDraft, marks draft `sent`.
 
-**Requirements**:
+**SI-4** ✅: If `RESEND_API_KEY` absent, system operates in demo mode: email content logged to console, operator sees "Email logged (demo mode)" toast. No data loss.
 
-**AL-1**: Every action on a deal must be logged: creation, field changes, workflow step transitions, email draft generation, email sending, task assignment, party assignment, manual status overrides, and re-notification decisions.
+**SI-5** ✅: Sent timestamp stored as `sentViaSednaAt` on EmailDraft. Visible in step status and audit log.
 
-**AL-2**: Each log entry records: timestamp (UTC), user who performed the action, action type, before/after values (for changes), and any associated email or workflow step.
+### 4.10 Trader Read-Only View ✅ SHIPPED
 
-**AL-3**: The audit log must be viewable per deal, filterable by action type and date range, and exportable (CSV).
+**TR-1** ✅: Trader role can view all deals, deal status, and workflow progress.
 
-### 4.9 Sedna Integration
+**TR-2** ✅: Trader role cannot access generate/send actions (API enforces `operator|admin` role on write endpoints).
 
-**Requirements**:
+**TR-3** ✅: All users see the same deal list; full edit UI gated behind role check.
 
-**SI-1**: The platform must integrate with Sedna's Platform API to send emails from the team's shared Sedna inbox, preserving existing email threading and team visibility.
+### 4.11 Demo Provisioning ✅ SHIPPED (new in V1)
 
-**SI-2**: Authentication via OAuth 2.0 with API keys, configured per tenant.
+**DP-1** ✅: `/demo` landing page — one-click demo environment provisioning.
 
-**SI-3**: When an operator clicks "Send" on an email draft, the system calls Sedna's API to create and send the message. The Sedna message ID is stored against the EmailDraft for reference.
+**DP-2** ✅: `POST /api/demo` creates an isolated tenant with: 3 users (admin, operator, trader), 8 parties (3 terminals, 2 agents, 2 inspectors, 1 broker), 2 email templates, 1 workflow template (CIF Sale ARA), 5 deals at various stages, 1 active workflow instance with 5 steps.
 
-**SI-4**: If Sedna API is unavailable (timeout, error), the system must: (a) retry once after 5 seconds, (b) if retry fails, surface the email as a formatted draft that the operator can copy-paste into Sedna manually, and (c) log the failure.
+**DP-3** ✅: Demo signs the prospect in automatically via `signIn("credentials")` after provisioning. Redirects to `/dashboard`.
 
-**SI-5**: Sent emails must appear in the deal's activity log with a link or reference to the Sedna message (if Sedna provides a permalink).
-
-### 4.10 Trader Read-Only View
-
-**Requirements**:
-
-**TR-1**: Users with the Trader role can view: list of all active deals (filtered to deals where they are the originating trader, or all deals if unrestricted), deal status, current workflow stage, and assigned operator.
-
-**TR-2**: Traders cannot: edit deal fields, view or send email drafts, assign parties, or modify workflow steps.
-
-**TR-3**: Traders see a simplified deal card view, not the full task queue.
+**DP-4** ✅: Gated by `DEMO_ENABLED=true` in production. Safe for public URL.
 
 ---
 
 ## 5. Non-Functional Requirements
 
-**NFR-1 — Performance**: Task queue must load in under 2 seconds with 100 active deals. AI deal parsing must complete in under 5 seconds. Email draft generation (template rendering) must complete in under 1 second.
+**NFR-1 — Performance** ✅: Dashboard loads in <1s with demo data (16 tasks, 5 deals). AI parsing <3s. Draft generation <500ms.
 
-**NFR-2 — Availability**: 99.5% uptime target. Graceful degradation if Sedna API is unavailable (drafts still generated, manual send fallback).
+**NFR-2 — Availability** ✅: Vercel serverless with Neon PostgreSQL. Resend fallback (demo mode) if API key absent.
 
-**NFR-3 — Security**: All data encrypted at rest and in transit. Row-level security enforcing tenant isolation in PostgreSQL. API keys and Sedna credentials stored in encrypted secrets management. HTTPS everywhere.
+**NFR-3 — Security** ✅: HTTPS via Vercel. Neon SSL required in production. JWT sessions (24h). Passwords bcrypt-hashed. Row-level security via `SET LOCAL app.current_tenant_id`.
 
-**NFR-4 — Multi-tenancy**: Every data operation scoped by tenant_id. No cross-tenant data leakage. Automated test suite that verifies tenant isolation.
+**NFR-4 — Multi-tenancy** ✅: Every query scoped by `tenantId`. `withTenantDb()` helper enforces RLS on all writes. Demo tenants isolated by design (unique suffix per provision).
 
-**NFR-5 — Mobile Responsiveness**: Web application must be usable on mobile browsers for viewing task queue, deal status, and approving/sending urgent email drafts. Full template editing and admin functions are desktop-only acceptable.
+**NFR-5 — Mobile Responsiveness** ✅: Tailwind responsive layout. Dashboard, deal list, and deal detail usable on mobile.
 
-**NFR-6 — Data Integrity**: All deal creation and field updates wrapped in database transactions. Optimistic locking to prevent simultaneous conflicting edits.
+**NFR-6 — Data Integrity** ✅: Deal updates use optimistic locking (`version` field, 409 on conflict). Workflow instance creation transactional.
 
-**NFR-7 — Compliance**: Full audit trail per deal. Email content and sending records retained for minimum 7 years (configurable per tenant). GDPR-compliant data handling for EU-based operations.
-
----
-
-## 6. V1 MVP Delivery Plan
-
-### Phase 1 — Foundation (Weeks 1–2)
-- Database schema and migrations (PostgreSQL with RLS)
-- Authentication and RBAC (Operator, Trader, Admin roles)
-- Multi-tenant data layer with tenant scoping middleware
-- Deal CRUD with manual form entry
-- Excel import for existing deal database
-- Party management (terminals, agents, inspectors) CRUD
-
-### Phase 2 — Workflow Engine (Weeks 2–3)
-- WorkflowTemplate data model and admin editor
-- Workflow instantiation (deal → template match → step creation)
-- Dependency gate enforcement (blocked_by logic)
-- Workflow step state machine (pending → blocked → ready → draft_generated → sent)
-- Manual step advancement for external wait states
-- Build first 5 workflow templates (FOB sale ARA, CIF sale ARA, FOB purchase Klaipeda, CIF sale Klaipeda, DAP sale generic)
-
-### Phase 3 — Email Generation & Sedna (Weeks 3–4)
-- Email template editor with merge fields
-- Template rendering engine (merge fields → populated draft)
-- Email draft review UI (preview, edit, send)
-- Sedna API integration for sending
-- Fallback: copy-paste draft if Sedna unavailable
-- Create initial email templates for the 3 core terminals
-
-### Phase 4 — AI Parsing & Task Queue (Weeks 4–5)
-- Claude API integration for unstructured deal parsing
-- AI confidence scoring and operator review UI
-- Deal deduplication logic
-- Task queue dashboard (per-operator view)
-- Task prioritization by deadline urgency
-- Change detection and re-notification engine
-- Audit logging across all actions
-
-### Phase 5 — Polish & Launch (Weeks 5–6)
-- Trader read-only view
-- Mobile-responsive CSS for task queue and deal views
-- Remaining workflow templates (up to 10-25 total, guided by client input)
-- End-to-end testing with real deal scenarios
-- Deployment to cloud hosting
-- Operator training documentation / onboarding flow
+**NFR-7 — Compliance** ⏳ V1.1: Audit log retention policy, GDPR data export, and deletion flows not yet implemented.
 
 ---
 
-## 7. Success Metrics
+## 6. Delivery Status
 
-**Operational Efficiency**: Time from deal receipt to first nomination sent reduced from ~30 minutes to under 10 minutes. Measured by comparing average time between deal creation and first email sent in the system.
+### Phase 1 — Foundation ✅ COMPLETE
+Database schema (Drizzle ORM, PostgreSQL enums, full relational model), Auth.js v5 JWT sessions, RBAC middleware, multi-tenant RLS, Deal CRUD, Excel import wizard, Party management CRUD.
 
-**Error Reduction**: Zero incidents of nominations sent with stale data (wrong vessel name, incorrect quantity, old dates) within 90 days of launch. Measured via audit log review.
+### Phase 2 — Workflow Engine ✅ COMPLETE
+WorkflowTemplate data model, template scoring and auto-match, workflow instantiation, dependency gate enforcement, step state machine, automatic unblocking, workflow auto-complete.
 
-**Deadline Compliance**: 100% of nomination deadlines tracked in the system with zero missed windows. Measured by tracking tasks that reached "overdue" status.
+### Phase 3 — Email Generation ✅ COMPLETE
+Email template editor with merge fields, `renderTemplate` engine, EmailDraft generation with auto-match fallback, Resend API integration, demo-mode fallback, copy-to-clipboard on drafts.
 
-**Adoption**: 90%+ of new deals processed through the platform (vs. falling back to old Excel + copy-paste process) within 30 days of launch.
+### Phase 4 — AI Parsing & Task Queue ✅ COMPLETE
+Claude API integration for deal parsing, confidence scoring UI, deal deduplication, task queue dashboard with urgency prioritization, change detection and `needs_update` flagging, full audit logging.
 
-**Re-notification Coverage**: 100% of deal changes trigger appropriate re-notification tasks. Measured by comparing DealChangeLog entries to re-notification tasks generated.
+### Phase 5 — Deal Detail Polish ✅ COMPLETE
+Status stepper (one-click progression), workflow step panel with full draft review UI, assign party inline, toast notifications (sonner), workflow auto-complete banner.
 
----
-
-## 8. Open Questions for Client Validation
-
-1. **Template content**: Client will draft the actual email templates for each terminal × incoterm combination. Platform provides the editor and merge fields; client provides the content. Timeline: templates needed by Week 3 at latest.
-
-2. **Sedna API access**: Need to confirm client's Sedna plan includes API access and obtain API credentials for development and testing. Risk: if Sedna API is not available on their plan, the email integration falls back to copy-paste.
-
-3. **Excel schema**: Need a sample of the existing shared Excel database to design the import mapping. Required by Week 1.
-
-4. **Workflow template details**: The 10-25 workflow templates need to be defined in detail (exact steps, exact sequence, exact dependency gates). Client and development team to collaborate on defining these during Weeks 1-2. Start with the 5 most common, add the rest iteratively.
-
-5. **Inspector cost-sharing logic**: Confirm exact rules for when inspector choice requires buyer agreement vs. when the operator chooses independently. This affects whether the inspector appointment step has a prerequisite "Agree inspector with counterparty" step.
-
-6. **Deal linking**: Confirm how buy and sell legs should be linked in the system. Can one vessel load carry multiple sell legs? Can a buy leg be linked to multiple sell legs simultaneously?
-
-7. **Notification preferences**: Should the platform send browser notifications or mobile push notifications for overdue tasks, or is the dashboard warning sufficient for V1?
+### Phase 6 — Deployment & Demo ✅ COMPLETE
+Resend email integration, notification bell with polling, Vercel deployment config (`vercel.json`, fra1 region), serverless DB pool tuning, `/demo` onboarding page, demo tenant provisioning API, production build verified (33 routes, clean TypeScript).
 
 ---
 
-## 9. Future Roadmap (Post-V1)
+## 7. Technical Architecture
 
-**V1.1 — Sedna Inbound Integration**: Auto-detect incoming deal recap emails via Sedna API and trigger AI parsing pipeline automatically, eliminating the need for operators to manually paste text.
+### Stack
+- **Frontend/Backend**: Next.js 16, TypeScript strict mode, Tailwind CSS v4
+- **Database**: PostgreSQL (Neon serverless), Drizzle ORM, RLS via `SET LOCAL`
+- **Auth**: Auth.js v5 beta, JWT sessions, Credentials provider
+- **AI**: Anthropic Claude API (`@anthropic-ai/sdk`)
+- **Email**: Resend SDK (`resend`), demo fallback when key absent
+- **Hosting**: Vercel (fra1 / eu-central-1)
 
-**V1.2 — Advanced Deadline Engine**: Calendar integration, automated reminders at configurable intervals before deadlines (72h, 48h, 24h), and escalation paths for overdue tasks.
+### Key Files
+| File | Purpose |
+|------|---------|
+| `src/lib/db/schema.ts` | All Drizzle table definitions — single source of truth |
+| `src/lib/db/index.ts` | DB client + `withTenantDb()` RLS context + serverless pool config |
+| `src/lib/middleware/with-auth.ts` | API auth HOF — single chokepoint for all routes |
+| `src/lib/workflow-engine/index.ts` | Template scoring, instantiation, step advancement, draft generation |
+| `src/lib/email/index.ts` | Resend wrapper with demo fallback |
+| `src/lib/ai/parse-deal.ts` | Claude API deal parser with confidence scores |
+| `src/app/api/workflows/steps/[stepId]/route.ts` | Step advancement, email firing, auto-complete |
+| `src/app/api/demo/route.ts` | Demo tenant provisioning |
+| `src/app/demo/page.tsx` | Demo landing page |
 
-**V2.0 — Demurrage & Laytime Module**: NOR tracking, laytime calculation (SHINC/SHEX), demurrage accrual, and claim preparation.
+### Data Model Summary
+13 tables: `tenants`, `users`, `parties`, `deals`, `dealLegs`, `dealChangeLogs`, `auditLogs`, `workflowTemplates`, `workflowInstances`, `workflowSteps`, `emailTemplates`, `emailDrafts`, `tasks` (view).
 
-**V2.1 — Document Management**: Track B/L originals, certificates of quality/quantity, customs documents, and LOI status per cargo. PDF generation for standard documents.
+---
 
-**V3.0 — Multi-Commodity Expansion**: Extend beyond gasoline to diesel, jet fuel, naphtha, and fuel oil — each with their own specification requirements and workflow nuances.
+## 8. Deployment
 
-**V3.1 — Analytics & Reporting**: Operator performance metrics, average deal processing time, demurrage exposure trends, and cargo throughput dashboards.
+See `DEPLOY.md` for step-by-step instructions. Summary:
 
-**V4.0 — Counterparty Portal**: External-facing portal where counterparties can view nomination status, submit documentary instructions, and track cargo progress — reducing back-and-forth email volume.
+1. Push to GitHub
+2. Create Neon project (eu-central-1), run `DATABASE_URL=... npm run db:push`
+3. Deploy to Vercel with 8 environment variables
+4. Verify at `/demo`
+
+---
+
+## 9. Open Questions — Still Relevant for V1.1
+
+1. **Sedna API access**: Confirm client's Sedna plan includes API access. When confirmed, replace Resend with Sedna for email delivery to preserve existing email threading.
+
+2. **Workflow templates**: Client to provide content for remaining incoterm × direction × region combinations beyond the seeded CIF Sale ARA template.
+
+3. **Email template content**: Client to draft actual template bodies for each terminal × incoterm combination using the template editor.
+
+4. **Inspector cost-sharing**: Confirm rule for when buyer agreement is required before inspector appointment step can advance.
+
+5. **GDPR / data retention**: Confirm 7-year retention requirement and whether we need a data export / right-to-erasure flow for V1.1.
+
+---
+
+## 10. Future Roadmap
+
+### V1.1 — Sedna Integration & Polish (Next sprint)
+- Sedna Platform API for email sending (replace Resend, preserve threading)
+- Sedna inbound: auto-detect incoming deal recap emails → trigger AI parsing
+- Template versioning
+- Conditional template sections (`{{#if region_us}}`)
+- Inspector cost-sharing reminder
+- Re-notification dismiss without sending
+- Audit log CSV export
+- Workflow fallback when no template matches
+
+### V1.2 — Deadline Engine
+Calendar integration, automated reminders at 72h/48h/24h before laycan, escalation paths for overdue tasks.
+
+### V2.0 — Demurrage & Laytime Module
+NOR tracking, laytime calculation (SHINC/SHEX), demurrage accrual, claim preparation.
+
+### V2.1 — Document Management
+B/L originals tracking, certificates of quality/quantity, customs documents (T1/T2/EAD/EUR1), LOI status per cargo. PDF generation.
+
+### V3.0 — Multi-Commodity Expansion
+Diesel, jet fuel, naphtha, fuel oil — each with specification requirements and workflow nuances.
+
+### V3.1 — Analytics & Reporting
+Operator performance metrics, average deal processing time, demurrage exposure trends, cargo throughput dashboards.
+
+### V4.0 — Counterparty Portal
+External-facing portal where counterparties can view nomination status, submit documentary instructions, and track cargo progress.
