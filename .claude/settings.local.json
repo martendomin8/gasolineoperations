@@ -1,0 +1,35 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mv src/app/dashboard src/app/\\\\\\(authenticated\\\\\\)/dashboard)",
+      "Bash(mkdir -p src/app/\\\\\\(authenticated\\\\\\)/deals/new)",
+      "Bash(mkdir -p \"src/app/\\(authenticated\\)/deals/[id]/edit\")",
+      "Bash(mkdir -p src/app/\\\\\\(authenticated\\\\\\)/parties/new)",
+      "Bash(mkdir -p \"src/app/\\(authenticated\\)/parties/[id]/edit\")",
+      "Bash(npx next:*)",
+      "Bash(ls src/app/\\\\\\(authenticated\\\\\\)/deals/[id]/edit/)",
+      "Bash(npx tsc:*)",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(psql --version)",
+      "Bash(docker --version)",
+      "Bash(docker run:*)",
+      "Bash(docker exec:*)",
+      "Bash(npx drizzle-kit:*)",
+      "Bash(npm install:*)",
+      "Bash(npx tsx:*)",
+      "Bash(mkdir -p \"C:\\\\Users\\\\marten\\\\gasolineoperations\\\\src\\\\app\\\\api\\\\deals\\\\[id]\\\\workflow\")",
+      "Bash(mkdir -p \"C:\\\\Users\\\\marten\\\\gasolineoperations\\\\src\\\\app\\\\api\\\\workflows\\\\steps\\\\[stepId]\")",
+      "Bash(PGPASSWORD=nomengine123 psql -U nomengine -h localhost -p 5432 nominationengine -c \"TRUNCATE email_drafts, workflow_steps, workflow_instances, email_templates, workflow_templates, deal_change_logs, audit_logs, deal_legs, deals, parties, users, tenants RESTART IDENTITY CASCADE;\")",
+      "Bash(npm run:*)",
+      "Bash(curl -s http://localhost:3000)",
+      "Bash(curl -s -X POST https://apexsim.app.n8n.cloud/webhook/niles -H \"Content-Type: application/json\" -d '{\"\"question\"\": \"\"Building Phase 3 of NominationEngine: AI deal parsing from unstructured trader emails using Claude API with confidence scores, plus an email template editor. What patterns apply and what should I watch out for?\"\", \"\"context\"\": \"\"Next.js 16 app, Drizzle+Postgres, already have workflow engine and email templates seeded. Need: 1\\) parse raw email text via Claude API into structured deal object with per-field confidence scores, 2\\) email template CRUD admin UI with live preview and merge field helper\"\"}')",
+      "Bash(npm list:*)",
+      "Bash(mkdir -p \"C:\\\\Users\\\\marten\\\\gasolineoperations\\\\src\\\\app\\\\api\\\\email-templates\\\\[id]\")",
+      "Bash(mkdir -p \"C:\\\\Users\\\\marten\\\\gasolineoperations\\\\src\\\\app\\\\\\(authenticated\\)\\\\settings\\\\templates\\\\[id]\\\\edit\")",
+      "Bash(ls \"C:\\\\Users\\\\marten\\\\gasolineoperations\\\\src\\\\app\\\\\\(authenticated\\)\"\")",
+      "Bash(python -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(json.dumps\\({k:d[k] for k in [''''name'''',''''version'''',''''scripts'''',''''dependencies'''',''''devDependencies''''] if k in d}, indent=2\\)\\)\")",
+      "Bash(git init:*)",
+      "Bash(git add:*)"
+    ]
+  }
+}

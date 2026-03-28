@@ -1,0 +1,113 @@
+"use client";
+
+import { cn } from "@/lib/utils/cn";
+import {
+  LayoutDashboard,
+  FileText,
+  Users,
+  Upload,
+  Settings,
+  Fuel,
+  ChevronLeft,
+  Sparkles,
+  Mail,
+  Ship,
+} from "lucide-react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { useState } from "react";
+
+const navigation = [
+  { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { name: "Pipeline", href: "/pipeline", icon: Ship },
+  { name: "Deals", href: "/deals", icon: FileText },
+  { name: "Parse Email", href: "/deals/parse", icon: Sparkles },
+  { name: "Parties", href: "/parties", icon: Users },
+  { name: "Import", href: "/import", icon: Upload },
+];
+
+const adminNav = [
+  { name: "Templates", href: "/settings/templates", icon: Mail },
+  { name: "Settings", href: "/settings", icon: Settings },
+];
+
+interface SidebarProps {
+  userRole: string;
+}
+
+export function Sidebar({ userRole }: SidebarProps) {
+  const pathname = usePathname();
+  const [collapsed, setCollapsed] = useState(false);
+
+  const isActive = (href: string) =>
+    pathname === href || (href !== "/dashboard" && pathname.startsWith(href));
+
+  const navItems = userRole === "admin" ? [...navigation, ...adminNav] : navigation;
+
+  return (
+    <aside
+      className={cn(
+        "flex flex-col h-screen bg-[var(--color-surface-1)] border-r border-[var(--color-border-subtle)]",
+        "transition-[width] duration-200 ease-out flex-shrink-0",
+        collapsed ? "w-16" : "w-56"
+      )}
+    >
+      {/* Logo */}
+      <div className="flex items-center gap-3 px-4 h-14 border-b border-[var(--color-border-subtle)]">
+        <div className="flex items-center justify-center h-8 w-8 rounded-[var(--radius-md)] bg-[var(--color-accent)] flex-shrink-0">
+          <Fuel className="h-4 w-4 text-[var(--color-text-inverse)]" />
+        </div>
+        {!collapsed && (
+          <div className="flex flex-col min-w-0">
+            <span className="text-sm font-bold text-[var(--color-text-primary)] tracking-tight truncate">
+              NomEngine
+            </span>
+            <span className="text-[0.625rem] text-[var(--color-text-tertiary)] uppercase tracking-widest">
+              Operations
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* Navigation */}
+      <nav className="flex-1 py-3 px-2 space-y-0.5 overflow-y-auto">
+        {navItems.map((item) => {
+          const active = isActive(item.href);
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={cn(
+                "flex items-center gap-3 px-3 h-9 rounded-[var(--radius-md)] text-sm font-medium transition-all duration-150",
+                active
+                  ? "bg-[var(--color-accent-muted)] text-[var(--color-accent-text)]"
+                  : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-surface-3)]",
+                collapsed && "justify-center px-0"
+              )}
+              title={collapsed ? item.name : undefined}
+            >
+              <item.icon className={cn("h-4 w-4 flex-shrink-0", active && "text-[var(--color-accent)]")} />
+              {!collapsed && <span className="truncate">{item.name}</span>}
+            </Link>
+          );
+        })}
+      </nav>
+
+      {/* Collapse toggle */}
+      <div className="px-2 py-3 border-t border-[var(--color-border-subtle)]">
+        <button
+          onClick={() => setCollapsed(!collapsed)}
+          className={cn(
+            "flex items-center justify-center w-full h-8 rounded-[var(--radius-md)]",
+            "text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-3)]",
+            "transition-colors cursor-pointer"
+          )}
+        >
+          <ChevronLeft
+            className={cn("h-4 w-4 transition-transform duration-200", collapsed && "rotate-180")}
+          />
+        </button>
+      </div>
+    </aside>
+  );
+}
