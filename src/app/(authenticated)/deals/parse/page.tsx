@@ -5,8 +5,6 @@ import { useRouter } from "next/navigation";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
 import {
   Sparkles,
   ArrowLeft,
@@ -14,7 +12,11 @@ import {
   CheckCircle2,
   ChevronRight,
   Wand2,
-  ClipboardPaste,
+  Shuffle,
+  Zap,
+  FlaskConical,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -45,6 +47,232 @@ interface ParseResult {
   mode: "ai" | "demo";
   demoNotice?: string;
 }
+
+// ============================================================
+// SAMPLE EMAIL FIXTURES
+// ============================================================
+
+interface SampleEmail {
+  id: string;
+  label: string;
+  tag: string;
+  tagVariant: "accent" | "info" | "success" | "warning" | "danger" | "muted";
+  /** What makes this fixture interesting for testing */
+  testFocus: string;
+  text: string;
+}
+
+const SAMPLE_EMAILS: SampleEmail[] = [
+  // ── Clean / structured ──────────────────────────────────────
+  {
+    id: "cif-sale-ara-clean",
+    label: "CIF Sale ARA — clean",
+    tag: "CIF · SELL",
+    tagVariant: "accent",
+    testFocus: "Happy path — all fields present, high confidence expected",
+    text: `Hi team,
+
+Please note the following confirmed deal:
+
+Seller: EuroGas Trading BV
+Buyer: Shell Trading Rotterdam
+Product: EBOB (UNL95)
+Quantity: 30,000 MT (+/- 5%)
+Incoterm: CIF
+Load Port: Amsterdam
+Discharge: New York
+Laycan: 5/7 April 2026
+Vessel: MT Gannet Arrow, IMO 9786543
+Price: Platts CIF NWE Cargo -$5.00/MT
+
+Special: SCAC code required on B/L for US destination.
+
+Regards,
+Thomas Berg — Trader`,
+  },
+
+  {
+    id: "fob-buy-klaipeda-clean",
+    label: "FOB Buy Klaipeda — clean",
+    tag: "FOB · BUY",
+    tagVariant: "info",
+    testFocus: "FOB buy — triggers Klaipeda terminal workflow",
+    text: `Deal recap — EG-2026-042
+
+Purchase confirmed from Vitol SA:
+15,000 MT Reformate FOB Klaipeda
+Laycan 10-12 April 2026
+Price: Platts FOB Baltic +$2.50/MT
+Vessel: MT Nordic Hawk, IMO 9341298`,
+  },
+
+  {
+    id: "cfr-sale-med",
+    label: "CFR Sale Mediterranean",
+    tag: "CFR · SELL",
+    tagVariant: "accent",
+    testFocus: "CFR — similar to CIF, different liability. Med port.",
+    text: `Confirm sale to Repsol Trading:
+
+Product: RBOB / Regular gasoline
+Qty: 25,000 MT +/- 5%
+Terms: CFR
+Load: Antwerp, Belgium
+Discharge: Barcelona, Spain
+Laycan: 18-20 April 2026
+No vessel nominated yet.
+Price: Platts CIF NWE +$1.25/MT
+
+Ref: ET-2026-089`,
+  },
+
+  {
+    id: "dap-sale-us",
+    label: "DAP Sale US — SCAC required",
+    tag: "DAP · SELL",
+    tagVariant: "warning",
+    testFocus: "DAP US destination — SCAC code special instruction. High complexity.",
+    text: `Thomas,
+
+Confirmed sold to Trafigura Petroleum:
+28,000 MT RBOB DAP Houston, Texas
+Load: Amsterdam, Netherlands
+Laycan: 15-17 April 2026
+Price: Platts USGC pipeline +$0.50/bbl
+Vessel TBC
+
+Note: SCAC code required on Bill of Lading for US customs clearance.
+EUR1 certificate NOT required (non-preferential origin).`,
+  },
+
+  {
+    id: "fob-sale-ara",
+    label: "FOB Sale ARA",
+    tag: "FOB · SELL",
+    tagVariant: "success",
+    testFocus: "FOB sell — buyer arranges vessel. Simpler workflow.",
+    text: `Hi,
+
+Sold to Gunvor Group:
+Product: EBOB 10ppm
+Quantity: 20,000 MT
+Terms: FOB
+Load port: Rotterdam (Maasvlakte)
+Laycan: 22-24 April 2026
+Buyer nominates vessel — we accept/reject.
+Price: Platts CIF NWE Cargo basis flat`,
+  },
+
+  // ── Terse / Telegram-style ───────────────────────────────────
+  {
+    id: "terse-telegram",
+    label: "Telegram-style — terse",
+    tag: "TERSE",
+    tagVariant: "muted",
+    testFocus: "Minimal info, no structure — tests AI inference and low-confidence scoring",
+    text: `Done: sold 30kt EBOB CIF NY to Shell, laycan 5/7 Apr, vessel Arrow IMO 9786543, platts -5`,
+  },
+
+  {
+    id: "chat-abbreviations",
+    label: "Chat — port abbreviations",
+    tag: "ABBREVS",
+    tagVariant: "muted",
+    testFocus: "AMS, Rdam, Kly abbreviations — tests port name normalization",
+    text: `Bought 15kt reformate FOB Kly from Vitol, laycan 10-12/4, no vessel yet. Px: platts fob baltic +2.5`,
+  },
+
+  // ── Low confidence / ambiguous ───────────────────────────────
+  {
+    id: "ambiguous-direction",
+    label: "Ambiguous — direction unclear",
+    tag: "LOW CONF",
+    tagVariant: "danger",
+    testFocus: "Direction not stated explicitly — should flag low confidence on direction field",
+    text: `Deal confirmed with BP Oil International:
+
+25,000 MT Naphtha
+Incoterm: FOB Rotterdam
+Laycan first half May 2026
+Price: Platts NWE Naphtha CIF +$3.00/MT
+
+No vessel information yet.`,
+  },
+
+  {
+    id: "date-ambiguity",
+    label: "Ambiguous dates — word format",
+    tag: "DATES",
+    tagVariant: "warning",
+    testFocus: "\"first half April\" and \"end of April\" — tests date range parsing",
+    text: `Recap:
+
+Sold 22,000 MT UNL95 CIF to Total Energies
+Load Antwerp, discharge Singapore
+Laycan: first half April 2026
+Vessel: TBN
+Price: Platts CIF Singapore swap +2.00
+
+Inspector to be agreed with buyer (50/50 cost share).`,
+  },
+
+  {
+    id: "missing-critical-fields",
+    label: "Missing discharge port",
+    tag: "INCOMPLETE",
+    tagVariant: "danger",
+    testFocus: "Discharge port missing — operator must fill in before creating deal",
+    text: `Quick recap:
+
+Purchase 18,000 MT RBOB from Mercuria
+FOB basis, Klaipeda terminal
+Laycan 8-10 April 2026
+Vessel: MT Baltic Star, IMO 9502847
+Price: Platts FOB Baltic +$1.75/MT`,
+  },
+
+  // ── Complex / multi-instruction ──────────────────────────────
+  {
+    id: "complex-with-amendments",
+    label: "Complex — vessel amendment note",
+    tag: "COMPLEX",
+    tagVariant: "accent",
+    testFocus: "Amendment language in email — tests extraction of current (not previous) vessel",
+    text: `AMENDED DEAL RECAP — EG-2026-031 (supersedes v1)
+
+Sold to Gunvor Group, CIF Rotterdam → New York:
+Product: EBOB Reg
+Quantity: 28,500 MT (+/- 5%)
+Laycan: 12-14 April 2026 (REVISED from 10-12 Apr)
+Vessel: MT Seagull Banner, IMO 9412033
+  (replaces previously nominated MT Nordic Arrow)
+Price: Platts CIF NWE -$4.50/MT
+Discharge: NY Harbor
+Load: Amsterdam, Oiltanking terminal
+
+B/L instructions to follow from buyer.
+Inspector: per buyer's nomination (cost shared).`,
+  },
+
+  {
+    id: "dual-port-klaipeda",
+    label: "Klaipeda load — blending note",
+    tag: "KLAIPEDA",
+    tagVariant: "info",
+    testFocus: "Klaipeda terminal + special blending instruction",
+    text: `Deal — purchase:
+
+Counterparty: Litasco SA
+Product: Naphtha (blending grade)
+Qty: 12,000 MT
+Terms: FOB Klaipeda
+Laycan: 20-22 April 2026
+Vessel: to be nominated by us within 5 days of laycan
+Price: Platts CIF NWE Naphtha -$8.00/MT
+
+Note: Blending at terminal prior to load. Inspector appointment 50/50 cost share with seller.`,
+  },
+];
 
 // ============================================================
 // CONFIDENCE HELPERS
@@ -82,55 +310,6 @@ function confidenceBorder(score: number) {
   if (score >= 0.5) return "border-[var(--color-accent)] border-opacity-40";
   return "border-[var(--color-danger)] border-opacity-30";
 }
-
-// ============================================================
-// SAMPLE EMAILS
-// ============================================================
-
-const SAMPLE_EMAILS = [
-  {
-    label: "CIF Sale to Shell",
-    text: `Hi team,
-
-Please note the following deal:
-
-Seller: EuroGas Trading BV
-Buyer: Shell Trading
-Product: EBOB
-Quantity: 30,000 MT (+/- 5%)
-Incoterm: CIF
-Load Port: Amsterdam
-Discharge: New York
-Laycan: 5/7 April 2026
-Vessel: MT Gannet Arrow, IMO 9786543
-Price: Platts CIF NWE Cargo -$5.00/MT
-
-Regards,
-Thomas Berg
-Trader`,
-  },
-  {
-    label: "FOB Buy from Vitol",
-    text: `Deal recap — EG-2026-042
-
-We confirm purchase from Vitol SA:
-15,000 MT Reformate FOB Klaipeda
-Laycan 10-12 April 2026
-Price: Platts FOB Baltic +$2.50/MT
-Vessel TBC`,
-  },
-  {
-    label: "DAP Sale to Trafigura",
-    text: `Thomas,
-
-Confirmed sold to Trafigura:
-28,000 MT RBOB DAP Houston
-Load: Amsterdam
-Laycan: 15-17 April 2026
-Vessel TBC
-SCAC code required on B/L for US destination`,
-  },
-];
 
 // ============================================================
 // FIELD ROW
@@ -183,6 +362,82 @@ function FieldRow({ label, fieldKey, value, score, onChange, type = "text", opti
 }
 
 // ============================================================
+// DEBUG FIXTURE PANEL
+// ============================================================
+
+function DebugPanel({ onLoad }: { onLoad: (text: string) => void }) {
+  const [open, setOpen] = useState(false);
+
+  const handleRandom = () => {
+    const pick = SAMPLE_EMAILS[Math.floor(Math.random() * SAMPLE_EMAILS.length)];
+    onLoad(pick.text);
+    setOpen(false);
+  };
+
+  return (
+    <div className="rounded-[var(--radius-md)] border border-dashed border-[var(--color-border-default)] bg-[var(--color-surface-1)]">
+      {/* Header row */}
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center gap-2 px-3 py-2.5 text-left"
+      >
+        <FlaskConical className="h-3.5 w-3.5 text-[var(--color-text-tertiary)] flex-shrink-0" />
+        <span className="text-xs font-medium text-[var(--color-text-secondary)]">Debug fixtures</span>
+        <span className="text-[0.6875rem] text-[var(--color-text-tertiary)] ml-1">
+          {SAMPLE_EMAILS.length} scenarios
+        </span>
+        <button
+          onClick={(e) => { e.stopPropagation(); handleRandom(); }}
+          className="ml-auto flex items-center gap-1 text-[0.6875rem] px-2 py-0.5 rounded bg-[var(--color-surface-3)] text-[var(--color-text-secondary)] hover:bg-[var(--color-accent-muted)] hover:text-[var(--color-accent-text)] transition-colors"
+        >
+          <Shuffle className="h-3 w-3" />
+          Random
+        </button>
+        {open
+          ? <ChevronUp className="h-3.5 w-3.5 text-[var(--color-text-tertiary)]" />
+          : <ChevronDown className="h-3.5 w-3.5 text-[var(--color-text-tertiary)]" />
+        }
+      </button>
+
+      {/* Fixture list */}
+      {open && (
+        <div className="border-t border-[var(--color-border-subtle)] divide-y divide-[var(--color-border-subtle)]">
+          {SAMPLE_EMAILS.map((s) => (
+            <button
+              key={s.id}
+              onClick={() => { onLoad(s.text); setOpen(false); }}
+              className="w-full flex items-start gap-3 px-3 py-2.5 hover:bg-[var(--color-surface-2)] transition-colors text-left group"
+            >
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs font-medium text-[var(--color-text-primary)] group-hover:text-[var(--color-accent-text)] transition-colors">
+                    {s.label}
+                  </span>
+                  <span className={`text-[0.6rem] font-mono font-bold px-1.5 py-0.5 rounded uppercase tracking-wider ${
+                    s.tagVariant === "accent" ? "bg-[var(--color-accent-muted)] text-[var(--color-accent-text)]" :
+                    s.tagVariant === "info"   ? "bg-[var(--color-info-muted)] text-[var(--color-info)]" :
+                    s.tagVariant === "success" ? "bg-[var(--color-success-muted)] text-[var(--color-success)]" :
+                    s.tagVariant === "warning" ? "bg-[var(--color-accent-muted)] text-[var(--color-accent)]" :
+                    s.tagVariant === "danger"  ? "bg-[var(--color-danger-muted,#3d1515)] text-[var(--color-danger)]" :
+                    "bg-[var(--color-surface-3)] text-[var(--color-text-tertiary)]"
+                  }`}>
+                    {s.tag}
+                  </span>
+                </div>
+                <p className="text-[0.6875rem] text-[var(--color-text-tertiary)] mt-0.5 leading-relaxed">
+                  {s.testFocus}
+                </p>
+              </div>
+              <ChevronRight className="h-3.5 w-3.5 text-[var(--color-text-tertiary)] opacity-0 group-hover:opacity-100 transition-opacity mt-0.5 flex-shrink-0" />
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================================
 // MAIN PAGE
 // ============================================================
 
@@ -195,6 +450,21 @@ export default function ParseDealPage() {
   const [editedFields, setEditedFields] = useState<Record<string, string>>({});
   const [creating, setCreating] = useState(false);
 
+  // E2E: parse then immediately create and navigate — one click
+  const [e2eRunning, setE2eRunning] = useState(false);
+  const [e2eStatus, setE2eStatus] = useState<string | null>(null);
+
+  const runParse = async (text: string): Promise<ParseResult | null> => {
+    const res = await fetch("/api/deals/parse", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ rawText: text }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error ?? "Parsing failed");
+    return data as ParseResult;
+  };
+
   const handleParse = async () => {
     if (!rawText.trim()) return;
     setParsing(true);
@@ -202,64 +472,95 @@ export default function ParseDealPage() {
     setResult(null);
     setEditedFields({});
 
-    const res = await fetch("/api/deals/parse", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ rawText }),
-    });
-
-    const data = await res.json();
-    setParsing(false);
-
-    if (!res.ok) {
-      setError(data.error ?? "Parsing failed");
-      return;
+    try {
+      const data = await runParse(rawText);
+      if (!data) return;
+      setResult(data);
+      const initial: Record<string, string> = {};
+      for (const [k, v] of Object.entries(data.fields)) {
+        initial[k] = v != null ? String(v) : "";
+      }
+      setEditedFields(initial);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Parsing failed");
+    } finally {
+      setParsing(false);
     }
-
-    setResult(data);
-    // Seed editable fields
-    const initial: Record<string, string> = {};
-    for (const [k, v] of Object.entries(data.fields)) {
-      initial[k] = v != null ? String(v) : "";
-    }
-    setEditedFields(initial);
   };
 
   const updateField = (key: keyof ParsedFields, val: string) => {
     setEditedFields((prev) => ({ ...prev, [key]: val }));
   };
 
+  const buildDealPayload = (fields: Record<string, string>, source: string) => ({
+    counterparty: fields.counterparty || undefined,
+    direction: fields.direction || undefined,
+    product: fields.product || undefined,
+    quantityMt: fields.quantity_mt ? Number(fields.quantity_mt) : undefined,
+    incoterm: fields.incoterm || undefined,
+    loadport: fields.loadport || undefined,
+    dischargePort: fields.discharge_port || undefined,
+    laycanStart: fields.laycan_start || undefined,
+    laycanEnd: fields.laycan_end || undefined,
+    vesselName: fields.vessel_name || null,
+    vesselImo: fields.vessel_imo || null,
+    pricingFormula: fields.pricing_formula || null,
+    specialInstructions: fields.special_instructions || null,
+    externalRef: fields.external_ref || null,
+    sourceRawText: source,
+  });
+
   const handleCreateDeal = async () => {
     setCreating(true);
     const res = await fetch("/api/deals", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        counterparty: editedFields.counterparty || undefined,
-        direction: editedFields.direction || undefined,
-        product: editedFields.product || undefined,
-        quantityMt: editedFields.quantity_mt ? Number(editedFields.quantity_mt) : undefined,
-        incoterm: editedFields.incoterm || undefined,
-        loadport: editedFields.loadport || undefined,
-        dischargePort: editedFields.discharge_port || undefined,
-        laycanStart: editedFields.laycan_start || undefined,
-        laycanEnd: editedFields.laycan_end || undefined,
-        vesselName: editedFields.vessel_name || null,
-        vesselImo: editedFields.vessel_imo || null,
-        pricingFormula: editedFields.pricing_formula || null,
-        specialInstructions: editedFields.special_instructions || null,
-        externalRef: editedFields.external_ref || null,
-        sourceRawText: rawText,
-      }),
+      body: JSON.stringify(buildDealPayload(editedFields, rawText)),
     });
-
     const data = await res.json();
     setCreating(false);
-
     if (res.ok && data.id) {
       router.push(`/deals/${data.id}`);
     } else {
       setError(data.error ?? "Failed to create deal");
+    }
+  };
+
+  /** E2E: load fixture → parse → create → navigate to deal detail */
+  const handleE2E = async (fixture?: SampleEmail) => {
+    const sample = fixture ?? SAMPLE_EMAILS[Math.floor(Math.random() * SAMPLE_EMAILS.length)];
+    setE2eRunning(true);
+    setError(null);
+    setE2eStatus(`Loading "${sample.label}"…`);
+    setRawText(sample.text);
+
+    try {
+      setE2eStatus("Parsing with AI…");
+      const parsed = await runParse(sample.text);
+      if (!parsed) throw new Error("No parse result");
+
+      const fields: Record<string, string> = {};
+      for (const [k, v] of Object.entries(parsed.fields)) {
+        fields[k] = v != null ? String(v) : "";
+      }
+      setResult(parsed);
+      setEditedFields(fields);
+
+      setE2eStatus("Creating deal…");
+      const createRes = await fetch("/api/deals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(buildDealPayload(fields, sample.text)),
+      });
+      const dealData = await createRes.json();
+      if (!createRes.ok) throw new Error(dealData.error ?? "Deal creation failed");
+
+      setE2eStatus("Done — navigating to deal…");
+      router.push(`/deals/${dealData.id}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "E2E run failed");
+      setE2eStatus(null);
+      setE2eRunning(false);
     }
   };
 
@@ -289,31 +590,42 @@ export default function ParseDealPage() {
             Paste a trader email or deal recap to extract structured deal data
           </p>
         </div>
+
+        {/* E2E quick-run */}
+        <div className="ml-auto flex items-center gap-2">
+          <button
+            onClick={() => handleE2E()}
+            disabled={e2eRunning}
+            title="Pick a random fixture, parse it, create the deal, and navigate straight to the deal detail — full E2E in one click"
+            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-[var(--radius-md)] border border-dashed border-[var(--color-border-default)] text-[var(--color-text-secondary)] hover:border-[var(--color-accent)] hover:text-[var(--color-accent-text)] hover:bg-[var(--color-accent-muted)] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {e2eRunning ? (
+              <>
+                <div className="h-3 w-3 rounded-full border-2 border-current border-t-transparent animate-spin" />
+                {e2eStatus ?? "Running…"}
+              </>
+            ) : (
+              <>
+                <Zap className="h-3.5 w-3.5" />
+                E2E Test
+              </>
+            )}
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-6">
         {/* Left — raw text input */}
-        <div className="space-y-4">
+        <div className="space-y-3">
           <Card>
             <CardHeader>
               <CardTitle>Raw Email / Recap</CardTitle>
-              <div className="flex items-center gap-1 ml-auto">
-                {SAMPLE_EMAILS.map((s) => (
-                  <button
-                    key={s.label}
-                    onClick={() => setRawText(s.text)}
-                    className="text-[0.625rem] px-2 py-1 rounded bg-[var(--color-surface-3)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-4)] transition-colors uppercase tracking-wider"
-                  >
-                    {s.label}
-                  </button>
-                ))}
-              </div>
             </CardHeader>
 
             <textarea
               value={rawText}
               onChange={(e) => setRawText(e.target.value)}
-              placeholder={`Paste the trader email or deal recap here...
+              placeholder={`Paste the trader email or deal recap here…
 
 Example:
 Sold to Shell Trading
@@ -353,6 +665,9 @@ Price: Platts CIF NWE -$5/MT`}
               )}
             </div>
           </Card>
+
+          {/* Debug fixtures */}
+          <DebugPanel onLoad={(text) => { setRawText(text); setResult(null); setError(null); setEditedFields({}); }} />
 
           {error && (
             <div className="flex items-start gap-2 p-3 rounded-[var(--radius-md)] bg-[var(--color-danger-muted)] border border-[var(--color-danger)] border-opacity-30">
@@ -395,59 +710,44 @@ Price: Platts CIF NWE -$5/MT`}
               </CardHeader>
 
               <div className="space-y-1.5">
-                {/* Core */}
-                <p className="text-[0.6875rem] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider mb-1">
-                  Core
-                </p>
-                <FieldRow label="Counterparty" fieldKey="counterparty" value={editedFields.counterparty ?? ""} score={result.confidenceScores.counterparty ?? 0} onChange={updateField} />
-                <FieldRow label="Direction" fieldKey="direction" value={editedFields.direction ?? ""} score={result.confidenceScores.direction ?? 0} onChange={updateField} type="select" options={["buy", "sell"]} />
-                <FieldRow label="Product" fieldKey="product" value={editedFields.product ?? ""} score={result.confidenceScores.product ?? 0} onChange={updateField} />
-                <FieldRow label="Quantity (MT)" fieldKey="quantity_mt" value={editedFields.quantity_mt ?? ""} score={result.confidenceScores.quantity_mt ?? 0} onChange={updateField} type="number" />
-                <FieldRow label="Incoterm" fieldKey="incoterm" value={editedFields.incoterm ?? ""} score={result.confidenceScores.incoterm ?? 0} onChange={updateField} type="select" options={["FOB", "CIF", "CFR", "DAP", "FCA"]} />
+                <p className="text-[0.6875rem] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider mb-1">Core</p>
+                <FieldRow label="Counterparty"  fieldKey="counterparty"  value={editedFields.counterparty  ?? ""} score={result.confidenceScores.counterparty  ?? 0} onChange={updateField} />
+                <FieldRow label="Direction"     fieldKey="direction"     value={editedFields.direction     ?? ""} score={result.confidenceScores.direction     ?? 0} onChange={updateField} type="select" options={["buy", "sell"]} />
+                <FieldRow label="Product"       fieldKey="product"       value={editedFields.product       ?? ""} score={result.confidenceScores.product       ?? 0} onChange={updateField} />
+                <FieldRow label="Quantity (MT)" fieldKey="quantity_mt"   value={editedFields.quantity_mt   ?? ""} score={result.confidenceScores.quantity_mt   ?? 0} onChange={updateField} type="number" />
+                <FieldRow label="Incoterm"      fieldKey="incoterm"      value={editedFields.incoterm      ?? ""} score={result.confidenceScores.incoterm      ?? 0} onChange={updateField} type="select" options={["FOB", "CIF", "CFR", "DAP", "FCA"]} />
 
-                {/* Logistics */}
-                <p className="text-[0.6875rem] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider mt-3 mb-1">
-                  Logistics
-                </p>
-                <FieldRow label="Loadport" fieldKey="loadport" value={editedFields.loadport ?? ""} score={result.confidenceScores.loadport ?? 0} onChange={updateField} />
+                <p className="text-[0.6875rem] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider mt-3 mb-1">Logistics</p>
+                <FieldRow label="Loadport"      fieldKey="loadport"      value={editedFields.loadport      ?? ""} score={result.confidenceScores.loadport      ?? 0} onChange={updateField} />
                 <FieldRow label="Discharge Port" fieldKey="discharge_port" value={editedFields.discharge_port ?? ""} score={result.confidenceScores.discharge_port ?? 0} onChange={updateField} />
-                <FieldRow label="Laycan Start" fieldKey="laycan_start" value={editedFields.laycan_start ?? ""} score={result.confidenceScores.laycan_start ?? 0} onChange={updateField} />
-                <FieldRow label="Laycan End" fieldKey="laycan_end" value={editedFields.laycan_end ?? ""} score={result.confidenceScores.laycan_end ?? 0} onChange={updateField} />
+                <FieldRow label="Laycan Start"  fieldKey="laycan_start"  value={editedFields.laycan_start  ?? ""} score={result.confidenceScores.laycan_start  ?? 0} onChange={updateField} />
+                <FieldRow label="Laycan End"    fieldKey="laycan_end"    value={editedFields.laycan_end    ?? ""} score={result.confidenceScores.laycan_end    ?? 0} onChange={updateField} />
 
-                {/* Vessel */}
-                <p className="text-[0.6875rem] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider mt-3 mb-1">
-                  Vessel
-                </p>
-                <FieldRow label="Vessel Name" fieldKey="vessel_name" value={editedFields.vessel_name ?? ""} score={result.confidenceScores.vessel_name ?? 0} onChange={updateField} />
-                <FieldRow label="Vessel IMO" fieldKey="vessel_imo" value={editedFields.vessel_imo ?? ""} score={result.confidenceScores.vessel_imo ?? 0} onChange={updateField} />
+                <p className="text-[0.6875rem] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider mt-3 mb-1">Vessel</p>
+                <FieldRow label="Vessel Name"   fieldKey="vessel_name"   value={editedFields.vessel_name   ?? ""} score={result.confidenceScores.vessel_name   ?? 0} onChange={updateField} />
+                <FieldRow label="Vessel IMO"    fieldKey="vessel_imo"    value={editedFields.vessel_imo    ?? ""} score={result.confidenceScores.vessel_imo    ?? 0} onChange={updateField} />
 
-                {/* Additional */}
-                <p className="text-[0.6875rem] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider mt-3 mb-1">
-                  Additional
-                </p>
-                <FieldRow label="Pricing Formula" fieldKey="pricing_formula" value={editedFields.pricing_formula ?? ""} score={result.confidenceScores.pricing_formula ?? 0} onChange={updateField} />
-                <FieldRow label="External Ref" fieldKey="external_ref" value={editedFields.external_ref ?? ""} score={result.confidenceScores.external_ref ?? 0} onChange={updateField} />
-                <FieldRow label="Special Instr." fieldKey="special_instructions" value={editedFields.special_instructions ?? ""} score={result.confidenceScores.special_instructions ?? 0} onChange={updateField} />
+                <p className="text-[0.6875rem] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider mt-3 mb-1">Additional</p>
+                <FieldRow label="Pricing Formula"   fieldKey="pricing_formula"     value={editedFields.pricing_formula     ?? ""} score={result.confidenceScores.pricing_formula     ?? 0} onChange={updateField} />
+                <FieldRow label="External Ref"      fieldKey="external_ref"        value={editedFields.external_ref        ?? ""} score={result.confidenceScores.external_ref        ?? 0} onChange={updateField} />
+                <FieldRow label="Special Instr."    fieldKey="special_instructions" value={editedFields.special_instructions ?? ""} score={result.confidenceScores.special_instructions ?? 0} onChange={updateField} />
               </div>
 
               {/* Legend */}
               <div className="flex items-center gap-4 pt-3 border-t border-[var(--color-border-subtle)] mt-3">
                 <div className="flex items-center gap-1.5 text-xs text-[var(--color-text-tertiary)]">
-                  <CheckCircle2 className="h-3 w-3 text-[var(--color-success)]" />
-                  ≥85% confident
+                  <CheckCircle2 className="h-3 w-3 text-[var(--color-success)]" />≥85% confident
                 </div>
                 <div className="flex items-center gap-1.5 text-xs text-[var(--color-text-tertiary)]">
-                  <AlertTriangle className="h-3 w-3 text-[var(--color-accent)]" />
-                  50–84% — review
+                  <AlertTriangle className="h-3 w-3 text-[var(--color-accent)]" />50–84% — review
                 </div>
                 <div className="flex items-center gap-1.5 text-xs text-[var(--color-text-tertiary)]">
-                  <AlertTriangle className="h-3 w-3 text-[var(--color-danger)]" />
-                  &lt;50% — fill in
+                  <AlertTriangle className="h-3 w-3 text-[var(--color-danger)]" />&lt;50% — fill in
                 </div>
               </div>
 
               {/* Create deal button */}
-              <div className="pt-3 border-t border-[var(--color-border-subtle)] mt-1">
+              <div className="pt-3 border-t border-[var(--color-border-subtle)] mt-1 space-y-2">
                 <Button
                   variant="primary"
                   onClick={handleCreateDeal}
@@ -467,7 +767,7 @@ Price: Platts CIF NWE -$5/MT`}
                   )}
                 </Button>
                 {lowConfidenceCount > 0 && (
-                  <p className="text-xs text-[var(--color-text-tertiary)] text-center mt-1.5">
+                  <p className="text-xs text-[var(--color-text-tertiary)] text-center">
                     {lowConfidenceCount} field{lowConfidenceCount > 1 ? "s" : ""} need review — edit above before creating
                   </p>
                 )}
@@ -480,17 +780,24 @@ Price: Platts CIF NWE -$5/MT`}
                   <Sparkles className="h-6 w-6 text-[var(--color-accent)]" />
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-[var(--color-text-primary)]">
-                    Paste a deal email
-                  </p>
+                  <p className="text-sm font-medium text-[var(--color-text-primary)]">Paste a deal email</p>
                   <p className="text-xs text-[var(--color-text-tertiary)] mt-1 max-w-xs leading-relaxed">
                     The AI will extract counterparty, product, quantity, incoterm, ports, laycan,
                     vessel and pricing — with per-field confidence scores.
                   </p>
                 </div>
-                <p className="text-xs text-[var(--color-text-tertiary)]">
-                  Try one of the sample emails →
-                </p>
+                <div className="flex flex-col items-center gap-1.5">
+                  <p className="text-xs text-[var(--color-text-tertiary)]">
+                    Pick a fixture from the debug panel, or
+                  </p>
+                  <button
+                    onClick={() => handleE2E()}
+                    className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-[var(--radius-md)] bg-[var(--color-accent-muted)] text-[var(--color-accent-text)] hover:opacity-90 transition-opacity font-medium"
+                  >
+                    <Zap className="h-3.5 w-3.5" />
+                    Run E2E Test (random fixture)
+                  </button>
+                </div>
               </div>
             </Card>
           )}
