@@ -1,5 +1,6 @@
 import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
+import { eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import * as schema from "./schema";
 
@@ -1029,26 +1030,157 @@ EuroGas Trading BV — Operations`,
   console.log(`  Workflow Templates: ${workflowTemplatesData.length} created`);
 
   // --- Instantiate workflows for active/loading/sailing deals ---
-  const { matchTemplate, instantiateWorkflow } = await import("../workflow-engine/index");
+  const { matchTemplate, instantiateWorkflow, advanceStep } = await import("../workflow-engine/index");
 
-  const dealsForWorkflow = await db
-    .select()
-    .from(schema.deals)
-    .where(schema.deals.tenantId ? undefined as any : undefined as any);
+  const dealsForWorkflow = await db.select().from(schema.deals);
 
   const activeStatuses = ["active", "loading", "sailing", "discharging"];
   let workflowsCreated = 0;
 
   for (const deal of dealsForWorkflow) {
     if (!activeStatuses.includes(deal.status)) continue;
-
     const template = await matchTemplate(deal, db as any);
     if (!template) continue;
-
     await instantiateWorkflow(deal, template.id, db as any);
     workflowsCreated++;
   }
-  console.log(`  Workflows: ${workflowsCreated} instantiated for active deals\n`);
+  console.log(`  Workflows: ${workflowsCreated} instantiated for active deals`);
+
+  // ── Pull party IDs for realistic assignment ────────────────────────────────
+  const allParties = await db.select().from(schema.parties).where(eq(schema.parties.tenantId, tenant.id));
+  const partyByName = Object.fromEntries(allParties.map((p) => [p.name, p.id]));
+
+  // ── DEMO STATE: Shell CIF deal ─────────────────────────────────────────────
+  // Step 1 "Vessel Clearance Request to Buyer" → acknowledged (buyer cleared
+  // the vessel and returned documentary instructions). Steps 2-5 should be READY.
+  const shellDeal = dealsForWorkflow.find((d) => d.externalRef === "EG-2026-041");
+  if (shellDeal) {
+    const [shellInstance] = await db
+      .select()
+      .from(schema.workflowInstances)
+      .where(eq(schema.workflowInstances.dealId, shellDeal.id));
+
+    if (shellInstance) {
+      const shellSteps = await db
+        .select()
+        .from(schema.workflowSteps)
+        .where(eq(schema.workflowSteps.workflowInstanceId, shellInstance.id))
+        .orderBy(schema.workflowSteps.stepOrder);
+
+      const [step1, step2, step3, step4, step5] = shellSteps;
+
+      // Insert a realistic sent email draft for step 1 (the clearance request)
+      if (step1) {
+        await db.insert(schema.emailDrafts).values({
+          workflowStepId: step1.id,
+          templateId: step1.emailTemplateId,
+          toAddresses: "chartering@clarksons.com",
+          ccAddresses: "ops@eurogas.com",
+          subject: `Vessel Clearance Request — EBOB / EG-2026-041`,
+          body: `Dear Sirs,\n\nWe are pleased to inform you of the following cargo and request vessel clearance for the nominated vessel:\n\nCARGO DETAILS\nProduct:            EBOB\nQuantity:           30,000 MT\nIncoterm:           CIF\nLoad Port:          Amsterdam\nDischarge Port:     New York\nLaycan:             2026-04-05 / 2026-04-07\n\nVESSEL NOMINATION\nVessel Name:        MT Hafnia Polar\nIMO Number:         9786543\n\nPlease confirm vessel clearance and provide your documentary instructions (consignee, notify party, B/L marks, and any special requirements).\n\nBest regards,\nEuroGas Trading BV — Operations`,
+          mergeFieldsUsed: { counterparty: "Shell Trading", vessel_name: "MT Hafnia Polar", vessel_imo: "9786543", laycan_start: "2026-04-05", laycan_end: "2026-04-07" },
+          status: "sent",
+          sentViaSednaAt: new Date(Date.now() - 4 * 60 * 60 * 1000), // 4h ago
+          sednaMessageId: "demo-msg-001",
+        });
+
+        // Advance step 1 to "acknowledged" — this unblocks steps 2–5
+        await advanceStep(step1.id, "sent", db as any);
+        await advanceStep(step1.id, "acknowledged", db as any);
+
+        await db.insert(schema.auditLogs).values([
+          { tenantId: tenant.id, dealId: shellDeal.id, userId: operator1.id, action: "workflow.step_sent", details: { stepId: step1.id, stepName: step1.stepName } },
+          { tenantId: tenant.id, dealId: shellDeal.id, userId: operator1.id, action: "workflow.step_acknowledged", details: { stepId: step1.id, stepName: step1.stepName, note: "Shell confirmed vessel clearance + doc instructions received" } },
+        ]);
+      }
+
+      // Assign parties to ready steps so draft generation produces real email addresses
+      const vopakId     = partyByName["Vopak Amsterdam"];
+      const sayboltId   = partyByName["Saybolt Amsterdam"];
+      const vanOmmerenId = partyByName["Van Ommeren Agency"];
+      const clarksonsId = partyByName["Clarksons Platou"];
+
+      const assignments: Array<[schema.WorkflowStep | undefined, string | undefined]> = [
+        [step2, vopakId],       // terminal
+        [step3, sayboltId],     // inspector
+        [step4, vanOmmerenId],  // agent
+        [step5, clarksonsId],   // broker
+      ];
+
+      for (const [step, partyId] of assignments) {
+        if (step && partyId) {
+          await db.update(schema.workflowSteps)
+            .set({ assignedPartyId: partyId })
+            .where(eq(schema.workflowSteps.id, step.id));
+        }
+      }
+
+      console.log(`  Shell CIF deal: step 1 acknowledged, steps 2-5 ready with parties assigned`);
+    }
+  }
+
+  // ── DEMO STATE: Vitol FOB Buy deal ─────────────────────────────────────────
+  // Step 1 "Vessel Nomination to Seller" was sent, but vessel was later swapped.
+  // Mark as needs_update to show re-notification on dashboard.
+  const vitolDeal = dealsForWorkflow.find((d) => d.externalRef === "EG-2026-042");
+  if (vitolDeal) {
+    const [vitolInstance] = await db
+      .select()
+      .from(schema.workflowInstances)
+      .where(eq(schema.workflowInstances.dealId, vitolDeal.id));
+
+    if (vitolInstance) {
+      const vitolSteps = await db
+        .select()
+        .from(schema.workflowSteps)
+        .where(eq(schema.workflowSteps.workflowInstanceId, vitolInstance.id))
+        .orderBy(schema.workflowSteps.stepOrder);
+
+      const [vitolStep1] = vitolSteps;
+      if (vitolStep1) {
+        // Insert a draft that was already sent (with old vessel)
+        await db.insert(schema.emailDrafts).values({
+          workflowStepId: vitolStep1.id,
+          templateId: vitolStep1.emailTemplateId,
+          toAddresses: "ops@baltic-shipping.lt",
+          subject: `Vessel Nomination — Reformate / EG-2026-042`,
+          body: `Dear Sirs,\n\nIn accordance with our agreement, we hereby nominate the following vessel:\n\nVessel Name: MT Nordic Hawk\nIMO Number:  9341298\n\nProduct: Reformate\nQuantity: 15,000 MT\nFOB Klaipeda\nLaycan: 2026-04-10 / 2026-04-12\n\nBest regards,\nEuroGas Trading BV — Operations`,
+          mergeFieldsUsed: { vessel_name: "MT Nordic Hawk", vessel_imo: "9341298", counterparty: "Vitol SA" },
+          status: "sent",
+          sentViaSednaAt: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2h ago
+        });
+
+        // Advance to sent, then mark needs_update (vessel was swapped)
+        await advanceStep(vitolStep1.id, "sent", db as any);
+        await db.update(schema.workflowSteps)
+          .set({ status: "needs_update" })
+          .where(eq(schema.workflowSteps.id, vitolStep1.id));
+
+        // Log the vessel change
+        await db.insert(schema.dealChangeLogs).values({
+          tenantId: tenant.id,
+          dealId: vitolDeal.id,
+          fieldChanged: "vesselName",
+          oldValue: "MT Nordic Hawk",
+          newValue: "MT Stena Penguin",
+          changedBy: operator1.id,
+          affectedSteps: [vitolStep1.id],
+        });
+
+        await db.insert(schema.auditLogs).values({
+          tenantId: tenant.id,
+          dealId: vitolDeal.id,
+          userId: operator1.id,
+          action: "deal.updated",
+          details: { changes: { vesselName: { from: "MT Nordic Hawk", to: "MT Stena Penguin" } }, note: "Vessel swap — re-nomination required" },
+        });
+
+        console.log(`  Vitol FOB deal: step 1 needs_update (vessel swap re-nomination pending)`);
+      }
+    }
+  }
+
+  console.log();
 
   console.log("=== Seed complete! ===\n");
   console.log("Test accounts (all passwords: password123):");

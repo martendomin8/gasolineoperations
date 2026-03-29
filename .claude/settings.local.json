@@ -29,7 +29,9 @@
       "Bash(ls \"C:\\\\Users\\\\marten\\\\gasolineoperations\\\\src\\\\app\\\\\\(authenticated\\)\"\")",
       "Bash(python -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(json.dumps\\({k:d[k] for k in [''''name'''',''''version'''',''''scripts'''',''''dependencies'''',''''devDependencies''''] if k in d}, indent=2\\)\\)\")",
       "Bash(git init:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(grep -v \"^$\")"
     ]
   }
 }
