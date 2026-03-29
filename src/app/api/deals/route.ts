@@ -88,7 +88,15 @@ export const GET = withAuth(async (req, _ctx, session) => {
 export const POST = withAuth(
   async (req, _ctx, session) => {
     const body = await req.json();
-    const validated = createDealSchema.parse(body);
+    const parseResult = createDealSchema.safeParse(body);
+    if (!parseResult.success) {
+      const first = parseResult.error.issues[0];
+      return NextResponse.json(
+        { error: first?.message ?? "Validation failed", issues: parseResult.error.issues },
+        { status: 400 }
+      );
+    }
+    const validated = parseResult.data;
 
     const result = await withTenantDb(session.user.tenantId, async (db) => {
       const [deal] = await db

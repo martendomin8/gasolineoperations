@@ -158,60 +158,243 @@ export async function parseDealFromText(rawText: string): Promise<ParsedDealResu
 }
 
 // ============================================================
-// DEMO MODE (when no API key)
+// DEMO MODE — rule-based extractor (no API key required)
 // ============================================================
 
+const MONTH_MAP: Record<string, number> = {
+  jan: 1, january: 1, feb: 2, february: 2, mar: 3, march: 3,
+  apr: 4, april: 4, may: 5, jun: 6, june: 6,
+  jul: 7, july: 7, aug: 8, august: 8, sep: 9, september: 9,
+  oct: 10, october: 10, nov: 11, november: 11, dec: 12, december: 12,
+};
+
+function toDate(day: number, month: number, year: number): string {
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+function parseLaycan(raw: string): { start: string | null; end: string | null } {
+  const year = new Date().getFullYear();
+
+  // "5/7 April 2026" or "5-7 April" or "10-12/4" etc.
+  const rangeMonth = raw.match(/(\d{1,2})[\/\-](\d{1,2})\s+([A-Za-z]+)(?:\s+(\d{4}))?/);
+  if (rangeMonth) {
+    const d1 = parseInt(rangeMonth[1]);
+    const d2 = parseInt(rangeMonth[2]);
+    const mon = MONTH_MAP[rangeMonth[3].toLowerCase()];
+    const yr = rangeMonth[4] ? parseInt(rangeMonth[4]) : year;
+    if (mon) return { start: toDate(d1, mon, yr), end: toDate(d2, mon, yr) };
+  }
+
+  // "10-12 April 2026"
+  const rangeFull = raw.match(/(\d{1,2})\s*[-–]\s*(\d{1,2})\s+([A-Za-z]+)(?:\s+(\d{4}))?/);
+  if (rangeFull) {
+    const d1 = parseInt(rangeFull[1]);
+    const d2 = parseInt(rangeFull[2]);
+    const mon = MONTH_MAP[rangeFull[3].toLowerCase()];
+    const yr = rangeFull[4] ? parseInt(rangeFull[4]) : year;
+    if (mon) return { start: toDate(d1, mon, yr), end: toDate(d2, mon, yr) };
+  }
+
+  // "first half April" → 1-15
+  const firstHalf = raw.match(/first\s+half\s+([A-Za-z]+)(?:\s+(\d{4}))?/i);
+  if (firstHalf) {
+    const mon = MONTH_MAP[firstHalf[1].toLowerCase()];
+    const yr = firstHalf[2] ? parseInt(firstHalf[2]) : year;
+    if (mon) return { start: toDate(1, mon, yr), end: toDate(15, mon, yr) };
+  }
+
+  // "second half April" → 16-30
+  const secondHalf = raw.match(/second\s+half\s+([A-Za-z]+)(?:\s+(\d{4}))?/i);
+  if (secondHalf) {
+    const mon = MONTH_MAP[secondHalf[1].toLowerCase()];
+    const yr = secondHalf[2] ? parseInt(secondHalf[2]) : year;
+    if (mon) return { start: toDate(16, mon, yr), end: toDate(30, mon, yr) };
+  }
+
+  // "end of April" / "end April" → 26-30
+  const endOf = raw.match(/end\s+(?:of\s+)?([A-Za-z]+)(?:\s+(\d{4}))?/i);
+  if (endOf) {
+    const mon = MONTH_MAP[endOf[1].toLowerCase()];
+    const yr = endOf[2] ? parseInt(endOf[2]) : year;
+    if (mon) return { start: toDate(26, mon, yr), end: toDate(30, mon, yr) };
+  }
+
+  return { start: null, end: null };
+}
+
 export function parseDealDemo(rawText: string): ParsedDealResult {
-  // Simple regex-based demo extraction for when API key is absent
-  const text = rawText.toLowerCase();
+  const scores: Record<string, number> = {};
 
-  const directionMatch = text.match(/\b(sell|sold|sale|buy|bought|purchase)\b/i);
-  const direction = directionMatch
-    ? (["sell", "sold", "sale"].includes(directionMatch[1].toLowerCase()) ? "sell" : "buy")
-    : null;
+  // ── Direction ────────────────────────────────────────────────
+  // Explicit sell/buy verbs
+  const sellMatch = rawText.match(/\b(sold|sell|sale)\b/i);
+  const buyMatch  = rawText.match(/\b(bought|buy|purchase|confirmed\s+purchase)\b/i);
+  // "Seller: us" vs "Buyer: us" — seller label means we're selling
+  const sellerLabel = /^Seller\s*:/im.test(rawText);
+  const buyerLabel  = /^Buyer\s*:/im.test(rawText);
 
+  let direction: "buy" | "sell" | null = null;
+  if (sellMatch || sellerLabel) {
+    direction = "sell";
+    scores.direction = 0.9;
+  } else if (buyMatch || buyerLabel) {
+    direction = "buy";
+    scores.direction = 0.9;
+  } else {
+    scores.direction = 0;
+  }
+
+  // ── Counterparty ─────────────────────────────────────────────
+  let counterparty: string | null = null;
+  // "Buyer: Shell Trading Rotterdam" or "Seller: Vitol SA"
+  const cpLabel = rawText.match(/^(?:Buyer|Seller|Counterparty)\s*:\s*(.+)$/im);
+  if (cpLabel) {
+    counterparty = cpLabel[1].trim();
+    scores.counterparty = 0.92;
+  } else {
+    // "sold to X" / "confirmed sale to X"
+    const soldTo = rawText.match(/sold\s+to\s+([A-Z][A-Za-z0-9 &.,'-]{2,40})/);
+    if (soldTo) { counterparty = soldTo[1].trim(); scores.counterparty = 0.8; }
+    else {
+      // "purchase from X" / "confirmed purchase from X" / "bought from X"
+      const buyFrom = rawText.match(/(?:purchase\s+from|bought\s+from|confirmed\s+(?:purchase|buy)\s+from)\s+([A-Z][A-Za-z0-9 &.,'-]{2,40})/i);
+      if (buyFrom) { counterparty = buyFrom[1].trim(); scores.counterparty = 0.8; }
+      else {
+        // "Confirm sale to X" / "Confirmed sold to X"
+        const confirmTo = rawText.match(/confirm(?:ed)?\s+(?:sale?|sold)\s+to\s+([A-Z][A-Za-z0-9 &.,'-]{2,40})/i);
+        if (confirmTo) { counterparty = confirmTo[1].trim(); scores.counterparty = 0.78; }
+      }
+    }
+  }
+  // Strip trailing punctuation / sentence overflow
+  if (counterparty) counterparty = counterparty.replace(/[,:;.].*$/, "").trim();
+
+  // ── Incoterm ─────────────────────────────────────────────────
   const incotermMatch = rawText.match(/\b(FOB|CIF|CFR|DAP|FCA)\b/);
-  const incoterm = incotermMatch ? incotermMatch[1] as ParsedDealFields["incoterm"] : null;
+  const incoterm = incotermMatch ? (incotermMatch[1] as ParsedDealFields["incoterm"]) : null;
+  scores.incoterm = incoterm ? 0.95 : 0;
 
-  const qtyMatch = rawText.match(/(\d[\d,]+)\s*(?:mt|mts|metric\s*tons?)/i);
-  const quantity_mt = qtyMatch ? parseFloat(qtyMatch[1].replace(/,/g, "")) : null;
-
-  const productMatch = rawText.match(/\b(EBOB|RBOB|Eurobob|Reformate|Naphtha|Isomerate|Alkylate|Gasoline)\b/i);
+  // ── Product ──────────────────────────────────────────────────
+  const productMatch = rawText.match(
+    /\b(EBOB|RBOB|Eurobob(?:\s+Oxy)?|Reformate|Light\s+Naphtha|Naphtha|Isomerate|Alkylate|Gasoline|UNL\s*95|UNL\s*98|RON\s*95|RON\s*98)\b/i
+  );
   const product = productMatch ? productMatch[1] : null;
+  scores.product = product ? 0.88 : 0;
 
-  return {
-    fields: {
-      counterparty: null,
-      direction,
-      product,
-      quantity_mt,
-      incoterm,
-      loadport: null,
-      discharge_port: null,
-      laycan_start: null,
-      laycan_end: null,
-      vessel_name: null,
-      vessel_imo: null,
-      pricing_formula: null,
-      special_instructions: null,
-      external_ref: null,
-    },
-    confidenceScores: {
-      counterparty: 0,
-      direction: direction ? 0.7 : 0,
-      product: product ? 0.8 : 0,
-      quantity_mt: quantity_mt ? 0.85 : 0,
-      incoterm: incoterm ? 0.9 : 0,
-      loadport: 0,
-      discharge_port: 0,
-      laycan_start: 0,
-      laycan_end: 0,
-      vessel_name: 0,
-      vessel_imo: 0,
-      pricing_formula: 0,
-      special_instructions: 0,
-      external_ref: 0,
-    },
-    rawResponse: "demo",
+  // ── Quantity ─────────────────────────────────────────────────
+  let quantity_mt: number | null = null;
+  // "30,000 MT" / "30kt" / "30 KT" / "28,500 metric tonnes"
+  const qtyMT  = rawText.match(/(\d[\d,]+)\s*(?:mt|mts|metric\s*ton(?:ne)?s?)\b/i);
+  const qtyKT  = rawText.match(/(\d+(?:\.\d+)?)\s*kt\b/i);
+  if (qtyMT)      { quantity_mt = parseFloat(qtyMT[1].replace(/,/g, "")); scores.quantity_mt = 0.9; }
+  else if (qtyKT) { quantity_mt = parseFloat(qtyKT[1]) * 1000;            scores.quantity_mt = 0.85; }
+  else             { scores.quantity_mt = 0; }
+
+  // ── Ports ────────────────────────────────────────────────────
+  const PORT_ALIASES: Record<string, string> = {
+    rdam: "Rotterdam", rotterdam: "Rotterdam",
+    ams: "Amsterdam", amsterdam: "Amsterdam",
+    kly: "Klaipeda", klaipeda: "Klaipeda", klapeda: "Klaipeda",
+    antwerp: "Antwerp", anr: "Antwerp",
+    houston: "Houston", ny: "New York", "new york": "New York",
+    singapore: "Singapore", barcelona: "Barcelona",
   };
+
+  function normalisePort(raw: string): string {
+    const key = raw.trim().toLowerCase();
+    return PORT_ALIASES[key] ?? raw.trim();
+  }
+
+  let loadport: string | null = null;
+  let discharge_port: string | null = null;
+
+  // Labelled: "Load Port: X" / "Load: X" / "Loading port: X"
+  const loadLabel = rawText.match(/^(?:Load(?:ing)?(?:\s+Port)?|Loadport)\s*:\s*(.+)$/im);
+  if (loadLabel) { loadport = normalisePort(loadLabel[1].split(",")[0]); scores.loadport = 0.92; }
+
+  // Labelled: "Discharge: X" / "Disch: X" / "Discharge Port: X"
+  const dischLabel = rawText.match(/^(?:Disch(?:arge)?(?:\s+Port)?)\s*:\s*(.+)$/im);
+  if (dischLabel) { discharge_port = normalisePort(dischLabel[1].split(",")[0]); scores.discharge_port = 0.92; }
+
+  // Inline: "FOB Rotterdam" / "CIF New York" — port follows incoterm
+  if (!loadport && incoterm) {
+    const portAfterInco = rawText.match(new RegExp(`\\b${incoterm}\\s+([A-Z][A-Za-z ]+?)(?:[,\\n]|$)`, "i"));
+    if (portAfterInco) {
+      const candidate = portAfterInco[1].trim();
+      // For FOB: incoterm port is the loadport. For CIF/CFR/DAP: it's the discharge.
+      if (incoterm === "FOB" || incoterm === "FCA") {
+        loadport = normalisePort(candidate);
+        scores.loadport = 0.78;
+      } else {
+        discharge_port = normalisePort(candidate);
+        scores.discharge_port = 0.78;
+      }
+    }
+  }
+
+  if (!loadport)       scores.loadport = 0;
+  if (!discharge_port) scores.discharge_port = 0;
+
+  // ── Laycan ───────────────────────────────────────────────────
+  const laycanSection = rawText.match(/Laycan\s*(?:dates?)?\s*[:\s]\s*(.{5,40})/i);
+  let laycan_start: string | null = null;
+  let laycan_end:   string | null = null;
+
+  if (laycanSection) {
+    const { start, end } = parseLaycan(laycanSection[1]);
+    laycan_start = start;
+    laycan_end   = end;
+    scores.laycan_start = start ? 0.85 : 0;
+    scores.laycan_end   = end   ? 0.85 : 0;
+  } else {
+    scores.laycan_start = 0;
+    scores.laycan_end   = 0;
+  }
+
+  // ── Vessel ───────────────────────────────────────────────────
+  let vessel_name: string | null = null;
+  let vessel_imo:  string | null = null;
+
+  const vesselLine = rawText.match(/Vessel\s*:\s*(.+)/i) ?? rawText.match(/\bMT\s+([A-Z][A-Za-z\s]+?)(?:,|\s+IMO|\s*$)/i);
+  if (vesselLine) {
+    const raw = vesselLine[1].trim();
+    // Strip "MT " prefix if present
+    vessel_name = raw.replace(/^MT\s+/i, "").split(/,|\s+IMO/i)[0].trim();
+    scores.vessel_name = 0.88;
+  } else {
+    scores.vessel_name = 0;
+  }
+
+  const imoMatch = rawText.match(/\bIMO\s*[:\s#]?\s*(\d{7,9})\b/i);
+  if (imoMatch) { vessel_imo = imoMatch[1]; scores.vessel_imo = 0.95; }
+  else           { scores.vessel_imo = 0; }
+
+  // ── Pricing ──────────────────────────────────────────────────
+  const priceMatch = rawText.match(
+    /(?:Price|Px|Pricing)\s*:\s*(.{5,80}?)(?:\n|$)/i
+  ) ?? rawText.match(/Platts\s+[A-Z].{5,60}/i);
+  const pricing_formula = priceMatch ? priceMatch[0].trim() : null;
+  scores.pricing_formula = pricing_formula ? 0.8 : 0;
+
+  // ── External ref ─────────────────────────────────────────────
+  const refMatch = rawText.match(/\b(?:Ref|Deal\s+ref|Recap\s+ref)\s*[:#]?\s*([A-Z0-9][-A-Z0-9]{3,20})\b/i);
+  const external_ref = refMatch ? refMatch[1] : null;
+  scores.external_ref = external_ref ? 0.9 : 0;
+
+  // ── Special instructions ─────────────────────────────────────
+  const specialMatch = rawText.match(/(?:Note|Special|Instructions?)\s*:\s*(.{10,200})/i);
+  const special_instructions = specialMatch ? specialMatch[1].trim() : null;
+  scores.special_instructions = special_instructions ? 0.75 : 0;
+
+  const fields: ParsedDealFields = {
+    counterparty, direction, product, quantity_mt, incoterm,
+    loadport, discharge_port, laycan_start, laycan_end,
+    vessel_name, vessel_imo, pricing_formula, special_instructions, external_ref,
+  };
+
+  const confidenceScores = Object.fromEntries(
+    (Object.keys(fields) as (keyof ParsedDealFields)[]).map((k) => [k, scores[k] ?? 0])
+  ) as Record<keyof ParsedDealFields, number>;
+
+  return { fields, confidenceScores, rawResponse: "rule-based" };
 }
