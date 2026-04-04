@@ -203,14 +203,8 @@ function LinkageCard({ linkage }: { linkage: Linkage }) {
           </div>
         ) : null}
 
-        {/* Standalone sell (no buys) */}
-        {linkage.buys.length === 0 && linkage.sells.length > 0 && (
-          <div className="p-1">
-            {linkage.sells.map((d) => (
-              <DealSide key={d.id} deal={d} side="sell" />
-            ))}
-          </div>
-        )}
+        {/* Standalone sell: only rendered if no buys AND sells weren't already shown above */}
+        {/* (Removed: was causing duplicate rendering — the sell block at line 188 handles all cases) */}
       </div>
     </Card>
   );
