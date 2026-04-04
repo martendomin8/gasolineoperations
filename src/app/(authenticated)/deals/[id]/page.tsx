@@ -428,6 +428,7 @@ function WorkflowStepCard({ step, onAction, isOperator, loadport, dischargePort 
 
           {isOperator && !isBlocked && (
             <div className="flex items-center gap-1">
+              {/* READY: Draft (if has template) → primary action */}
               {(step.status === "ready" || step.status === "needs_update") && step.emailTemplateId && (
                 <Button
                   variant="secondary"
@@ -440,7 +441,8 @@ function WorkflowStepCard({ step, onAction, isOperator, loadport, dischargePort 
                   Draft
                 </Button>
               )}
-              {(step.status === "ready" || step.status === "draft_generated") && (
+              {/* DRAFT_GENERATED: Sent → primary action (operator copied to Outlook) */}
+              {step.status === "draft_generated" && (
                 <Button
                   variant="primary"
                   size="sm"
@@ -451,6 +453,7 @@ function WorkflowStepCard({ step, onAction, isOperator, loadport, dischargePort 
                   Sent
                 </Button>
               )}
+              {/* SENT + EXTERNAL WAIT: Received → awaiting counterparty response */}
               {step.status === "sent" && step.isExternalWait && (
                 <Button
                   variant="secondary"
@@ -462,6 +465,7 @@ function WorkflowStepCard({ step, onAction, isOperator, loadport, dischargePort 
                   Received
                 </Button>
               )}
+              {/* NEEDS_UPDATE: Re-sent → after operator re-sent updated email */}
               {step.status === "needs_update" && step.emailDraft && (
                 <Button
                   variant="primary"
@@ -473,39 +477,27 @@ function WorkflowStepCard({ step, onAction, isOperator, loadport, dischargePort 
                   Re-sent
                 </Button>
               )}
-              {(step.status === "ready" || step.status === "draft_generated" || step.status === "sent") && (
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => handleAction("mark_done")}
-                  disabled={loading}
-                >
-                  <CheckCircle2 className="h-3 w-3" />
-                  Done
-                </Button>
-              )}
+              {/* N/A: only on ready/pending steps — small, ghost */}
               {(step.status === "ready" || step.status === "pending") && (
-                <Button
-                  variant="ghost"
-                  size="sm"
+                <button
                   onClick={() => handleAction("mark_na")}
                   disabled={loading}
+                  title="Not applicable for this deal"
+                  className="text-[0.625rem] font-mono px-1.5 py-1 rounded text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-3)] transition-colors disabled:opacity-50"
                 >
-                  <XCircle className="h-3 w-3" />
                   N/A
-                </Button>
+                </button>
               )}
-              {step.status !== "cancelled" && step.status !== "done" && step.status !== "na" && (
-                <Button
-                  variant="ghost"
-                  size="sm"
+              {/* Cancel: icon-only, on any non-terminal step */}
+              {step.status !== "cancelled" && step.status !== "done" && step.status !== "na" && step.status !== "acknowledged" && step.status !== "received" && (
+                <button
                   onClick={() => handleAction("mark_cancelled")}
                   disabled={loading}
-                  className="!text-[var(--color-danger)] hover:!bg-[var(--color-danger-muted,#3d1515)]"
+                  title="Cancel this step"
+                  className="p-1 rounded text-[var(--color-text-tertiary)] hover:text-[var(--color-danger)] hover:bg-[var(--color-danger-muted,#3d1515)] transition-colors disabled:opacity-50"
                 >
                   <X className="h-3 w-3" />
-                  Cancel
-                </Button>
+                </button>
               )}
             </div>
           )}
@@ -753,13 +745,16 @@ function WorkflowSection({ dealId, dealStatus, isOperator, loadport, dischargePo
         toast.success("Draft generated — review before sending");
       }
       if (action === "mark_sent") {
-        if (data.emailMode === "sent") {
-          toast.success("Email sent", { description: "Delivered via Resend" });
-        } else if (data.emailMode === "demo") {
-          toast.success("Email logged (demo mode)", { description: "Set RESEND_API_KEY to send real emails" });
-        } else {
-          toast.info("Step marked sent — no draft to send");
-        }
+        toast.success("Marked as sent");
+      }
+      if (action === "mark_done") {
+        toast.success("Step completed");
+      }
+      if (action === "mark_cancelled") {
+        toast.info("Step cancelled");
+      }
+      if (action === "mark_na") {
+        toast.info("Marked as N/A");
       }
 
       await fetchWorkflow();
