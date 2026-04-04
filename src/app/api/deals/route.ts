@@ -3,7 +3,7 @@ import { withAuth } from "@/lib/middleware/with-auth";
 import { withTenantDb } from "@/lib/db";
 import { deals, auditLogs, users } from "@/lib/db/schema";
 import { createDealSchema, dealFilterSchema } from "@/lib/types/deal";
-import { eq, and, ilike, or, desc, sql, notInArray } from "drizzle-orm";
+import { eq, and, ilike, or, desc, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 
 // GET /api/deals — Paginated deal list
@@ -103,6 +103,9 @@ export const GET = withAuth(async (req, _ctx, session) => {
     };
   });
 
+  if (!result) {
+    return NextResponse.json({ error: "Failed to fetch deals" }, { status: 500 });
+  }
   return NextResponse.json(result);
 });
 

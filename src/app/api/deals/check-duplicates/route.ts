@@ -10,7 +10,7 @@ const checkDuplicatesSchema = z.object({
   direction: z.enum(["buy", "sell"]),
   product: z.string().min(1),
   quantityMt: z.coerce.number().positive(),
-  laycanStart: z.string(),
+  laycanStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD"),
   loadport: z.string(),
   dischargePort: z.string().nullable().optional(),
   excludeDealId: z.string().uuid().optional(),
