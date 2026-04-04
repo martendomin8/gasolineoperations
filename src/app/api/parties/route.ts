@@ -68,7 +68,8 @@ export const GET = withAuth(async (req, _ctx, session) => {
       .where(and(...conditions))
       .orderBy(parties.type, parties.name);
 
-    return { matched: all, rest: [] };
+    // No port filter: return flat array for backward compatibility (parties list page)
+    return all;
   });
 
   return NextResponse.json(result);
