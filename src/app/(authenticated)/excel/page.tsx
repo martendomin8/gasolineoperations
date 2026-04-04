@@ -72,7 +72,7 @@ function formatLaycan(deal: DealRow): string {
   const startDay = start.getDate().toString().padStart(2, "0");
   const endDay = end.getDate().toString().padStart(2, "0");
   const month = months[start.getMonth()];
-  return `${dir}(${deal.incoterm} ${deal.loadport.toUpperCase()} ${startDay}-${endDay} ${month})`;
+  return `${dir}(${deal.incoterm} ${(deal.loadport || "TBD").toUpperCase()} ${startDay}-${endDay} ${month})`;
 }
 
 function formatPricing(deal: DealRow): string {
@@ -183,7 +183,7 @@ export default function ExcelPage() {
         setDeals(data.items ?? []);
         setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch((err) => { console.error("Excel page fetch failed:", err); setLoading(false); });
   }, []);
 
   const ongoing = deals.filter((d) => d.status !== "completed" && d.status !== "cancelled");
