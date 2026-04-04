@@ -22,9 +22,19 @@ async function seed() {
   console.log("  Done.\n");
 
   // --- Tenant ---
+  // Fixed UUIDs so JWT sessions survive re-seeds
+  const FIXED_TENANT_ID = "00000000-0000-4000-8000-000000000001";
+  const FIXED_USER_IDS = {
+    admin:     "00000000-0000-4000-8000-000000000010",
+    operator1: "00000000-0000-4000-8000-000000000011",
+    operator2: "00000000-0000-4000-8000-000000000012",
+    trader:    "00000000-0000-4000-8000-000000000013",
+  };
+
   const [tenant] = await db
     .insert(schema.tenants)
     .values({
+      id: FIXED_TENANT_ID,
       name: "EuroGas Trading BV",
       settings: { defaultTimezone: "Europe/Amsterdam", currency: "USD" },
     })
@@ -35,10 +45,10 @@ async function seed() {
   const passwordHash = await bcrypt.hash("password123", 10);
 
   const usersData = [
-    { email: "admin@eurogas.com", name: "Pieter van Dijk", role: "admin" as const },
-    { email: "operator@eurogas.com", name: "Marta Kask", role: "operator" as const },
-    { email: "operator2@eurogas.com", name: "Jan Hendriks", role: "operator" as const },
-    { email: "trader@eurogas.com", name: "Thomas Berg", role: "trader" as const },
+    { id: FIXED_USER_IDS.admin, email: "admin@eurogas.com", name: "Pieter van Dijk", role: "admin" as const },
+    { id: FIXED_USER_IDS.operator1, email: "operator@eurogas.com", name: "Marta Kask", role: "operator" as const },
+    { id: FIXED_USER_IDS.operator2, email: "operator2@eurogas.com", name: "Jan Hendriks", role: "operator" as const },
+    { id: FIXED_USER_IDS.trader, email: "trader@eurogas.com", name: "Thomas Berg", role: "trader" as const },
   ];
 
   const createdUsers = [];
@@ -46,6 +56,7 @@ async function seed() {
     const [user] = await db
       .insert(schema.users)
       .values({
+        id: u.id,
         tenantId: tenant.id,
         email: u.email,
         name: u.name,
