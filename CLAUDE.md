@@ -24,9 +24,9 @@ The operations team takes over after a trader executes a deal. They do NOT trade
 
 1. **Trader sends a deal recap** via free-text email (always English, always email). Contains: counterparty, direction, product, quantity (+/- tolerance), laycan, ports, incoterm, pricing terms.
 
-2. **Operator drags & drops the email** (.eml, .msg, or .docx) into the program. AI parses the content into structured data. Operator confirms before any data is written.
+2. **Operator drags & drops the email** (.eml, .msg, or .docx) into the program. Deal details may also be in email attachments (PDF, Word) — AI must parse attachments too. AI parses the content into structured data. Operator confirms before any data is written.
 
-3. **System checks for duplicates** — matching on counterparty, quantity, pricing, product, and laycan. Shows comparison if similar deals found. Operator decides: new deal, update, or skip.
+3. **System checks for duplicates** — matching on counterparty, quantity, pricing, product, and laycan. Shows a **three-option popup**: (1) AI suggestion — shows which existing deal/linkage matches, operator confirms. (2) Manual selection — dropdown where operator picks an existing linkage themselves. (3) New deal — create from scratch.
 
 4. **Operator enters linkage code** (from tradehouse system, e.g. `086412GSS`) and reference code (e.g. `GP54124`). These are NOT in the recap — they come from external systems.
 
@@ -101,8 +101,8 @@ All deals sharing a linkage code (e.g. `086412GSS`) are part of the same cargo c
 | Pattern | Example |
 |---------|---------|
 | 1 purchase → 1 sale | Buy 37kt, sell all to one buyer |
-| 1 purchase → N sales (part cargo) | Buy 37kt, sell 5kt to A, balance BL to B |
-| 1 purchase → N sales + balance to own terminal | Sell 7kt to A, 11kt to B, balance to Amsterdam |
+| 1 purchase → N sales (part cargo) | Buy 37kt, sell 5kt to A, balance to B |
+| 1 purchase → N sales + balance to own terminal | Sell 7kt to A, 11kt to B, balance (~19kt) to Amsterdam |
 | N purchases → 1 sale | Buy from 2 sources, blend, sell combined |
 
 ### Cascade Effects
@@ -131,7 +131,7 @@ Vessel change triggers cascade: all clearances re-sent, all nominations updated,
 
 ### On-Premise Deployment Support
 
-Commodity trading firms will NOT put operational data in third-party cloud. The platform must support on-premise deployment: firm downloads and runs on their own servers. AI parsing must work within their network — the AI provider must be swappable per deployment.
+Commodity trading firms will NOT put operational data in third-party cloud. The platform must support on-premise deployment: firm downloads and runs on their own servers. AI parsing must also run on the firm's own infrastructure — each client uses their own approved AI tool (e.g. Copilot, Cowork, Azure OpenAI). Parsing must never route through our servers. The AI provider must be swappable per deployment.
 
 ### Tech Stack
 
@@ -237,7 +237,7 @@ The workflow engine uses **soft dependencies, not hard blocks**:
 
 The operators' current Excel file ("GASOLINE VESSELS LIST") has two sheets:
 - **ONGOING**: Active deals in PURCHASE, SALE, and PURCHASE+SALE (linked) sections
-- **COMPLETED**: Finished deals moved here
+- **COMPLETED**: Operator manually marks a deal as completed. Completed deals disappear from all active views (linkage tracking, task queue, dashboard) but remain in the database for audit trail
 
 The program reads from and writes status updates to this Excel. Some columns are operator-managed (COA to Traders, Outturn, Freight invoice, INVOICE TO CP) — the program must NEVER overwrite these.
 
@@ -254,7 +254,7 @@ When any deal field is updated:
 Abstract interface (`parseRecap()`) with swappable providers:
 
 ```
-Input: Free-text email (.eml, .msg, .docx, or pasted text)
+Input: Free-text email (.eml, .msg, .docx, or pasted text) + attachments (PDF, Word)
 Output: {
   counterparty, direction, product, quantity (with tolerance),
   incoterm, loadport, discharge_port, laycan_start, laycan_end,
@@ -289,10 +289,12 @@ When the operator opens a cargo chain, the screen is divided into three sections
 - Workflow steps for the buy side
 
 ### Right Section — Sell Side
-- **"+" button always visible** at bottom — add sale or discharge to own terminal
-- Each sale block: counterparty, qty, destination, workflow steps
-- Own terminal block: selected terminal, discharge logistics steps
-- Each block independent and collapsible
+- **"+" button always visible** at bottom with two options:
+  - **"Add sale"** — creates a new sale deal block (counterparty, qty, destination, full sell-side workflow)
+  - **"Discharge to own terminal"** — operator selects from company's own terminal list (Amsterdam, Klaipeda, Antwerp). Creates a discharge block with: terminal nomination + agent nomination + inspector nomination. No counterparty, no doc instructions — just discharge logistics.
+- Each block is independent and collapsible
+- If the operator later sells the remaining balance, the own terminal block is CANCELLED (cancellation emails generated) and replaced with a new sale block
+- Balance = total purchased qty minus all sold quantities. Always an approximation until outturn report (e.g. buy 37kt, sell 7kt + 11kt → balance ~19kt)
 
 ---
 

@@ -73,7 +73,9 @@ Manages operations function. Configures templates, onboards operators, oversees 
 
 **AI-4**: Operator ALWAYS confirms before any data is written. AI never auto-creates or auto-modifies deals.
 
-**AI-5**: AI provider is behind abstract `parseRecap()` interface. V1: Anthropic Claude API. Architecture allows swapping to Azure OpenAI, AWS Bedrock, or local models per deployment.
+**AI-5**: AI provider is behind abstract `parseRecap()` interface. V1: Anthropic Claude API. Each client firm uses their own approved AI tool (e.g. Copilot, Cowork, Azure OpenAI) — parsing must run on the firm's infrastructure, not ours.
+
+**AI-5b**: Deal details may be in email attachments (PDF, Word). AI must parse attachments too, not just the email body text.
 
 **AI-6**: CP Recap parsing uses the same drag & drop → parse → confirm flow. Parsed data feeds into voyage orders.
 
@@ -83,7 +85,7 @@ Manages operations function. Configures templates, onboards operators, oversees 
 
 **DD-1**: After parsing, system checks existing deals. Match on: counterparty, quantity, pricing, product, laycan.
 
-**DD-2**: Three outcomes: No match → "New deal — add?" / Exact match → show existing / Similar → show comparison, operator decides (same counterparty + product + similar qty with different dates can be genuinely different deals).
+**DD-2**: Three-option popup: (1) **AI suggestion** — shows which existing deal/linkage matches, operator confirms. (2) **Manual selection** — dropdown where operator picks an existing linkage themselves. (3) **New deal** — create from scratch.
 
 ### 4.3 Deal Management
 
@@ -99,7 +101,7 @@ Manages operations function. Configures templates, onboards operators, oversees 
 
 **DM-6**: Pricing split: `pricing_type` (BL or NOR), `pricing_formula` (day-range notation, e.g. "0-0-5"), `pricing_estimated_date`. Display prominently — critical for hedge timing.
 
-**DM-7**: Status state machine: `draft → active → loading → sailing → discharging → completed → cancelled`.
+**DM-7**: Status state machine: `draft → active → loading → sailing → discharging → completed → cancelled`. Completed deals disappear from active views (linkage tracking, task queue, dashboard) but remain in database for audit trail. Operator manually marks a deal as completed.
 
 **DM-8**: Deal fields editable. Changes logged to `dealChangeLogs`. Re-notification flagging on affected steps.
 
@@ -109,7 +111,7 @@ Manages operations function. Configures templates, onboards operators, oversees 
 
 **LC-2**: Supports 1:1, 1:N, N:1, and mixed linking patterns. Part cargo with balance to own terminal.
 
-**LC-3**: Qty tracking per linkage: total purchased, total sold, remaining balance. "Balance BL" = remainder after sales (exact number known only after outturn).
+**LC-3**: Qty tracking per linkage: total purchased, total sold, remaining balance. Balance = total purchased qty minus all sold quantities (e.g. buy 37kt, sell 7kt + 11kt → balance ~19kt). Balance is always an approximation.
 
 **LC-4**: Cascade detection: when any deal field changes, query all linked deals + all emails that used that field → flag for re-notification.
 
@@ -211,9 +213,9 @@ Manages operations function. Configures templates, onboards operators, oversees 
 
 **UI-2**: Left section — Buy side (purchase deals with workflow steps).
 
-**UI-3**: Right section — Sell side with "+" button always visible. Add sale deal OR discharge to own terminal.
+**UI-3**: Right section — Sell side with **"+" button always visible**. Two options: (1) **"Add sale"** — new sale deal block with counterparty, qty, destination, full workflow. (2) **"Discharge to own terminal"** — operator selects from company terminal list. Creates block with terminal nomination + agent nomination + inspector nomination only (no counterparty, no doc instructions).
 
-**UI-4**: Each sell block is independent: sale (counterparty + destination + workflow) or own-terminal (selected terminal + discharge logistics).
+**UI-4**: Each sell block is independent and collapsible. If operator later sells the remaining balance, own terminal block → CANCELLED (cancellation emails generated) and replaced with a new sale block.
 
 **UI-5**: Part cargo example: Vitol sale (7kt, Barcelona) + own terminal (balance, Amsterdam). Each with independent steps.
 
