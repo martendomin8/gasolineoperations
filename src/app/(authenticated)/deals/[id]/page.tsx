@@ -428,7 +428,7 @@ function WorkflowStepCard({ step, onAction, isOperator, loadport, dischargePort 
 
           {isOperator && !isBlocked && (
             <div className="flex items-center gap-1">
-              {/* READY: Draft (if has template) → primary action */}
+              {/* READY / NEEDS_UPDATE: Draft button (primary action) */}
               {(step.status === "ready" || step.status === "needs_update") && step.emailTemplateId && (
                 <Button
                   variant="secondary"
@@ -441,7 +441,7 @@ function WorkflowStepCard({ step, onAction, isOperator, loadport, dischargePort 
                   Draft
                 </Button>
               )}
-              {/* DRAFT_GENERATED: Sent → primary action (operator copied to Outlook) */}
+              {/* DRAFT_GENERATED: Sent (operator copied to Outlook) */}
               {step.status === "draft_generated" && (
                 <Button
                   variant="primary"
@@ -453,7 +453,7 @@ function WorkflowStepCard({ step, onAction, isOperator, loadport, dischargePort 
                   Sent
                 </Button>
               )}
-              {/* SENT + EXTERNAL WAIT: Received → awaiting counterparty response */}
+              {/* SENT + EXTERNAL WAIT: Received */}
               {step.status === "sent" && step.isExternalWait && (
                 <Button
                   variant="secondary"
@@ -465,7 +465,7 @@ function WorkflowStepCard({ step, onAction, isOperator, loadport, dischargePort 
                   Received
                 </Button>
               )}
-              {/* NEEDS_UPDATE: Re-sent → after operator re-sent updated email */}
+              {/* NEEDS_UPDATE with existing draft: Re-sent */}
               {step.status === "needs_update" && step.emailDraft && (
                 <Button
                   variant="primary"
@@ -476,28 +476,6 @@ function WorkflowStepCard({ step, onAction, isOperator, loadport, dischargePort 
                   <RefreshCw className="h-3 w-3" />
                   Re-sent
                 </Button>
-              )}
-              {/* N/A: only on ready/pending steps — small, ghost */}
-              {(step.status === "ready" || step.status === "pending") && (
-                <button
-                  onClick={() => handleAction("mark_na")}
-                  disabled={loading}
-                  title="Not applicable for this deal"
-                  className="text-[0.625rem] font-mono px-1.5 py-1 rounded text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-3)] transition-colors disabled:opacity-50"
-                >
-                  N/A
-                </button>
-              )}
-              {/* Cancel: icon-only, on any non-terminal step */}
-              {step.status !== "cancelled" && step.status !== "done" && step.status !== "na" && step.status !== "acknowledged" && step.status !== "received" && (
-                <button
-                  onClick={() => handleAction("mark_cancelled")}
-                  disabled={loading}
-                  title="Cancel this step"
-                  className="p-1 rounded text-[var(--color-text-tertiary)] hover:text-[var(--color-danger)] hover:bg-[var(--color-danger-muted,#3d1515)] transition-colors disabled:opacity-50"
-                >
-                  <X className="h-3 w-3" />
-                </button>
               )}
             </div>
           )}
@@ -675,6 +653,30 @@ function WorkflowStepCard({ step, onAction, isOperator, loadport, dischargePort 
                   <p className="text-xs text-[var(--color-success)]">Draft saved.</p>
                 )}
               </div>
+            </div>
+          )}
+
+          {/* Secondary actions: N/A + Cancel — only in expanded view */}
+          {isOperator && (
+            <div className="flex items-center gap-2 pt-1 border-t border-[var(--color-border-subtle)]">
+              {(step.status === "ready" || step.status === "pending") && (
+                <button
+                  onClick={() => handleAction("mark_na")}
+                  disabled={loading}
+                  className="text-[0.625rem] font-mono px-2 py-1 rounded text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-3)] transition-colors disabled:opacity-50"
+                >
+                  Mark as N/A
+                </button>
+              )}
+              {step.status !== "cancelled" && step.status !== "done" && step.status !== "na" && step.status !== "acknowledged" && step.status !== "received" && (
+                <button
+                  onClick={() => handleAction("mark_cancelled")}
+                  disabled={loading}
+                  className="text-[0.625rem] font-mono px-2 py-1 rounded text-[var(--color-danger)] hover:bg-[var(--color-danger-muted,#3d1515)] transition-colors disabled:opacity-50"
+                >
+                  Cancel step
+                </button>
+              )}
             </div>
           )}
         </div>
