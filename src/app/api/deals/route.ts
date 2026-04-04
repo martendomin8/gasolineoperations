@@ -25,11 +25,9 @@ export const GET = withAuth(async (req, _ctx, session) => {
 
     if (filters.status) {
       conditions.push(eq(deals.status, filters.status));
-    } else if (!filters.linkageCode) {
-      // By default, exclude completed and cancelled deals from the listing
-      // (but show all statuses when fetching linked deals by linkageCode)
-      conditions.push(notInArray(deals.status, ["completed", "cancelled"]));
     }
+    // Note: completed/cancelled deals are hidden from dashboard + task queue,
+    // NOT from the deals list. The deals list shows all statuses by default.
     if (filters.direction) conditions.push(eq(deals.direction, filters.direction));
     if (filters.incoterm) conditions.push(eq(deals.incoterm, filters.incoterm));
     if (filters.linkageCode)
