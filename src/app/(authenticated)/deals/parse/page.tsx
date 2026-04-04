@@ -513,7 +513,7 @@ export default function ParseDealPage() {
     quantityMt: fields.quantity_mt ? Number(fields.quantity_mt) : undefined,
     incoterm: fields.incoterm || undefined,
     loadport: fields.loadport || undefined,
-    dischargePort: fields.discharge_port || undefined,
+    dischargePort: fields.discharge_port || null,
     laycanStart: fields.laycan_start || undefined,
     laycanEnd: fields.laycan_end || undefined,
     vesselName: fields.vessel_name || null,
@@ -557,7 +557,7 @@ export default function ParseDealPage() {
           quantityMt: payload.quantityMt ?? 0,
           laycanStart: payload.laycanStart ?? "",
           loadport: payload.loadport ?? "",
-          dischargePort: payload.dischargePort ?? "",
+          dischargePort: payload.dischargePort ?? null,
         }),
       });
 

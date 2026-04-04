@@ -11,6 +11,57 @@ const importPayloadSchema = z.object({
   mapping: z.record(z.string(), z.string()),
 });
 
+/**
+ * Parse P(FOB ALIAGA 10-15 APR) or S(CIF AMSTERDAM 1-5 MAY 2026) format.
+ * Extracts direction, incoterm, loadport, laycan dates.
+ */
+function parseLaycanCell(value: string): Record<string, string> | null {
+  const match = value.match(
+    /^([PS])\s*\(\s*(\w+)\s+(.+?)\s+(\d{1,2})\s*-\s*(\d{1,2})\s+(\w+)(?:\s+(\d{4}))?\s*\)/i
+  );
+  if (!match) {
+    // Simpler: just P or S direction
+    const dirMatch = value.match(/^([PS])\s*\(/i);
+    if (dirMatch) {
+      return { direction: dirMatch[1].toUpperCase() === "P" ? "buy" : "sell" };
+    }
+    return null;
+  }
+
+  const [, dir, incoterm, port, dayStart, dayEnd, monthStr, yearStr] = match;
+  const direction = dir.toUpperCase() === "P" ? "buy" : "sell";
+
+  const months: Record<string, string> = {
+    JAN: "01", FEB: "02", MAR: "03", APR: "04", MAY: "05", JUN: "06",
+    JUL: "07", AUG: "08", SEP: "09", OCT: "10", NOV: "11", DEC: "12",
+  };
+  const month = months[monthStr.toUpperCase()] ?? "01";
+  const year = yearStr ?? new Date().getFullYear().toString();
+  const startDay = dayStart.padStart(2, "0");
+  const endDay = dayEnd.padStart(2, "0");
+
+  return {
+    direction,
+    incoterm: incoterm.toUpperCase(),
+    loadport: port.charAt(0).toUpperCase() + port.slice(1).toLowerCase(),
+    laycanStart: `${year}-${month}-${startDay}`,
+    laycanEnd: `${year}-${month}-${endDay}`,
+  };
+}
+
+/**
+ * Parse B/L figures like "37000MT +/-10%" or "37,000 MT" → numeric quantity string.
+ */
+function parseBlFigures(value: string): string | null {
+  const cleaned = String(value).replace(/,/g, "").replace(/\s/g, "");
+  const match = cleaned.match(/([\d.]+)\s*(?:MT|mt)?/);
+  if (match) {
+    const num = parseFloat(match[1]);
+    if (!isNaN(num) && num > 0) return String(num);
+  }
+  return null;
+}
+
 // POST /api/import — Parse, validate, and deduplicate imported rows
 export const POST = withAuth(
   async (req, _ctx, session) => {
@@ -23,10 +74,30 @@ export const POST = withAuth(
 
     for (let i = 0; i < rows.length; i++) {
       const raw = rows[i];
-      // Map columns
+      // Map columns — handle virtual fields (_laycanCell, _blFigures)
       const mapped: Record<string, unknown> = {};
       for (const [excelCol, dealField] of Object.entries(mapping)) {
-        if (dealField && raw[excelCol] !== undefined) {
+        if (!dealField || raw[excelCol] === undefined) continue;
+
+        const cellValue = String(raw[excelCol] ?? "").trim();
+        if (!cellValue) continue;
+
+        if (dealField === "_laycanCell") {
+          // Parse P(FOB ALIAGA 10-15 APR) format into multiple fields
+          const parsed = parseLaycanCell(cellValue);
+          if (parsed) {
+            // Only set fields that aren't already mapped by other columns
+            for (const [k, v] of Object.entries(parsed)) {
+              if (!mapped[k]) mapped[k] = v;
+            }
+          }
+        } else if (dealField === "_blFigures") {
+          // Parse "37000MT +/-10%" → quantityMt + contractedQty
+          const qty = parseBlFigures(cellValue);
+          if (qty && !mapped["quantityMt"]) mapped["quantityMt"] = qty;
+          // Store the original text as contractedQty (preserves tolerance info)
+          if (!mapped["contractedQty"]) mapped["contractedQty"] = cellValue;
+        } else {
           mapped[dealField] = raw[excelCol];
         }
       }

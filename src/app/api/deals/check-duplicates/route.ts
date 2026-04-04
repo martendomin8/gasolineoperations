@@ -12,7 +12,7 @@ const checkDuplicatesSchema = z.object({
   quantityMt: z.coerce.number().positive(),
   laycanStart: z.string(),
   loadport: z.string(),
-  dischargePort: z.string(),
+  dischargePort: z.string().nullable().optional(),
   excludeDealId: z.string().uuid().optional(),
 });
 
@@ -32,7 +32,9 @@ export const POST = withAuth(async (req, _ctx, session) => {
       // Quantity within ±10%
       sql`ABS(${deals.quantityMt}::numeric - ${input.quantityMt}) / GREATEST(${deals.quantityMt}::numeric, 1) <= 0.1`,
       // Port match (either loadport or discharge port)
-      sql`(${ilike(deals.loadport, `%${input.loadport}%`)} OR ${ilike(deals.dischargePort, `%${input.dischargePort}%`)})`,
+      input.dischargePort
+        ? sql`(${ilike(deals.loadport, `%${input.loadport}%`)} OR ${ilike(deals.dischargePort, `%${input.dischargePort}%`)})`
+        : ilike(deals.loadport, `%${input.loadport}%`),
     ];
 
     if (input.excludeDealId) {

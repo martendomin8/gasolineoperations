@@ -402,7 +402,9 @@ export function parseDealDemo(rawText: string): ParsedDealResult {
     // Strip "MT " prefix if present
     const candidateName = rawVessel.replace(/^MT\s+/i, "").split(/,|\s+IMO/i)[0].trim();
     // "TBN" / "TBA" / "TBD" means no vessel yet
-    if (/^TB[NADC]$/i.test(candidateName)) {
+    // Also filter out descriptive text that isn't a real vessel name
+    const NON_VESSEL_PHRASES = /\b(nominated|to be|TBD|TBA|TBN|TBC|not yet|pending|within|days?|before|after)\b/i;
+    if (/^TB[NADC]$/i.test(candidateName) || NON_VESSEL_PHRASES.test(candidateName) || candidateName.length > 30) {
       vessel_name = null;
       scores.vessel_name = 0;
     } else {

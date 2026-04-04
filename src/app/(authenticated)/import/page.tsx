@@ -25,6 +25,7 @@ const DEAL_FIELDS = [
   { value: "direction", label: "Direction (buy/sell) *" },
   { value: "product", label: "Product *" },
   { value: "quantityMt", label: "Quantity (MT) *" },
+  { value: "contractedQty", label: "Contracted Qty (e.g. 37000MT +/-10%)" },
   { value: "incoterm", label: "Incoterm *" },
   { value: "loadport", label: "Loadport *" },
   { value: "dischargePort", label: "Discharge Port *" },
@@ -33,16 +34,20 @@ const DEAL_FIELDS = [
   { value: "vesselName", label: "Vessel Name" },
   { value: "vesselImo", label: "Vessel IMO" },
   { value: "externalRef", label: "External Reference" },
+  { value: "linkageCode", label: "Linkage Code" },
   { value: "pricingFormula", label: "Pricing Formula" },
   { value: "specialInstructions", label: "Special Instructions" },
+  { value: "_laycanCell", label: "Laycan Cell (auto-parse P/S(...))" },
+  { value: "_blFigures", label: "B/L Figures (auto-parse qty)" },
 ];
 
-// Auto-mapping hints
+// Auto-mapping hints (by column header name)
 const AUTO_MAP: Record<string, string> = {
   counterparty: "counterparty", cpty: "counterparty", "counter party": "counterparty",
   direction: "direction", "buy/sell": "direction", "b/s": "direction",
   product: "product", grade: "product",
   quantity: "quantityMt", qty: "quantityMt", "quantity_mt": "quantityMt", mt: "quantityMt",
+  "b/l figures": "_blFigures", "bl figures": "_blFigures",
   incoterm: "incoterm", terms: "incoterm",
   loadport: "loadport", "load port": "loadport", "loading port": "loadport",
   "discharge port": "dischargePort", dischargeport: "dischargePort", "disch port": "dischargePort",
@@ -51,7 +56,105 @@ const AUTO_MAP: Record<string, string> = {
   vessel: "vesselName", "vessel name": "vesselName", "m/v": "vesselName",
   imo: "vesselImo", "vessel imo": "vesselImo",
   ref: "externalRef", reference: "externalRef", "external ref": "externalRef",
+  linkage: "linkageCode", "linkage code": "linkageCode",
+  pricing: "pricingFormula",
 };
+
+
+/**
+ * Detect the GASOLINE VESSELS LIST format.
+ * This Excel has "PURCHASE" as the first column header, with real headers
+ * like P(LAYCAN), Counterparty, Vessel etc. in row 2+ data.
+ * Columns show as __EMPTY, __EMPTY_1, etc.
+ */
+function isGasolineVesselsList(headers: string[], rows: Record<string, unknown>[]): boolean {
+  const first = headers[0]?.toUpperCase() ?? "";
+  if (first === "PURCHASE" || first === "SALE") return true;
+  // Check if any cell in the first few rows matches the P(...) or S(...) pattern
+  for (let i = 0; i < Math.min(5, rows.length); i++) {
+    const val = String(rows[i]?.[headers[0]] ?? "");
+    if (/^[PS]\s*\(/.test(val)) return true;
+  }
+  return false;
+}
+
+/**
+ * Pre-process GASOLINE VESSELS LIST rows:
+ * - Filter out section headers (SALE, PURCHASE rows), empty rows, and sub-headers
+ * - Tag each row with direction from the P/S cell
+ */
+function preprocessGasolineRows(
+  headers: string[],
+  rows: Record<string, unknown>[]
+): Record<string, unknown>[] {
+  const firstCol = headers[0];
+  const filtered: Record<string, unknown>[] = [];
+
+  for (const row of rows) {
+    const cell0 = String(row[firstCol] ?? "").trim();
+
+    // Skip empty rows
+    if (!cell0 && !row[headers[1]]) continue;
+
+    // Skip section label rows ("SALE", "PURCHASE", or header rows like "S(LAYCAN)")
+    const upper = cell0.toUpperCase();
+    if (upper === "SALE" || upper === "PURCHASE" || upper === "PURCHASE + SALE") continue;
+    if (upper.startsWith("P(LAYCAN") || upper.startsWith("S(LAYCAN")) continue;
+
+    // Skip rows where the first cell doesn't match the P/S(...) data pattern
+    // and has no counterparty — these are likely sub-headers or totals
+    if (!/^[PS]\s*\(/i.test(cell0) && !row[headers[1]]) continue;
+
+    filtered.push(row);
+  }
+
+  return filtered;
+}
+
+/**
+ * Build auto-mapping for GASOLINE VESSELS LIST format using example data from rows.
+ */
+function buildGasolineAutoMapping(
+  headers: string[],
+  rows: Record<string, unknown>[]
+): Record<string, string> {
+  const autoMapping: Record<string, string> = {};
+
+  // First column is always the laycan cell (P/S(...))
+  autoMapping[headers[0]] = "_laycanCell";
+
+  // For __EMPTY columns, try to infer from the first data row's content
+  // or from known positional patterns in the gasoline vessels list
+  const POSITIONAL_MAP: Record<number, string> = {
+    1: "counterparty",    // __EMPTY → Counterparty
+    2: "vesselName",      // __EMPTY_1 → Vessel
+    3: "linkageCode",     // __EMPTY_2 → Linkage
+    4: "externalRef",     // __EMPTY_3 → Reference
+    // 5: OPS (operator name) — skip, not a deal field
+    6: "pricingFormula",  // __EMPTY_5 → PRICING
+    7: "_blFigures",      // __EMPTY_6 → B/L FIGURES
+  };
+
+  for (let i = 1; i < headers.length; i++) {
+    const header = headers[i];
+    const normalized = header.toLowerCase().trim();
+
+    // First try normal auto-map by header name
+    if (AUTO_MAP[normalized]) {
+      autoMapping[header] = AUTO_MAP[normalized];
+      continue;
+    }
+
+    // For __EMPTY columns, use positional mapping
+    if (header.startsWith("__EMPTY") || header === "PURCHASE" || header === "SALE") {
+      if (POSITIONAL_MAP[i]) {
+        autoMapping[header] = POSITIONAL_MAP[i];
+      }
+    }
+  }
+
+  return autoMapping;
+}
 
 type Step = "upload" | "map" | "preview";
 
@@ -67,6 +170,8 @@ export default function ImportPage() {
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [importing, setImporting] = useState(false);
 
+  const [isGasolineFormat, setIsGasolineFormat] = useState(false);
+
   const handleFile = useCallback((file: File) => {
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -81,19 +186,40 @@ export default function ImportPage() {
       }
 
       const cols = Object.keys(jsonData[0]);
-      setHeaders(cols);
-      setRows(jsonData);
-      setFileName(file.name);
+      const gasolineFormat = isGasolineVesselsList(cols, jsonData);
+      setIsGasolineFormat(gasolineFormat);
 
-      // Auto-map columns
-      const autoMapping: Record<string, string> = {};
-      cols.forEach((col) => {
-        const normalized = col.toLowerCase().trim();
-        if (AUTO_MAP[normalized]) {
-          autoMapping[col] = AUTO_MAP[normalized];
+      if (gasolineFormat) {
+        // Pre-process: filter out section headers, empty rows, sub-headers
+        const cleaned = preprocessGasolineRows(cols, jsonData);
+        if (cleaned.length === 0) {
+          toast.error("No data rows found after filtering headers");
+          return;
         }
-      });
-      setMapping(autoMapping);
+        setHeaders(cols);
+        setRows(cleaned);
+        setFileName(file.name);
+
+        // Build smart auto-mapping for this format
+        const autoMapping = buildGasolineAutoMapping(cols, cleaned);
+        setMapping(autoMapping);
+
+        toast.success(`Detected GASOLINE VESSELS LIST format — ${cleaned.length} data rows, ${jsonData.length - cleaned.length} header/empty rows skipped`);
+      } else {
+        setHeaders(cols);
+        setRows(jsonData);
+        setFileName(file.name);
+
+        // Standard auto-map by column header name
+        const autoMapping: Record<string, string> = {};
+        cols.forEach((col) => {
+          const normalized = col.toLowerCase().trim();
+          if (AUTO_MAP[normalized]) {
+            autoMapping[col] = AUTO_MAP[normalized];
+          }
+        });
+        setMapping(autoMapping);
+      }
 
       setStep("map");
     };
@@ -224,15 +350,46 @@ export default function ImportPage() {
               <span className="text-xs text-[var(--color-text-tertiary)] font-normal ml-2">
                 ({rows.length} rows)
               </span>
+              {isGasolineFormat && (
+                <Badge variant="muted" className="ml-2 text-xs">
+                  GASOLINE VESSELS LIST
+                </Badge>
+              )}
             </CardTitle>
+            {isGasolineFormat && (
+              <p className="text-xs text-[var(--color-text-secondary)] mt-1">
+                Auto-detected format. &quot;Laycan Cell&quot; will extract direction, incoterm, loadport, and laycan dates from P/S(...) cells. &quot;B/L Figures&quot; will parse quantity.
+              </p>
+            )}
           </CardHeader>
           <div className="space-y-3">
-            {headers.map((header) => (
+            {headers.map((header, colIdx) => {
+              // Friendly column names for gasoline format __EMPTY columns
+              const GASOLINE_COL_NAMES: Record<number, string> = {
+                0: "Laycan (P/S)",
+                1: "Counterparty",
+                2: "Vessel",
+                3: "Linkage",
+                4: "Reference",
+                5: "OPS (operator)",
+                6: "Pricing",
+                7: "B/L Figures",
+              };
+              const displayName = isGasolineFormat && header.startsWith("__EMPTY")
+                ? GASOLINE_COL_NAMES[colIdx] ?? header
+                : isGasolineFormat && colIdx === 0
+                  ? GASOLINE_COL_NAMES[0] ?? header
+                  : header;
+
+              return (
               <div key={header} className="flex items-center gap-4">
                 <div className="flex-1">
-                  <span className="text-sm font-medium text-[var(--color-text-primary)]">{header}</span>
+                  <span className="text-sm font-medium text-[var(--color-text-primary)]">{displayName}</span>
+                  {isGasolineFormat && displayName !== header && (
+                    <span className="text-xs text-[var(--color-text-tertiary)] ml-1">({header})</span>
+                  )}
                   <span className="text-xs text-[var(--color-text-tertiary)] ml-2">
-                    e.g. {String(rows[0]?.[header] ?? "").slice(0, 30)}
+                    e.g. {String(rows[0]?.[header] ?? "").slice(0, 40)}
                   </span>
                 </div>
                 <ArrowRight className="h-3.5 w-3.5 text-[var(--color-text-tertiary)]" />
@@ -245,7 +402,8 @@ export default function ImportPage() {
                   className="w-56"
                 />
               </div>
-            ))}
+              );
+            })}
           </div>
           <div className="flex gap-3 mt-6 pt-4 border-t border-[var(--color-border-subtle)]">
             <Button onClick={handleValidate}>
