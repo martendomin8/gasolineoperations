@@ -408,6 +408,7 @@ function WorkflowStepCard({ step, onAction, isOperator }: WorkflowStepCardProps)
                   size="sm"
                   onClick={() => handleAction("generate_draft")}
                   disabled={loading}
+                  data-tour="generate-draft"
                 >
                   <Mail className="h-3 w-3" />
                   Draft
@@ -453,6 +454,7 @@ function WorkflowStepCard({ step, onAction, isOperator }: WorkflowStepCardProps)
           {hasExpandContent && (
             <button
               onClick={() => setExpanded(!expanded)}
+              data-tour={step.emailDraft != null ? "expand-draft" : undefined}
               className="p-1 rounded text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-3)] transition-colors"
             >
               {expanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}

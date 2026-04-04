@@ -1,7 +1,7 @@
 "use client";
 
 import { Badge } from "@/components/ui/badge";
-import { LogOut, Bell } from "lucide-react";
+import { LogOut, Bell, Play } from "lucide-react";
 import { signOut } from "next-auth/react";
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -47,6 +47,18 @@ export function Header({ userName, userRole, tenantName }: HeaderProps) {
 
       {/* Right: notifications, user info, sign out */}
       <div className="flex items-center gap-4">
+        {/* Demo tour trigger */}
+        <button
+          onClick={() => {
+            // @ts-expect-error — global wired by DemoTour component
+            if (typeof window.__startDemoTour === "function") window.__startDemoTour();
+          }}
+          title="Start automated 2-minute demo tour"
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded-[var(--radius-md)] text-xs font-medium text-[var(--color-text-tertiary)] border border-dashed border-[var(--color-border-default)] hover:border-[var(--color-accent)] hover:text-[var(--color-accent-text)] hover:bg-[var(--color-accent-muted)] transition-all"
+        >
+          <Play className="h-3 w-3" />
+          Demo
+        </button>
         {/* Notification bell */}
         <Link
           href="/dashboard"

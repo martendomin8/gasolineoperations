@@ -2,6 +2,7 @@
 
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
+import { DemoTour } from "@/components/layout/demo-tour";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
@@ -53,6 +54,7 @@ export default function AuthenticatedLayout({
           {children}
         </main>
       </div>
+      <DemoTour />
     </div>
   );
 }

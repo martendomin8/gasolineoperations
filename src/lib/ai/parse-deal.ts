@@ -252,7 +252,7 @@ export function parseDealDemo(rawText: string): ParsedDealResult {
     counterparty = cpLabel[1].trim();
     scores.counterparty = 0.92;
   } else {
-    // "sold to X" / "confirmed sale to X"
+    // "sold to X" / "confirmed sale to X" (adjacent)
     const soldTo = rawText.match(/sold\s+to\s+([A-Z][A-Za-z0-9 &.,'-]{2,40})/);
     if (soldTo) { counterparty = soldTo[1].trim(); scores.counterparty = 0.8; }
     else {
@@ -263,6 +263,16 @@ export function parseDealDemo(rawText: string): ParsedDealResult {
         // "Confirm sale to X" / "Confirmed sold to X"
         const confirmTo = rawText.match(/confirm(?:ed)?\s+(?:sale?|sold)\s+to\s+([A-Z][A-Za-z0-9 &.,'-]{2,40})/i);
         if (confirmTo) { counterparty = confirmTo[1].trim(); scores.counterparty = 0.78; }
+        else {
+          // "Sold 22,000 MT UNL95 CIF to Total Energies" — sold anywhere on line, then "to X"
+          const soldLineTo = rawText.match(/\bsold\b[\s\S]{0,100}?\bto\s+([A-Z][A-Za-z0-9 &.,'-]{2,40})/i);
+          if (soldLineTo) { counterparty = soldLineTo[1].trim(); scores.counterparty = 0.72; }
+          else {
+            // "Deal confirmed with X" / "confirmed with X"
+            const confirmedWith = rawText.match(/confirmed?\s+(?:deal\s+)?with\s+([A-Z][A-Za-z0-9 &.,'-]{2,40})/i);
+            if (confirmedWith) { counterparty = confirmedWith[1].trim(); scores.counterparty = 0.82; }
+          }
+        }
       }
     }
   }
@@ -316,18 +326,49 @@ export function parseDealDemo(rawText: string): ParsedDealResult {
   const dischLabel = rawText.match(/^(?:Disch(?:arge)?(?:\s+Port)?)\s*:\s*(.+)$/im);
   if (dischLabel) { discharge_port = normalisePort(dischLabel[1].split(",")[0]); scores.discharge_port = 0.92; }
 
+  // "Load Antwerp, discharge Singapore" (no colon, inline)
+  if (!loadport) {
+    // Matches "Load Klaipeda" or "Loading Antwerp" when no colon present
+    const loadNoColon = rawText.match(/\bLoad(?:ing)?\s+([A-Z][A-Za-z][a-z]+)\b/);
+    if (loadNoColon) { loadport = normalisePort(loadNoColon[1]); scores.loadport = 0.75; }
+  }
+
+  // "discharge Singapore" (no colon, inline)
+  if (!discharge_port) {
+    const dischNoColon = rawText.match(/\bdischarge\s+([A-Z][A-Za-z][a-z]+)\b/);
+    if (dischNoColon) { discharge_port = normalisePort(dischNoColon[1]); scores.discharge_port = 0.75; }
+  }
+
   // Inline: "FOB Rotterdam" / "CIF New York" — port follows incoterm
+  // Note: exclude prepositions and generic words so "CIF to Buyer" / "FOB basis" don't become ports
+  const NON_PORTS = ["to", "from", "the", "basis", "terms", "delivery", "contract", "price", "platts", "swap", "cargo"];
   if (!loadport && incoterm) {
-    const portAfterInco = rawText.match(new RegExp(`\\b${incoterm}\\s+([A-Z][A-Za-z ]+?)(?:[,\\n]|$)`, "i"));
+    const portAfterInco = rawText.match(new RegExp(`\\b${incoterm}\\s+(?!${NON_PORTS.join("\\b|")}\\b)([A-Z][A-Za-z][a-z]+(?:\\s+[A-Z][A-Za-z]+)?)(?:[,\\n]|$)`, "i"));
     if (portAfterInco) {
       const candidate = portAfterInco[1].trim();
       // For FOB: incoterm port is the loadport. For CIF/CFR/DAP: it's the discharge.
       if (incoterm === "FOB" || incoterm === "FCA") {
         loadport = normalisePort(candidate);
         scores.loadport = 0.78;
-      } else {
+      } else if (!discharge_port) {
         discharge_port = normalisePort(candidate);
         scores.discharge_port = 0.78;
+      }
+    }
+  }
+
+  // Known-port last-resort: scan for city names when no loadport yet
+  // e.g. "FOB basis, Klaipeda terminal" — "Klaipeda" is loadport even without label
+  // Skip any port already assigned as discharge_port to avoid double-assignment
+  if (!loadport) {
+    const KNOWN_PORT_NAMES = ["Rotterdam", "Amsterdam", "Antwerp", "Klaipeda", "Houston", "Singapore", "Barcelona", "New York", "Marseille", "Algeciras", "Genova"];
+    for (const p of KNOWN_PORT_NAMES) {
+      if (p.toLowerCase() === discharge_port?.toLowerCase()) continue; // already assigned
+      const esc = p.replace(/\s+/g, "\\s+");
+      if (rawText.match(new RegExp(`\\b${esc}\\b`, "i"))) {
+        loadport = p;
+        scores.loadport = 0.6;
+        break;
       }
     }
   }
@@ -357,10 +398,17 @@ export function parseDealDemo(rawText: string): ParsedDealResult {
 
   const vesselLine = rawText.match(/Vessel\s*:\s*(.+)/i) ?? rawText.match(/\bMT\s+([A-Z][A-Za-z\s]+?)(?:,|\s+IMO|\s*$)/i);
   if (vesselLine) {
-    const raw = vesselLine[1].trim();
+    const rawVessel = vesselLine[1].trim();
     // Strip "MT " prefix if present
-    vessel_name = raw.replace(/^MT\s+/i, "").split(/,|\s+IMO/i)[0].trim();
-    scores.vessel_name = 0.88;
+    const candidateName = rawVessel.replace(/^MT\s+/i, "").split(/,|\s+IMO/i)[0].trim();
+    // "TBN" / "TBA" / "TBD" means no vessel yet
+    if (/^TB[NADC]$/i.test(candidateName)) {
+      vessel_name = null;
+      scores.vessel_name = 0;
+    } else {
+      vessel_name = candidateName;
+      scores.vessel_name = 0.88;
+    }
   } else {
     scores.vessel_name = 0;
   }

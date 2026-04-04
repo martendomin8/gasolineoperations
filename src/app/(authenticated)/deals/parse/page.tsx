@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -526,8 +526,11 @@ export default function ParseDealPage() {
     }
   };
 
-  /** E2E: load fixture → parse → create → navigate to deal detail */
-  const handleE2E = async (fixture?: SampleEmail) => {
+  /** E2E: load fixture → parse → create → navigate to deal detail.
+   *  When called from the Demo Tour (tourMode=true), fires a
+   *  "tour:deal-created" event instead of self-navigating so the
+   *  tour orchestrator can take over the navigation. */
+  const handleE2E = async (fixture?: SampleEmail, tourMode = false) => {
     const sample = fixture ?? SAMPLE_EMAILS[Math.floor(Math.random() * SAMPLE_EMAILS.length)];
     setE2eRunning(true);
     setError(null);
@@ -535,7 +538,7 @@ export default function ParseDealPage() {
     setRawText(sample.text);
 
     try {
-      setE2eStatus("Parsing with AI…");
+      setE2eStatus("Parsing…");
       const parsed = await runParse(sample.text);
       if (!parsed) throw new Error("No parse result");
 
@@ -546,6 +549,28 @@ export default function ParseDealPage() {
       setResult(parsed);
       setEditedFields(fields);
 
+      // In tour mode: pause so the viewer can see the parsed fields + confidence scores
+      if (tourMode) {
+        setE2eStatus("Review parsed fields…");
+        await new Promise((res) => setTimeout(res, 8000));
+      }
+
+      // Pre-flight: check required fields before hitting the API
+      const REQUIRED: Array<[string, string]> = [
+        ["counterparty", "counterparty"],
+        ["direction",    "buy/sell direction"],
+        ["product",      "product"],
+        ["quantity_mt",  "quantity"],
+        ["incoterm",     "incoterm"],
+        ["loadport",     "load port"],
+        ["laycan_start", "laycan start date"],
+        ["laycan_end",   "laycan end date"],
+      ];
+      const missing = REQUIRED.filter(([k]) => !fields[k]).map(([, label]) => label);
+      if (missing.length > 0) {
+        throw new Error(`Parser couldn't extract: ${missing.join(", ")}. Check the fixture text or edit fields manually.`);
+      }
+
       setE2eStatus("Creating deal…");
       const createRes = await fetch("/api/deals", {
         method: "POST",
@@ -555,14 +580,34 @@ export default function ParseDealPage() {
       const dealData = await createRes.json();
       if (!createRes.ok) throw new Error(dealData.error ?? "Deal creation failed");
 
-      setE2eStatus("Done — navigating to deal…");
-      router.push(`/deals/${dealData.id}`);
+      setE2eStatus("Done ✓");
+
+      if (tourMode) {
+        // Signal the tour orchestrator; it will handle the navigation
+        window.dispatchEvent(
+          new CustomEvent("tour:deal-created", { detail: { dealId: dealData.id } })
+        );
+      } else {
+        router.push(`/deals/${dealData.id}`);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "E2E run failed");
       setE2eStatus(null);
       setE2eRunning(false);
     }
   };
+
+  // Listen for the Demo Tour triggering an E2E run
+  useEffect(() => {
+    const handleTourE2E = () => {
+      // Use the "CIF Sale ARA — clean" fixture for the demo — best showcase
+      const demoFixture = SAMPLE_EMAILS.find((s) => s.id === "cif-sale-ara-clean");
+      handleE2E(demoFixture, /* tourMode */ true);
+    };
+    window.addEventListener("tour:run-e2e", handleTourE2E);
+    return () => window.removeEventListener("tour:run-e2e", handleTourE2E);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const lowConfidenceCount = result
     ? Object.values(result.confidenceScores).filter((s) => s > 0 && s < 0.85).length
