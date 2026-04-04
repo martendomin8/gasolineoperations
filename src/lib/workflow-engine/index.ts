@@ -60,9 +60,24 @@ export async function matchTemplate(
 
 export interface WorkflowStepWithDraft extends schema.WorkflowStep {
   blockedByStepName: string | null;
+  recommendedAfterStepName: string | null;
   emailDraft: schema.EmailDraft | null;
   assignedPartyName: string | null;
   assignedPartyEmail: string | null;
+}
+
+// Terminal statuses — no further operator action needed on this step
+const TERMINAL_STATUSES: ReadonlySet<schema.WorkflowStepStatus> = new Set([
+  "sent",
+  "acknowledged",
+  "received",
+  "done",
+  "na",
+  "cancelled",
+]);
+
+export function isTerminalStatus(status: schema.WorkflowStepStatus): boolean {
+  return TERMINAL_STATUSES.has(status);
 }
 
 export interface WorkflowInstanceDetail {
@@ -97,7 +112,7 @@ export async function instantiateWorkflow(
       })
       .returning();
 
-    // First pass: create all steps without blockedBy
+    // First pass: create all steps as ready (soft dependencies, no hard blocks)
     const createdStepIds: Record<number, string> = {};
 
     for (const tStep of steps) {
@@ -113,26 +128,29 @@ export async function instantiateWorkflow(
           recipientPartyType: tStep.recipientPartyType,
           isExternalWait: tStep.isExternalWait ?? false,
           emailTemplateId: tStep.emailTemplateId ?? null,
-          status: "pending", // will be updated in second pass
+          status: "ready", // all steps start ready — soft deps only
         })
         .returning();
 
       createdStepIds[tStep.order] = step.id;
     }
 
-    // Second pass: set blockedBy and resolve initial status
+    // Second pass: set recommendedAfter (soft dependency reference)
     for (const tStep of steps) {
       const stepId = createdStepIds[tStep.order];
-      const blockedById =
-        tStep.blockedByStep != null ? createdStepIds[tStep.blockedByStep] ?? null : null;
+      // Support both the new recommendedAfterStep field and legacy blockedByStep
+      const refOrder = tStep.recommendedAfterStep ?? tStep.blockedByStep ?? null;
+      const recommendedAfterId =
+        refOrder != null ? createdStepIds[refOrder] ?? null : null;
 
-      await tx
-        .update(schema.workflowSteps)
-        .set({
-          blockedBy: blockedById ?? null,
-          status: blockedById ? "blocked" : "ready",
-        })
-        .where(eq(schema.workflowSteps.id, stepId));
+      if (recommendedAfterId) {
+        await tx
+          .update(schema.workflowSteps)
+          .set({
+            recommendedAfter: recommendedAfterId,
+          })
+          .where(eq(schema.workflowSteps.id, stepId));
+      }
     }
 
     return instance;
@@ -145,9 +163,11 @@ export async function instantiateWorkflow(
 
 /**
  * Advance a workflow step to a new status.
- * Automatically unblocks dependent steps when appropriate:
- * - non-external-wait steps: unblock dependents on "sent"
- * - external-wait steps: unblock dependents on "acknowledged"
+ *
+ * All steps use soft dependencies (recommendedAfter) — there is no
+ * automatic unblocking. Operators can act on any ready step in any order.
+ *
+ * Terminal statuses: sent, acknowledged, received, done, na, cancelled.
  */
 export async function advanceStep(
   stepId: string,
@@ -170,30 +190,6 @@ export async function advanceStep(
   }
 
   await db.update(schema.workflowSteps).set(updates).where(eq(schema.workflowSteps.id, stepId));
-
-  // Determine if this status change should unblock dependent steps
-  const shouldUnblock =
-    (!step.isExternalWait && newStatus === "sent") ||
-    (step.isExternalWait && newStatus === "acknowledged");
-
-  if (shouldUnblock) {
-    const dependents = await db
-      .select()
-      .from(schema.workflowSteps)
-      .where(eq(schema.workflowSteps.blockedBy, stepId));
-
-    if (dependents.length > 0) {
-      await db
-        .update(schema.workflowSteps)
-        .set({ status: "ready" })
-        .where(
-          inArray(
-            schema.workflowSteps.id,
-            dependents.map((d) => d.id)
-          )
-        );
-    }
-  }
 }
 
 // ============================================================
@@ -209,7 +205,7 @@ export function renderTemplate(template: string, deal: Deal): string {
     quantity_mt: Number(deal.quantityMt).toLocaleString("en-US"),
     incoterm: deal.incoterm,
     loadport: deal.loadport,
-    discharge_port: deal.dischargePort,
+    discharge_port: deal.dischargePort ?? "",
     laycan_start: deal.laycanStart,
     laycan_end: deal.laycanEnd,
     vessel_name: deal.vesselName ?? "[VESSEL TBC]",
@@ -409,6 +405,7 @@ export async function getWorkflowForDeal(
     return {
       ...s,
       blockedByStepName: s.blockedBy ? (stepNameById[s.blockedBy] ?? null) : null,
+      recommendedAfterStepName: s.recommendedAfter ? (stepNameById[s.recommendedAfter] ?? null) : null,
       emailDraft: s.emailDraftId ? (draftById[s.emailDraftId] ?? null) : null,
       assignedPartyName: party?.name ?? null,
       assignedPartyEmail: party?.email ?? null,

@@ -44,10 +44,13 @@ import type { WorkflowInstanceDetail, WorkflowStepWithDraft } from "@/lib/workfl
 interface DealDetail {
   id: string;
   externalRef: string | null;
+  linkageCode: string | null;
   counterparty: string;
   direction: string;
   product: string;
   quantityMt: string;
+  contractedQty: string | null;
+  nominatedQty: string | null;
   incoterm: string;
   loadport: string;
   dischargePort: string;
@@ -59,7 +62,10 @@ interface DealDetail {
   docInstructionsReceived: boolean;
   status: DealStatus;
   pricingFormula: string | null;
+  pricingType: string | null;
+  pricingEstimatedDate: string | null;
   specialInstructions: string | null;
+  secondaryOperatorId: string | null;
   version: number;
   createdAt: string;
   updatedAt: string;
@@ -204,6 +210,10 @@ const STATUS_CONFIG: Record<
   draft_generated: { label: "Draft Ready",   color: "accent",  icon: Mail,          dot: "bg-[var(--color-accent)]" },
   sent:            { label: "Sent",          color: "success", icon: Send,          dot: "bg-[var(--color-success)]" },
   acknowledged:    { label: "Acknowledged",  color: "success", icon: CheckCircle2,  dot: "bg-[var(--color-success)]" },
+  received:        { label: "Received",      color: "success", icon: CheckCircle2,  dot: "bg-[var(--color-success)]" },
+  done:            { label: "Done",          color: "success", icon: CheckCircle2,  dot: "bg-[var(--color-success)]" },
+  na:              { label: "N/A",           color: "muted",   icon: XCircle,       dot: "bg-[var(--color-text-tertiary)]" },
+  cancelled:       { label: "Cancelled",     color: "danger",  icon: XCircle,       dot: "bg-[var(--color-danger)]" },
   needs_update:    { label: "Needs Update",  color: "danger",  icon: AlertCircle,   dot: "bg-[var(--color-danger)]" },
 };
 
@@ -249,7 +259,7 @@ function WorkflowStepCard({ step, onAction, isOperator }: WorkflowStepCardProps)
   const cfg = STATUS_CONFIG[step.status] ?? STATUS_CONFIG.pending;
   const TypeIcon = STEP_TYPE_ICON[step.stepType] ?? Mail;
   const isBlocked = step.status === "blocked" || step.status === "pending";
-  const isDone = step.status === "acknowledged" || (step.status === "sent" && !step.isExternalWait);
+  const isDone = step.status === "acknowledged" || step.status === "done" || step.status === "na" || step.status === "cancelled" || (step.status === "sent" && !step.isExternalWait);
   const canAssignParty = isOperator && !isDone;
 
   const handleAction = async (action: string, extra?: Record<string, unknown>) => {
@@ -445,6 +455,40 @@ function WorkflowStepCard({ step, onAction, isOperator }: WorkflowStepCardProps)
                 >
                   <RefreshCw className="h-3 w-3" />
                   Re-sent
+                </Button>
+              )}
+              {(step.status === "ready" || step.status === "draft_generated" || step.status === "sent") && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => handleAction("mark_done")}
+                  disabled={loading}
+                >
+                  <CheckCircle2 className="h-3 w-3" />
+                  Done
+                </Button>
+              )}
+              {(step.status === "ready" || step.status === "pending") && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleAction("mark_na")}
+                  disabled={loading}
+                >
+                  <XCircle className="h-3 w-3" />
+                  N/A
+                </Button>
+              )}
+              {step.status !== "cancelled" && step.status !== "done" && step.status !== "na" && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleAction("mark_cancelled")}
+                  disabled={loading}
+                  className="!text-[var(--color-danger)] hover:!bg-[var(--color-danger-muted,#3d1515)]"
+                >
+                  <X className="h-3 w-3" />
+                  Cancel
                 </Button>
               )}
             </div>
@@ -725,7 +769,7 @@ function WorkflowSection({ dealId, dealStatus, isOperator }: WorkflowSectionProp
   }
 
   const completedCount = workflow.steps.filter(
-    (s) => s.status === "sent" || s.status === "acknowledged"
+    (s) => s.status === "sent" || s.status === "acknowledged" || s.status === "done" || s.status === "na" || s.status === "cancelled" || s.status === "received"
   ).length;
   const totalCount = workflow.steps.length;
   const progressPct = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
@@ -902,6 +946,10 @@ export default function DealDetailPage() {
             <Field label="Incoterm" value={deal.incoterm} />
             <Field label="Product" value={deal.product} />
             <Field label="Quantity" value={`${Number(deal.quantityMt).toLocaleString()} MT`} mono />
+            <Field label="Contracted Qty" value={deal.contractedQty} />
+            <Field label="Nominated Qty" value={deal.nominatedQty ? `${Number(deal.nominatedQty).toLocaleString()} MT` : null} mono />
+            <Field label="Linkage Code" value={deal.linkageCode} mono />
+            <Field label="Secondary Operator" value={deal.secondaryOperatorId ? deal.secondaryOperatorId : null} />
           </dl>
         </Card>
 
@@ -951,9 +999,13 @@ export default function DealDetailPage() {
           <CardHeader>
             <CardTitle>Additional</CardTitle>
           </CardHeader>
-          <dl className="space-y-3">
+          <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
             <Field label="Pricing Formula" value={deal.pricingFormula} />
-            <Field label="Special Instructions" value={deal.specialInstructions} />
+            <Field label="Pricing Type" value={deal.pricingType} />
+            <Field label="Pricing Est. Date" value={deal.pricingEstimatedDate} mono />
+            <div className="col-span-2">
+              <Field label="Special Instructions" value={deal.specialInstructions} />
+            </div>
           </dl>
         </Card>
       </div>

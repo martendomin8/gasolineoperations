@@ -4,13 +4,16 @@ import { getDb } from "@/lib/db";
 import * as schema from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { advanceStep, generateDraft } from "@/lib/workflow-engine";
-import { sendEmail } from "@/lib/email";
 
 // Valid step transitions by action
 const STEP_ACTIONS = {
   generate_draft: { from: ["ready", "needs_update"], to: "draft_generated" as const },
   mark_sent: { from: ["ready", "draft_generated"], to: "sent" as const },
   mark_acknowledged: { from: ["sent"], to: "acknowledged" as const },
+  mark_received: { from: ["sent", "acknowledged"], to: "received" as const },
+  mark_done: { from: ["sent", "acknowledged", "received"], to: "done" as const },
+  mark_cancelled: { from: ["pending", "blocked", "ready", "draft_generated", "sent", "acknowledged", "received", "needs_update"], to: "cancelled" as const },
+  mark_na: { from: ["pending", "blocked", "ready", "draft_generated", "needs_update"], to: "na" as const },
   needs_update: { from: ["sent", "acknowledged"], to: "needs_update" as const },
   assign_party: { from: ["pending", "blocked", "ready", "draft_generated", "needs_update"], to: null as null },
 } as const;
@@ -134,8 +137,7 @@ export const PUT = withAuth(
     }
     await advanceStep(stepId, to, db);
 
-    // If marking sent, fire the real email if a draft exists
-    let emailMode: "sent" | "demo" | "no_draft" = "no_draft";
+    // If marking sent, update the email draft status (V1: operator already copied to Outlook)
     if (action === "mark_sent") {
       const [draft] = await db
         .select()
@@ -143,22 +145,12 @@ export const PUT = withAuth(
         .where(eq(schema.emailDrafts.workflowStepId, stepId))
         .limit(1);
 
-      if (draft && draft.toAddresses && draft.toAddresses !== "[no recipient — assign party first]") {
-        const result = await sendEmail({
-          to: draft.toAddresses,
-          ...(draft.ccAddresses ? { cc: draft.ccAddresses } : {}),
-          subject: draft.subject,
-          body: draft.body,
-        });
-        emailMode = result.mode;
-
-        // Store the send result on the draft
+      if (draft) {
         await db
           .update(schema.emailDrafts)
           .set({
             status: "sent",
             sentViaSednaAt: new Date(),
-            ...(result.messageId ? { sednaMessageId: result.messageId } : {}),
           })
           .where(eq(schema.emailDrafts.id, draft.id));
       }
@@ -182,13 +174,13 @@ export const PUT = withAuth(
       });
 
       // Auto-complete: check if all steps in this instance are terminal
-      if (to === "sent" || to === "acknowledged") {
+      const TERMINAL = new Set(["sent", "acknowledged", "received", "done", "cancelled", "na"]);
+      if (to && TERMINAL.has(to)) {
         const allSteps = await db
           .select({ id: schema.workflowSteps.id, status: schema.workflowSteps.status })
           .from(schema.workflowSteps)
           .where(eq(schema.workflowSteps.workflowInstanceId, instance.id));
 
-        const TERMINAL = new Set(["sent", "acknowledged"]);
         const allDone = allSteps.every((s) =>
           s.id === stepId ? TERMINAL.has(to) : TERMINAL.has(s.status)
         );
@@ -212,7 +204,7 @@ export const PUT = withAuth(
       }
     }
 
-    return NextResponse.json({ success: true, newStatus: to, workflowCompleted, emailMode });
+    return NextResponse.json({ success: true, newStatus: to, workflowCompleted });
   },
   { roles: ["operator", "admin"] }
 );

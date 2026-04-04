@@ -104,6 +104,8 @@ export const POST = withAuth(
         .values({
           ...validated,
           quantityMt: String(validated.quantityMt),
+          nominatedQty: validated.nominatedQty != null ? String(validated.nominatedQty) : null,
+          dischargePort: validated.dischargePort ?? null,
           tenantId: session.user.tenantId,
           createdBy: session.user.id,
         })

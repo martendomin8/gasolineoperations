@@ -39,6 +39,12 @@ export default function EditPartyPage() {
     setSaving(true);
 
     const fd = new FormData(e.currentTarget);
+    const regionTagsRaw = fd.get("regionTags") as string || "";
+    const regionTags = regionTagsRaw
+      .split(",")
+      .map((t) => t.trim())
+      .filter(Boolean);
+
     const updates = {
       version: party.version,
       type: fd.get("type"),
@@ -48,6 +54,7 @@ export default function EditPartyPage() {
       phone: fd.get("phone") || null,
       notes: fd.get("notes") || null,
       isFixed: fd.get("isFixed") === "on",
+      regionTags: regionTags.length > 0 ? regionTags : null,
     };
 
     const res = await fetch(`/api/parties/${id}`, {
@@ -107,6 +114,12 @@ export default function EditPartyPage() {
             <Input label="Email" name="email" type="email" defaultValue={party.email || ""} />
           </div>
           <Input label="Phone" name="phone" type="tel" defaultValue={party.phone || ""} />
+          <Input
+            label="Region Tags"
+            name="regionTags"
+            defaultValue={Array.isArray(party.regionTags) ? party.regionTags.join(", ") : party.regionTags || ""}
+            placeholder="e.g. Turkey, Aliaga, Mediterranean"
+          />
           <Textarea label="Notes" name="notes" defaultValue={party.notes || ""} rows={3} />
           <Checkbox name="isFixed" label="Fixed contact" defaultChecked={party.isFixed} />
 

@@ -10,7 +10,7 @@ import { Dialog } from "@/components/ui/dialog";
 import { ArrowLeft, AlertTriangle } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
+import { useState, useEffect, type FormEvent } from "react";
 import { toast } from "sonner";
 import { createDealSchema } from "@/lib/types/deal";
 import { z } from "zod";
@@ -18,6 +18,12 @@ import { z } from "zod";
 const directionOptions = [
   { value: "buy", label: "Buy" },
   { value: "sell", label: "Sell" },
+];
+
+const pricingTypeOptions = [
+  { value: "", label: "—" },
+  { value: "BL", label: "BL" },
+  { value: "NOR", label: "NOR" },
 ];
 
 const incotermOptions = [
@@ -35,24 +41,39 @@ export default function NewDealPage() {
   const [duplicates, setDuplicates] = useState<any[]>([]);
   const [showDupDialog, setShowDupDialog] = useState(false);
   const [pendingData, setPendingData] = useState<any>(null);
+  const [operators, setOperators] = useState<Array<{ id: string; name: string }>>([]);
+
+  // Fetch operators for the Secondary Operator select
+  useEffect(() => {
+    fetch("/api/users?role=operator")
+      .then((r) => r.json())
+      .then((data) => setOperators(data.users ?? []))
+      .catch(() => {});
+  }, []);
 
   function getFormData(form: HTMLFormElement) {
     const fd = new FormData(form);
     return {
       externalRef: fd.get("externalRef") as string || null,
+      linkageCode: fd.get("linkageCode") as string || null,
       counterparty: fd.get("counterparty") as string,
       direction: fd.get("direction") as string,
       product: fd.get("product") as string,
       quantityMt: fd.get("quantityMt") as string,
+      contractedQty: fd.get("contractedQty") as string || null,
+      nominatedQty: fd.get("nominatedQty") ? Number(fd.get("nominatedQty")) : null,
       incoterm: fd.get("incoterm") as string,
       loadport: fd.get("loadport") as string,
-      dischargePort: fd.get("dischargePort") as string,
+      dischargePort: fd.get("dischargePort") as string || null,
       laycanStart: fd.get("laycanStart") as string,
       laycanEnd: fd.get("laycanEnd") as string,
       vesselName: fd.get("vesselName") as string || null,
       vesselImo: fd.get("vesselImo") as string || null,
       pricingFormula: fd.get("pricingFormula") as string || null,
+      pricingType: fd.get("pricingType") as string || null,
+      pricingEstimatedDate: fd.get("pricingEstimatedDate") as string || null,
       specialInstructions: fd.get("specialInstructions") as string || null,
+      secondaryOperatorId: fd.get("secondaryOperatorId") as string || null,
     };
   }
 
@@ -155,12 +176,23 @@ export default function NewDealPage() {
               <Input label="Counterparty" name="counterparty" required placeholder="e.g. Shell" error={errors.counterparty} />
               <Input label="External Reference" name="externalRef" placeholder="Optional ref number" />
             </div>
+            <Input label="Linkage Code" name="linkageCode" placeholder="Optional linkage code" />
             <div className="grid grid-cols-3 gap-4">
               <Select label="Direction" name="direction" options={directionOptions} required error={errors.direction} />
               <Input label="Product" name="product" required placeholder="e.g. EBOB" error={errors.product} />
               <Input label="Quantity (MT)" name="quantityMt" type="number" step="0.001" required placeholder="e.g. 30000" error={errors.quantityMt} />
             </div>
+            <div className="grid grid-cols-2 gap-4">
+              <Input label="Contracted Qty" name="contractedQty" placeholder="e.g. 37kt +/-10%" />
+              <Input label="Nominated Qty" name="nominatedQty" type="number" step="0.001" placeholder="Exact nominated quantity" />
+            </div>
             <Select label="Incoterm" name="incoterm" options={incotermOptions} required placeholder="Select incoterm" error={errors.incoterm} />
+            <Select
+              label="Secondary Operator"
+              name="secondaryOperatorId"
+              options={[{ value: "", label: "— None —" }, ...operators.map((o) => ({ value: o.id, label: o.name }))]}
+              placeholder="Optional secondary operator"
+            />
           </div>
         </Card>
 
@@ -172,7 +204,7 @@ export default function NewDealPage() {
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <Input label="Loadport" name="loadport" required placeholder="e.g. Amsterdam" error={errors.loadport} />
-              <Input label="Discharge Port" name="dischargePort" required placeholder="e.g. New York" error={errors.dischargePort} />
+              <Input label="Discharge Port" name="dischargePort" placeholder="e.g. New York" error={errors.dischargePort} />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <Input label="Laycan Start" name="laycanStart" type="date" required error={errors.laycanStart} />
@@ -201,6 +233,10 @@ export default function NewDealPage() {
           </CardHeader>
           <div className="space-y-4">
             <Input label="Pricing Formula" name="pricingFormula" placeholder="e.g. Platts CIF NWE -$5/MT" />
+            <div className="grid grid-cols-2 gap-4">
+              <Select label="Pricing Type" name="pricingType" options={pricingTypeOptions} />
+              <Input label="Pricing Estimated Date" name="pricingEstimatedDate" type="date" />
+            </div>
             <Textarea label="Special Instructions" name="specialInstructions" placeholder="Any special requirements..." rows={3} />
           </div>
         </Card>

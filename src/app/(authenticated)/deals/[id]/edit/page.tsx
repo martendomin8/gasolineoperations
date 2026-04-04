@@ -26,6 +26,12 @@ const incotermOptions = [
   { value: "FCA", label: "FCA" },
 ];
 
+const pricingTypeOptions = [
+  { value: "", label: "—" },
+  { value: "BL", label: "BL" },
+  { value: "NOR", label: "NOR" },
+];
+
 const statusOptions = [
   { value: "draft", label: "Draft" },
   { value: "active", label: "Active" },
@@ -42,12 +48,17 @@ export default function EditDealPage() {
   const [deal, setDeal] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [operators, setOperators] = useState<Array<{ id: string; name: string }>>([]);
 
   useEffect(() => {
     fetch(`/api/deals/${id}`)
       .then((r) => r.json())
       .then((data) => { setDeal(data); setLoading(false); })
       .catch(() => setLoading(false));
+    fetch("/api/users?role=operator")
+      .then((r) => r.json())
+      .then((data) => setOperators(data.users ?? []))
+      .catch(() => {});
   }, [id]);
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
@@ -62,9 +73,12 @@ export default function EditDealPage() {
       direction: fd.get("direction"),
       product: fd.get("product"),
       quantityMt: fd.get("quantityMt"),
+      contractedQty: fd.get("contractedQty") || null,
+      nominatedQty: fd.get("nominatedQty") ? Number(fd.get("nominatedQty")) : null,
       incoterm: fd.get("incoterm"),
+      linkageCode: fd.get("linkageCode") || null,
       loadport: fd.get("loadport"),
-      dischargePort: fd.get("dischargePort"),
+      dischargePort: fd.get("dischargePort") || null,
       laycanStart: fd.get("laycanStart"),
       laycanEnd: fd.get("laycanEnd"),
       vesselName: fd.get("vesselName") || null,
@@ -73,7 +87,10 @@ export default function EditDealPage() {
       docInstructionsReceived: fd.get("docInstructionsReceived") === "on",
       status: fd.get("status"),
       pricingFormula: fd.get("pricingFormula") || null,
+      pricingType: fd.get("pricingType") || null,
+      pricingEstimatedDate: fd.get("pricingEstimatedDate") || null,
       specialInstructions: fd.get("specialInstructions") || null,
+      secondaryOperatorId: fd.get("secondaryOperatorId") || null,
     };
 
     const res = await fetch(`/api/deals/${id}`, {
@@ -140,12 +157,23 @@ export default function EditDealPage() {
               <Input label="Counterparty" name="counterparty" required defaultValue={deal.counterparty} />
               <Select label="Status" name="status" options={statusOptions} defaultValue={deal.status} />
             </div>
+            <Input label="Linkage Code" name="linkageCode" defaultValue={deal.linkageCode || ""} placeholder="Optional linkage code" />
             <div className="grid grid-cols-3 gap-4">
               <Select label="Direction" name="direction" options={directionOptions} defaultValue={deal.direction} />
               <Input label="Product" name="product" required defaultValue={deal.product} />
               <Input label="Quantity (MT)" name="quantityMt" type="number" step="0.001" required defaultValue={deal.quantityMt} />
             </div>
+            <div className="grid grid-cols-2 gap-4">
+              <Input label="Contracted Qty" name="contractedQty" defaultValue={deal.contractedQty || ""} placeholder="e.g. 37kt +/-10%" />
+              <Input label="Nominated Qty" name="nominatedQty" type="number" step="0.001" defaultValue={deal.nominatedQty || ""} placeholder="Exact nominated quantity" />
+            </div>
             <Select label="Incoterm" name="incoterm" options={incotermOptions} defaultValue={deal.incoterm} />
+            <Select
+              label="Secondary Operator"
+              name="secondaryOperatorId"
+              options={[{ value: "", label: "— None —" }, ...operators.map((o) => ({ value: o.id, label: o.name }))]}
+              defaultValue={deal.secondaryOperatorId || ""}
+            />
           </div>
         </Card>
 
@@ -154,7 +182,7 @@ export default function EditDealPage() {
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <Input label="Loadport" name="loadport" required defaultValue={deal.loadport} />
-              <Input label="Discharge Port" name="dischargePort" required defaultValue={deal.dischargePort} />
+              <Input label="Discharge Port" name="dischargePort" defaultValue={deal.dischargePort || ""} />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <Input label="Laycan Start" name="laycanStart" type="date" required defaultValue={deal.laycanStart} />
@@ -181,6 +209,10 @@ export default function EditDealPage() {
           <CardHeader><CardTitle>Additional</CardTitle></CardHeader>
           <div className="space-y-4">
             <Input label="Pricing Formula" name="pricingFormula" defaultValue={deal.pricingFormula || ""} />
+            <div className="grid grid-cols-2 gap-4">
+              <Select label="Pricing Type" name="pricingType" options={pricingTypeOptions} defaultValue={deal.pricingType || ""} />
+              <Input label="Pricing Estimated Date" name="pricingEstimatedDate" type="date" defaultValue={deal.pricingEstimatedDate || ""} />
+            </div>
             <Textarea label="Special Instructions" name="specialInstructions" defaultValue={deal.specialInstructions || ""} rows={3} />
           </div>
         </Card>

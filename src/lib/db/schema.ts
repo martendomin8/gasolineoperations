@@ -40,6 +40,10 @@ export const workflowStepStatusEnum = pgEnum("workflow_step_status", [
   "sent",
   "acknowledged",
   "needs_update",
+  "received",
+  "done",
+  "na",
+  "cancelled",
 ]);
 export const workflowStepTypeEnum = pgEnum("workflow_step_type", [
   "nomination",
@@ -94,6 +98,7 @@ export const parties = pgTable(
     type: partyTypeEnum("type").notNull(),
     name: varchar("name", { length: 255 }).notNull(),
     port: varchar("port", { length: 255 }),
+    regionTags: text("region_tags").array().default([]),
     email: varchar("email", { length: 255 }),
     phone: varchar("phone", { length: 100 }),
     notes: text("notes"),
@@ -117,13 +122,16 @@ export const deals = pgTable(
       .references(() => tenants.id, { onDelete: "cascade" })
       .notNull(),
     externalRef: varchar("external_ref", { length: 100 }),
+    linkageCode: varchar("linkage_code", { length: 100 }),
     counterparty: varchar("counterparty", { length: 255 }).notNull(),
     direction: dealDirectionEnum("direction").notNull(),
     product: varchar("product", { length: 255 }).notNull(),
     quantityMt: decimal("quantity_mt", { precision: 12, scale: 3 }).notNull(),
+    contractedQty: varchar("contracted_qty", { length: 100 }),
+    nominatedQty: decimal("nominated_qty", { precision: 12, scale: 3 }),
     incoterm: dealIncotermEnum("incoterm").notNull(),
     loadport: varchar("loadport", { length: 255 }).notNull(),
-    dischargePort: varchar("discharge_port", { length: 255 }).notNull(),
+    dischargePort: varchar("discharge_port", { length: 255 }),
     laycanStart: date("laycan_start").notNull(),
     laycanEnd: date("laycan_end").notNull(),
     vesselName: varchar("vessel_name", { length: 255 }),
@@ -132,11 +140,14 @@ export const deals = pgTable(
     docInstructionsReceived: boolean("doc_instructions_received").default(false).notNull(),
     status: dealStatusEnum("status").default("draft").notNull(),
     assignedOperatorId: uuid("assigned_operator_id").references(() => users.id),
+    secondaryOperatorId: uuid("secondary_operator_id").references(() => users.id),
     createdBy: uuid("created_by")
       .references(() => users.id)
       .notNull(),
     sourceRawText: text("source_raw_text"),
     pricingFormula: text("pricing_formula"),
+    pricingType: varchar("pricing_type", { length: 20 }),
+    pricingEstimatedDate: date("pricing_estimated_date"),
     specialInstructions: text("special_instructions"),
     version: integer("version").default(1).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
@@ -150,6 +161,7 @@ export const deals = pgTable(
       table.direction,
       table.laycanStart
     ),
+    index("deals_tenant_linkage_idx").on(table.tenantId, table.linkageCode),
   ]
 );
 
@@ -268,6 +280,7 @@ export const workflowSteps = pgTable("workflow_steps", {
   isExternalWait: boolean("is_external_wait").default(false).notNull(),
   status: workflowStepStatusEnum("status").default("pending").notNull(),
   blockedBy: uuid("blocked_by").references((): any => workflowSteps.id),
+    recommendedAfter: uuid("recommended_after").references((): any => workflowSteps.id),
   emailTemplateId: uuid("email_template_id").references(() => emailTemplates.id),
   emailDraftId: uuid("email_draft_id"),
   assignedPartyId: uuid("assigned_party_id").references(() => parties.id),
@@ -314,6 +327,28 @@ export const emailDrafts = pgTable("email_drafts", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
+// --- Documents ---
+export const documents = pgTable(
+  "documents",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .references(() => tenants.id, { onDelete: "cascade" })
+      .notNull(),
+    dealId: uuid("deal_id")
+      .references(() => deals.id, { onDelete: "cascade" })
+      .notNull(),
+    filename: varchar("filename", { length: 255 }).notNull(),
+    fileType: varchar("file_type", { length: 50 }).notNull(), // q88, cp_recap, bl, coa, other
+    storagePath: text("storage_path").notNull(),
+    uploadedBy: uuid("uploaded_by").references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("documents_deal_idx").on(table.dealId),
+  ]
+);
+
 // ============================================================
 // RELATIONS
 // ============================================================
@@ -334,11 +369,13 @@ export const partiesRelations = relations(parties, ({ one }) => ({
 
 export const dealsRelations = relations(deals, ({ one, many }) => ({
   tenant: one(tenants, { fields: [deals.tenantId], references: [tenants.id] }),
-  assignedOperator: one(users, { fields: [deals.assignedOperatorId], references: [users.id] }),
-  creator: one(users, { fields: [deals.createdBy], references: [users.id] }),
+  assignedOperator: one(users, { fields: [deals.assignedOperatorId], references: [users.id], relationName: "primaryOperator" }),
+  secondaryOperator: one(users, { fields: [deals.secondaryOperatorId], references: [users.id], relationName: "secondaryOperator" }),
+  creator: one(users, { fields: [deals.createdBy], references: [users.id], relationName: "creator" }),
   legs: many(dealLegs),
   auditLogs: many(auditLogs),
   changeLogs: many(dealChangeLogs),
+  documents: many(documents),
 }));
 
 export const dealLegsRelations = relations(dealLegs, ({ one }) => ({
@@ -372,7 +409,14 @@ export const workflowStepsRelations = relations(workflowSteps, ({ one, many }) =
   instance: one(workflowInstances, { fields: [workflowSteps.workflowInstanceId], references: [workflowInstances.id] }),
   blockedByStep: one(workflowSteps, { fields: [workflowSteps.blockedBy], references: [workflowSteps.id], relationName: "blockedBy" }),
   dependentSteps: many(workflowSteps, { relationName: "blockedBy" }),
+  recommendedAfterStep: one(workflowSteps, { fields: [workflowSteps.recommendedAfter], references: [workflowSteps.id], relationName: "recommendedAfter" }),
   emailTemplate: one(emailTemplates, { fields: [workflowSteps.emailTemplateId], references: [emailTemplates.id] }),
+}));
+
+export const documentsRelations = relations(documents, ({ one }) => ({
+  tenant: one(tenants, { fields: [documents.tenantId], references: [tenants.id] }),
+  deal: one(deals, { fields: [documents.dealId], references: [deals.id] }),
+  uploader: one(users, { fields: [documents.uploadedBy], references: [users.id] }),
 }));
 
 export const emailTemplatesRelations = relations(emailTemplates, ({ one }) => ({
@@ -414,7 +458,10 @@ export type WorkflowStep = typeof workflowSteps.$inferSelect;
 export type EmailTemplate = typeof emailTemplates.$inferSelect;
 export type EmailDraft = typeof emailDrafts.$inferSelect;
 
-export type WorkflowStepStatus = "pending" | "blocked" | "ready" | "draft_generated" | "sent" | "acknowledged" | "needs_update";
+export type Document = typeof documents.$inferSelect;
+export type NewDocument = typeof documents.$inferInsert;
+
+export type WorkflowStepStatus = "pending" | "blocked" | "ready" | "draft_generated" | "sent" | "acknowledged" | "needs_update" | "received" | "done" | "na" | "cancelled";
 export type WorkflowStepType = "nomination" | "instruction" | "order" | "appointment";
 
 // Workflow template step shape (JSONB)
@@ -424,7 +471,8 @@ export interface WorkflowTemplateStep {
   stepType: "nomination" | "instruction" | "order" | "appointment";
   recipientPartyType: PartyType;
   emailTemplateId?: string;
-  blockedByStep?: number; // references another step's order
+  blockedByStep?: number; // legacy — kept for backward compat
+  recommendedAfterStep?: number; // soft dependency — references another step's order
   description?: string;
-  isExternalWait?: boolean; // true for steps that wait for external input
+  isExternalWait?: boolean;
 }

@@ -24,6 +24,8 @@ export const POST = withAuth(
           .values({
             ...dealData,
             quantityMt: String(dealData.quantityMt),
+            nominatedQty: dealData.nominatedQty != null ? String(dealData.nominatedQty) : null,
+            dischargePort: dealData.dischargePort ?? null,
             tenantId: session.user.tenantId,
             createdBy: session.user.id,
             status: "active", // Imported deals start as active

@@ -25,19 +25,25 @@ export function isValidTransition(from: DealStatus, to: DealStatus): boolean {
 export const createDealSchema = z
   .object({
     externalRef: z.string().max(100).nullable().optional(),
+    linkageCode: z.string().max(100).nullable().optional(),
     counterparty: z.string().min(1, "Counterparty is required").max(255),
     direction: z.enum(directions),
     product: z.string().min(1, "Product is required").max(255),
     quantityMt: z.coerce.number().positive("Quantity must be positive"),
+    contractedQty: z.string().max(100).nullable().optional(),
+    nominatedQty: z.coerce.number().positive().nullable().optional(),
     incoterm: z.enum(incoterms),
     loadport: z.string().min(1, "Loadport is required").max(255),
-    dischargePort: z.string().min(1, "Discharge port is required").max(255),
+    dischargePort: z.string().max(255).nullable().optional(),
     laycanStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD"),
     laycanEnd: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD"),
     vesselName: z.string().max(255).nullable().optional(),
     vesselImo: z.string().max(20).nullable().optional(),
     assignedOperatorId: z.string().uuid().nullable().optional(),
+    secondaryOperatorId: z.string().uuid().nullable().optional(),
     pricingFormula: z.string().nullable().optional(),
+    pricingType: z.string().max(20).nullable().optional(),
+    pricingEstimatedDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
     specialInstructions: z.string().nullable().optional(),
     sourceRawText: z.string().nullable().optional(),
   })
@@ -48,13 +54,16 @@ export const createDealSchema = z
 
 export const updateDealSchema = z.object({
   externalRef: z.string().max(100).nullable().optional(),
+  linkageCode: z.string().max(100).nullable().optional(),
   counterparty: z.string().min(1).max(255).optional(),
   direction: z.enum(directions).optional(),
   product: z.string().min(1).max(255).optional(),
   quantityMt: z.coerce.number().positive().optional(),
+  contractedQty: z.string().max(100).nullable().optional(),
+  nominatedQty: z.coerce.number().positive().nullable().optional(),
   incoterm: z.enum(incoterms).optional(),
   loadport: z.string().min(1).max(255).optional(),
-  dischargePort: z.string().min(1).max(255).optional(),
+  dischargePort: z.string().max(255).nullable().optional(),
   laycanStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   laycanEnd: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   vesselName: z.string().max(255).nullable().optional(),
@@ -63,7 +72,10 @@ export const updateDealSchema = z.object({
   docInstructionsReceived: z.boolean().optional(),
   status: z.enum(statuses).optional(),
   assignedOperatorId: z.string().uuid().nullable().optional(),
+  secondaryOperatorId: z.string().uuid().nullable().optional(),
   pricingFormula: z.string().nullable().optional(),
+  pricingType: z.string().max(20).nullable().optional(),
+  pricingEstimatedDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
   specialInstructions: z.string().nullable().optional(),
   version: z.number().int().positive("Version is required for optimistic locking"),
 });
@@ -73,17 +85,19 @@ export const dealFilterSchema = z.object({
   direction: z.enum(directions).optional(),
   incoterm: z.enum(incoterms).optional(),
   counterparty: z.string().optional(),
+  linkageCode: z.string().optional(),
   assignedOperatorId: z.string().uuid().optional(),
   search: z.string().optional(),
   page: z.coerce.number().int().positive().default(1),
   perPage: z.coerce.number().int().positive().max(100).default(25),
 });
 
-// Fields that trigger re-notification checks when changed (Phase 4)
+// Fields that trigger re-notification checks when changed
 export const RE_NOTIFICATION_FIELDS = [
   "vesselName",
   "vesselImo",
   "quantityMt",
+  "nominatedQty",
   "laycanStart",
   "laycanEnd",
   "loadport",

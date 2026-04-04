@@ -32,6 +32,12 @@ export default function NewPartyPage() {
     setLoading(true);
 
     const formData = new FormData(e.currentTarget);
+    const regionTagsRaw = formData.get("regionTags") as string || "";
+    const regionTags = regionTagsRaw
+      .split(",")
+      .map((t) => t.trim())
+      .filter(Boolean);
+
     const data = {
       type: formData.get("type") as string,
       name: formData.get("name") as string,
@@ -40,6 +46,7 @@ export default function NewPartyPage() {
       phone: formData.get("phone") as string || null,
       notes: formData.get("notes") as string || null,
       isFixed: formData.get("isFixed") === "on",
+      regionTags: regionTags.length > 0 ? regionTags : null,
     };
 
     try {
@@ -132,6 +139,12 @@ export default function NewPartyPage() {
             type="tel"
             placeholder="+370 ..."
             error={errors.phone}
+          />
+
+          <Input
+            label="Region Tags"
+            name="regionTags"
+            placeholder="e.g. Turkey, Aliaga, Mediterranean"
           />
 
           <Textarea
