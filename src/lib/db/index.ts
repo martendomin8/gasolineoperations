@@ -20,6 +20,7 @@ function getConnectionString(): string {
 }
 
 const isServerless = process.env.VERCEL === "1" || process.env.NODE_ENV === "production";
+const requiresSsl = isServerless || (process.env.DATABASE_URL?.includes("neon.tech") ?? false);
 
 export function getDb() {
   if (!_db) {
@@ -29,7 +30,7 @@ export function getDb() {
       idle_timeout: isServerless ? 10 : 20,
       connect_timeout: 10,
       // Neon requires SSL in production
-      ssl: isServerless ? "require" : false,
+      ssl: requiresSsl ? "require" : false,
     });
     _db = drizzle(queryClient, { schema });
   }
@@ -42,7 +43,7 @@ export function getAuthDb() {
     const authClient = postgres(authUrl, {
       max: isServerless ? 2 : 5,
       idle_timeout: isServerless ? 10 : 20,
-      ssl: isServerless ? "require" : false,
+      ssl: requiresSsl ? "require" : false,
     });
     _authDb = drizzle(authClient, { schema });
   }
