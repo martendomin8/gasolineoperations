@@ -20,6 +20,32 @@ export function isValidTransition(from: DealStatus, to: DealStatus): boolean {
   return VALID_TRANSITIONS[from]?.includes(to) ?? false;
 }
 
+// === Zod helpers ===
+
+// Coerce empty strings to null for optional numeric fields
+const optionalPositiveNumber = z.preprocess(
+  (val) => (val === "" || val === null || val === undefined ? null : Number(val)),
+  z.number().positive().nullable().optional()
+);
+
+// Coerce empty strings to null for optional date fields
+const optionalDateString = z.preprocess(
+  (val) => (val === "" || val === null || val === undefined ? null : val),
+  z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional()
+);
+
+// Coerce empty strings to null for optional UUID fields
+const optionalUuid = z.preprocess(
+  (val) => (val === "" || val === null || val === undefined ? null : val),
+  z.string().uuid().nullable().optional()
+);
+
+// Coerce empty strings to null for optional string fields
+const optionalString = z.preprocess(
+  (val) => (val === "" || val === null || val === undefined ? null : val),
+  z.string().nullable().optional()
+);
+
 // === Zod Schemas ===
 
 export const createDealSchema = z
@@ -31,7 +57,7 @@ export const createDealSchema = z
     product: z.string().min(1, "Product is required").max(255),
     quantityMt: z.coerce.number().positive("Quantity must be positive"),
     contractedQty: z.string().max(100).nullable().optional(),
-    nominatedQty: z.coerce.number().positive().nullable().optional(),
+    nominatedQty: optionalPositiveNumber,
     incoterm: z.enum(incoterms),
     loadport: z.string().min(1, "Loadport is required").max(255),
     dischargePort: z.string().max(255).nullable().optional(),
@@ -39,13 +65,53 @@ export const createDealSchema = z
     laycanEnd: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD"),
     vesselName: z.string().max(255).nullable().optional(),
     vesselImo: z.string().max(20).nullable().optional(),
-    assignedOperatorId: z.string().uuid().nullable().optional(),
-    secondaryOperatorId: z.string().uuid().nullable().optional(),
-    pricingFormula: z.string().nullable().optional(),
-    pricingType: z.string().max(20).nullable().optional(),
-    pricingEstimatedDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
-    specialInstructions: z.string().nullable().optional(),
-    sourceRawText: z.string().nullable().optional(),
+    assignedOperatorId: optionalUuid,
+    secondaryOperatorId: optionalUuid,
+    pricingFormula: optionalString,
+    pricingType: z.preprocess(
+      (val) => (val === "" || val === null || val === undefined ? null : val),
+      z.string().max(20).nullable().optional()
+    ),
+    pricingEstimatedDate: optionalDateString,
+    specialInstructions: optionalString,
+    sourceRawText: optionalString,
+  })
+  .refine(
+    (data) => data.laycanEnd >= data.laycanStart,
+    { message: "Laycan end must be on or after laycan start", path: ["laycanEnd"] }
+  );
+
+/**
+ * Relaxed schema for Excel import — product is optional (not in their Excel),
+ * defaults to empty string so it can be filled later.
+ */
+export const importDealSchema = z
+  .object({
+    externalRef: z.string().max(100).nullable().optional(),
+    linkageCode: z.string().max(100).nullable().optional(),
+    counterparty: z.string().min(1, "Counterparty is required").max(255),
+    direction: z.enum(directions),
+    product: z.string().max(255).optional().default(""),
+    quantityMt: z.coerce.number().positive("Quantity must be positive"),
+    contractedQty: z.string().max(100).nullable().optional(),
+    nominatedQty: optionalPositiveNumber,
+    incoterm: z.enum(incoterms),
+    loadport: z.string().min(1, "Loadport is required").max(255),
+    dischargePort: z.string().max(255).nullable().optional(),
+    laycanStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD"),
+    laycanEnd: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD"),
+    vesselName: z.string().max(255).nullable().optional(),
+    vesselImo: z.string().max(20).nullable().optional(),
+    assignedOperatorId: optionalUuid,
+    secondaryOperatorId: optionalUuid,
+    pricingFormula: optionalString,
+    pricingType: z.preprocess(
+      (val) => (val === "" || val === null || val === undefined ? null : val),
+      z.string().max(20).nullable().optional()
+    ),
+    pricingEstimatedDate: optionalDateString,
+    specialInstructions: optionalString,
+    sourceRawText: optionalString,
   })
   .refine(
     (data) => data.laycanEnd >= data.laycanStart,
@@ -60,7 +126,7 @@ export const updateDealSchema = z.object({
   product: z.string().min(1).max(255).optional(),
   quantityMt: z.coerce.number().positive().optional(),
   contractedQty: z.string().max(100).nullable().optional(),
-  nominatedQty: z.coerce.number().positive().nullable().optional(),
+  nominatedQty: optionalPositiveNumber,
   incoterm: z.enum(incoterms).optional(),
   loadport: z.string().min(1).max(255).optional(),
   dischargePort: z.string().max(255).nullable().optional(),
@@ -71,12 +137,15 @@ export const updateDealSchema = z.object({
   vesselCleared: z.boolean().optional(),
   docInstructionsReceived: z.boolean().optional(),
   status: z.enum(statuses).optional(),
-  assignedOperatorId: z.string().uuid().nullable().optional(),
-  secondaryOperatorId: z.string().uuid().nullable().optional(),
-  pricingFormula: z.string().nullable().optional(),
-  pricingType: z.string().max(20).nullable().optional(),
-  pricingEstimatedDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
-  specialInstructions: z.string().nullable().optional(),
+  assignedOperatorId: optionalUuid,
+  secondaryOperatorId: optionalUuid,
+  pricingFormula: optionalString,
+  pricingType: z.preprocess(
+    (val) => (val === "" || val === null || val === undefined ? null : val),
+    z.string().max(20).nullable().optional()
+  ),
+  pricingEstimatedDate: optionalDateString,
+  specialInstructions: optionalString,
   version: z.number().int().positive("Version is required for optimistic locking"),
 });
 
@@ -106,5 +175,6 @@ export const RE_NOTIFICATION_FIELDS = [
 ] as const;
 
 export type CreateDealInput = z.infer<typeof createDealSchema>;
+export type ImportDealInput = z.infer<typeof importDealSchema>;
 export type UpdateDealInput = z.infer<typeof updateDealSchema>;
 export type DealFilter = z.infer<typeof dealFilterSchema>;

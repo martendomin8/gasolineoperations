@@ -23,7 +23,7 @@ const DEAL_FIELDS = [
   { value: "", label: "— Skip —" },
   { value: "counterparty", label: "Counterparty *" },
   { value: "direction", label: "Direction (buy/sell) *" },
-  { value: "product", label: "Product *" },
+  { value: "product", label: "Product" },
   { value: "quantityMt", label: "Quantity (MT) *" },
   { value: "contractedQty", label: "Contracted Qty (e.g. 37000MT +/-10%)" },
   { value: "incoterm", label: "Incoterm *" },
@@ -90,16 +90,28 @@ function preprocessGasolineRows(
   const firstCol = headers[0];
   const filtered: Record<string, unknown>[] = [];
 
+  // Section header keywords to skip
+  const SECTION_HEADERS = ["SALE", "PURCHASE", "PURCHASE + SALE", "PURCHASE+SALE"];
+
   for (const row of rows) {
     const cell0 = String(row[firstCol] ?? "").trim();
 
-    // Skip empty rows
-    if (!cell0 && !row[headers[1]]) continue;
+    // Skip rows where ALL cells are empty/undefined
+    const hasAnyValue = headers.some((h) => {
+      const v = row[h];
+      return v !== undefined && v !== null && String(v).trim() !== "";
+    });
+    if (!hasAnyValue) continue;
 
-    // Skip section label rows ("SALE", "PURCHASE", or header rows like "S(LAYCAN)")
+    // Skip section label rows ("SALE", "PURCHASE", "PURCHASE + SALE")
     const upper = cell0.toUpperCase();
-    if (upper === "SALE" || upper === "PURCHASE" || upper === "PURCHASE + SALE") continue;
+    if (SECTION_HEADERS.includes(upper)) continue;
+
+    // Skip sub-header rows like "P(LAYCAN)", "S(LAYCAN)" — these contain column labels
     if (upper.startsWith("P(LAYCAN") || upper.startsWith("S(LAYCAN")) continue;
+
+    // Skip empty first cell with no counterparty — likely a blank separator row
+    if (!cell0 && !row[headers[1]]) continue;
 
     // Skip rows where the first cell doesn't match the P/S(...) data pattern
     // and has no counterparty — these are likely sub-headers or totals

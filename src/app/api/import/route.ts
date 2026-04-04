@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { withAuth } from "@/lib/middleware/with-auth";
 import { withTenantDb } from "@/lib/db";
 import { deals } from "@/lib/db/schema";
-import { createDealSchema } from "@/lib/types/deal";
+import { importDealSchema } from "@/lib/types/deal";
 import { eq, and, ne, sql, ilike } from "drizzle-orm";
 import { z } from "zod";
 
@@ -102,8 +102,8 @@ export const POST = withAuth(
         }
       }
 
-      // Try to validate
-      const result = createDealSchema.safeParse(mapped);
+      // Try to validate (importDealSchema: product optional, empty strings → null)
+      const result = importDealSchema.safeParse(mapped);
       if (!result.success) {
         invalid.push({
           rowIndex: i,
