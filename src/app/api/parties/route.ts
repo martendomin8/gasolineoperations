@@ -3,7 +3,7 @@ import { withAuth } from "@/lib/middleware/with-auth";
 import { withTenantDb } from "@/lib/db";
 import { parties, auditLogs } from "@/lib/db/schema";
 import { createPartySchema, partyFilterSchema } from "@/lib/types/party";
-import { eq, and, ilike, isNull, or } from "drizzle-orm";
+import { eq, and, ilike, isNull, or, sql } from "drizzle-orm";
 
 // GET /api/parties — List parties for tenant
 export const GET = withAuth(async (req, _ctx, session) => {
@@ -32,11 +32,43 @@ export const GET = withAuth(async (req, _ctx, session) => {
       );
     }
 
-    return db
+    // When a port filter is provided, return region-matched parties first,
+    // then all remaining parties of that type as fallback (operator is never blocked).
+    if (filters.port) {
+      const portLower = filters.port.toLowerCase();
+
+      // Region-matched parties: regionTags array contains a tag matching the port (case-insensitive)
+      const regionConditions = [
+        ...conditions,
+        sql`EXISTS (SELECT 1 FROM unnest(${parties.regionTags}) AS tag WHERE lower(tag) = ${portLower})`,
+      ];
+
+      const matched = await db
+        .select()
+        .from(parties)
+        .where(and(...regionConditions))
+        .orderBy(parties.type, parties.name);
+
+      // All parties of that type (fallback / "show all")
+      const all = await db
+        .select()
+        .from(parties)
+        .where(and(...conditions))
+        .orderBy(parties.type, parties.name);
+
+      const matchedIds = new Set(matched.map((p) => p.id));
+      const rest = all.filter((p) => !matchedIds.has(p.id));
+
+      return { matched, rest };
+    }
+
+    const all = await db
       .select()
       .from(parties)
       .where(and(...conditions))
       .orderBy(parties.type, parties.name);
+
+    return { matched: all, rest: [] };
   });
 
   return NextResponse.json(result);

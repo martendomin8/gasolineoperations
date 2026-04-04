@@ -52,6 +52,7 @@ export const POST = withAuth(async (req, _ctx, session) => {
         loadport: deals.loadport,
         dischargePort: deals.dischargePort,
         status: deals.status,
+        linkageCode: deals.linkageCode,
       })
       .from(deals)
       .where(and(...conditions))

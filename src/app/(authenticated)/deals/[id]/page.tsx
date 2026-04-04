@@ -33,9 +33,13 @@ import {
   XCircle,
   Copy,
   ClipboardCheck,
+  Plus,
+  Link2,
+  DollarSign,
+  Users,
 } from "lucide-react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import type { DealStatus, WorkflowStepStatus } from "@/lib/db/schema";
@@ -243,9 +247,11 @@ interface WorkflowStepCardProps {
   step: WorkflowStepWithDraft;
   onAction: (stepId: string, action: string, extra?: Record<string, unknown>) => Promise<void>;
   isOperator: boolean;
+  loadport: string;
+  dischargePort: string | null;
 }
 
-function WorkflowStepCard({ step, onAction, isOperator }: WorkflowStepCardProps) {
+function WorkflowStepCard({ step, onAction, isOperator, loadport, dischargePort }: WorkflowStepCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [loading, setLoading] = useState(false);
   const [editingDraft, setEditingDraft] = useState(false);
@@ -253,7 +259,9 @@ function WorkflowStepCard({ step, onAction, isOperator }: WorkflowStepCardProps)
   const [savingDraft, setSavingDraft] = useState(false);
   const [draftSaved, setDraftSaved] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [parties, setParties] = useState<Party[]>([]);
+  const [matchedParties, setMatchedParties] = useState<Party[]>([]);
+  const [restParties, setRestParties] = useState<Party[]>([]);
+  const [showAllParties, setShowAllParties] = useState(false);
   const [loadingParties, setLoadingParties] = useState(false);
 
   const cfg = STATUS_CONFIG[step.status] ?? STATUS_CONFIG.pending;
@@ -272,12 +280,20 @@ function WorkflowStepCard({ step, onAction, isOperator }: WorkflowStepCardProps)
   };
 
   const loadParties = async () => {
-    if (parties.length > 0) return;
+    if (matchedParties.length > 0 || restParties.length > 0) return;
     setLoadingParties(true);
     try {
-      const res = await fetch(`/api/parties?type=${step.recipientPartyType}&limit=100`);
+      // Determine the relevant port for this step type
+      // Discharge-side steps (agent/inspector at discharge) use dischargePort; loadport steps use loadport
+      const stepNameLower = step.stepName.toLowerCase();
+      const isDischargeStep = stepNameLower.includes("discharge") || stepNameLower.includes("disch");
+      const port = isDischargeStep && dischargePort ? dischargePort : loadport;
+      const params = new URLSearchParams({ type: step.recipientPartyType });
+      if (port) params.set("port", port);
+      const res = await fetch(`/api/parties?${params.toString()}`);
       const data = await res.json();
-      setParties(data.parties ?? []);
+      setMatchedParties(data.matched ?? []);
+      setRestParties(data.rest ?? []);
     } finally {
       setLoadingParties(false);
     }
@@ -525,13 +541,32 @@ function WorkflowStepCard({ step, onAction, isOperator }: WorkflowStepCardProps)
                 disabled={loading}
               >
                 <option value="">— Select {RECIPIENT_LABELS[step.recipientPartyType] ?? step.recipientPartyType} —</option>
-                {loadingParties && <option disabled>Loading…</option>}
-                {parties.map((p) => (
+                {loadingParties && <option disabled>Loading...</option>}
+                {matchedParties.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.name}{p.port ? ` (${p.port})` : ""}
                   </option>
                 ))}
+                {showAllParties && restParties.length > 0 && (
+                  <>
+                    <option disabled>── Other ──</option>
+                    {restParties.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}{p.port ? ` (${p.port})` : ""}
+                      </option>
+                    ))}
+                  </>
+                )}
               </select>
+              {restParties.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => { setShowAllParties(!showAllParties); loadParties(); }}
+                  className="text-[0.625rem] text-[var(--color-accent-text)] hover:underline whitespace-nowrap flex-shrink-0"
+                >
+                  {showAllParties ? "Region only" : `Show all (${restParties.length})`}
+                </button>
+              )}
             </div>
           )}
 
@@ -664,9 +699,11 @@ interface WorkflowSectionProps {
   dealId: string;
   dealStatus: DealStatus;
   isOperator: boolean;
+  loadport: string;
+  dischargePort: string | null;
 }
 
-function WorkflowSection({ dealId, dealStatus, isOperator }: WorkflowSectionProps) {
+function WorkflowSection({ dealId, dealStatus, isOperator, loadport, dischargePort }: WorkflowSectionProps) {
   const [workflow, setWorkflow] = useState<WorkflowInstanceDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -840,6 +877,8 @@ function WorkflowSection({ dealId, dealStatus, isOperator }: WorkflowSectionProp
                 step={step}
                 onAction={(sid, action, extra) => handleStepAction(sid, action, extra)}
                 isOperator={isOperator}
+                loadport={loadport}
+                dischargePort={dischargePort}
               />
             </div>
           </div>
@@ -850,41 +889,386 @@ function WorkflowSection({ dealId, dealStatus, isOperator }: WorkflowSectionProp
 }
 
 // ============================================================
-// MAIN PAGE
+// LINKED DEAL TYPE (from list API)
 // ============================================================
 
-export default function DealDetailPage() {
-  const { id } = useParams<{ id: string }>();
-  const { data: session } = useSession();
-  const [deal, setDeal] = useState<DealDetail | null>(null);
-  const [loading, setLoading] = useState(true);
+interface LinkedDeal {
+  id: string;
+  externalRef: string | null;
+  linkageCode: string | null;
+  counterparty: string;
+  direction: string;
+  product: string;
+  quantityMt: string;
+  contractedQty: string | null;
+  nominatedQty: string | null;
+  incoterm: string;
+  loadport: string;
+  dischargePort: string | null;
+  laycanStart: string;
+  laycanEnd: string;
+  vesselName: string | null;
+  vesselImo: string | null;
+  status: DealStatus;
+  pricingType: string | null;
+  pricingFormula: string | null;
+  pricingEstimatedDate: string | null;
+  assignedOperatorId: string | null;
+  secondaryOperatorId: string | null;
+  createdAt: string;
+}
 
-  const fetchDeal = useCallback(() => {
-    fetch(`/api/deals/${id}`)
-      .then((r) => r.json())
-      .then((data) => { setDeal(data); setLoading(false); })
-      .catch(() => setLoading(false));
-  }, [id]);
+// ============================================================
+// VOYAGE INFO BAR (top of linkage view)
+// ============================================================
 
-  useEffect(() => {
-    fetchDeal();
-  }, [fetchDeal]);
+function VoyageInfoBar({
+  linkageCode,
+  vesselName,
+  vesselImo,
+  product,
+  assignedOperatorId,
+  secondaryOperatorId,
+  pricingType,
+  pricingFormula,
+  pricingEstimatedDate,
+}: {
+  linkageCode: string;
+  vesselName: string | null;
+  vesselImo: string | null;
+  product: string;
+  assignedOperatorId: string | null;
+  secondaryOperatorId: string | null;
+  pricingType: string | null;
+  pricingFormula: string | null;
+  pricingEstimatedDate: string | null;
+}) {
+  const operatorInitials = (id: string | null) => {
+    if (!id) return null;
+    return id.substring(0, 2).toUpperCase();
+  };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-24">
-        <div className="h-6 w-6 rounded-full border-2 border-[var(--color-accent)] border-t-transparent animate-spin" />
+  return (
+    <div className="rounded-[var(--radius-md)] bg-[var(--color-surface-2)] border border-[var(--color-border-default)] border-b-2 border-b-[var(--color-border-default)]">
+      <div className="flex items-center gap-6 px-5 py-3 flex-wrap">
+        {/* Linkage code */}
+        <div className="flex items-center gap-2">
+          <Link2 className="h-4 w-4 text-[var(--color-accent)]" />
+          <span className="text-lg font-bold font-mono text-[var(--color-text-primary)] tracking-wide">
+            {linkageCode}
+          </span>
+        </div>
+
+        <div className="h-5 w-px bg-[var(--color-border-subtle)]" />
+
+        {/* Vessel */}
+        <div className="flex items-center gap-2">
+          <Ship className="h-3.5 w-3.5 text-[var(--color-text-tertiary)]" />
+          <div>
+            <span className="text-sm font-medium text-[var(--color-text-primary)]">
+              {vesselName || "TBN"}
+            </span>
+            {vesselImo && (
+              <span className="text-xs font-mono text-[var(--color-text-tertiary)] ml-1.5">
+                IMO {vesselImo}
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div className="h-5 w-px bg-[var(--color-border-subtle)]" />
+
+        {/* Product */}
+        <div className="flex items-center gap-2">
+          <Package className="h-3.5 w-3.5 text-[var(--color-text-tertiary)]" />
+          <span className="text-sm text-[var(--color-text-secondary)]">{product}</span>
+        </div>
+
+        <div className="h-5 w-px bg-[var(--color-border-subtle)]" />
+
+        {/* Operators */}
+        <div className="flex items-center gap-1.5">
+          <Users className="h-3.5 w-3.5 text-[var(--color-text-tertiary)]" />
+          {assignedOperatorId && (
+            <span className="h-6 w-6 rounded-full bg-[var(--color-accent)] text-[var(--color-text-inverse)] text-[0.625rem] font-bold flex items-center justify-center">
+              {operatorInitials(assignedOperatorId)}
+            </span>
+          )}
+          {secondaryOperatorId && (
+            <span className="h-6 w-6 rounded-full bg-[var(--color-surface-3)] text-[var(--color-text-secondary)] text-[0.625rem] font-bold flex items-center justify-center border border-[var(--color-border-subtle)]">
+              {operatorInitials(secondaryOperatorId)}
+            </span>
+          )}
+          {!assignedOperatorId && !secondaryOperatorId && (
+            <span className="text-xs text-[var(--color-text-tertiary)]">Unassigned</span>
+          )}
+        </div>
+
+        {/* Pricing - pushed to the right */}
+        {(pricingType || pricingFormula) && (
+          <>
+            <div className="flex-1" />
+            <div className="flex items-center gap-2">
+              <DollarSign className="h-3.5 w-3.5 text-[var(--color-text-tertiary)]" />
+              <div className="text-right">
+                <div className="flex items-center gap-1.5">
+                  {pricingType && (
+                    <Badge variant="muted">{pricingType}</Badge>
+                  )}
+                  {pricingFormula && (
+                    <span className="text-xs font-mono text-[var(--color-text-secondary)]">
+                      {pricingFormula}
+                    </span>
+                  )}
+                </div>
+                {pricingEstimatedDate && (
+                  <span className="text-[0.625rem] text-[var(--color-text-tertiary)] font-mono">
+                    Est. {pricingEstimatedDate}
+                  </span>
+                )}
+              </div>
+            </div>
+          </>
+        )}
       </div>
-    );
-  }
+    </div>
+  );
+}
 
-  if (!deal) {
-    return <p className="text-[var(--color-text-secondary)]">Deal not found</p>;
-  }
+// ============================================================
+// LINKED DEAL CARD (buy or sell side)
+// ============================================================
 
-  const canEdit = session?.user?.role === "operator" || session?.user?.role === "admin";
-  const isOperator = canEdit;
+interface LinkedDealCardProps {
+  deal: LinkedDeal;
+  side: "buy" | "sell";
+  isCurrent: boolean;
+  isOperator: boolean;
+}
 
+function LinkedDealCard({ deal, side, isCurrent, isOperator }: LinkedDealCardProps) {
+  const borderColor = side === "buy"
+    ? "border-l-blue-500/60"
+    : "border-l-amber-500/60";
+
+  return (
+    <Card className={`border-l-[3px] ${borderColor} ${isCurrent ? "ring-1 ring-[var(--color-accent)]/30" : ""}`}>
+      {/* Card header */}
+      <div className="flex items-center justify-between px-4 pt-3 pb-2">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <Link
+            href={`/deals/${deal.id}`}
+            className="text-sm font-semibold text-[var(--color-text-primary)] hover:text-[var(--color-accent-text)] transition-colors truncate"
+          >
+            {deal.counterparty}
+          </Link>
+          <Badge variant={deal.direction === "buy" ? "info" : "accent"}>
+            {deal.direction}
+          </Badge>
+          <Badge variant="muted">{deal.incoterm}</Badge>
+          {isCurrent && (
+            <span className="text-[0.5625rem] font-mono px-1.5 py-0.5 rounded bg-[var(--color-accent-muted)] text-[var(--color-accent-text)] uppercase tracking-wider">
+              Current
+            </span>
+          )}
+        </div>
+        <Link href={`/deals/${deal.id}/edit`}>
+          <Button variant="ghost" size="sm" className="!p-1">
+            <Pencil className="h-3 w-3" />
+          </Button>
+        </Link>
+      </div>
+
+      {/* Key fields */}
+      <div className="px-4 pb-3">
+        <dl className="grid grid-cols-2 gap-x-3 gap-y-2">
+          <Field
+            label="Quantity"
+            value={`${Number(deal.quantityMt).toLocaleString()} MT`}
+            mono
+          />
+          <Field
+            label="Nominated"
+            value={deal.nominatedQty ? `${Number(deal.nominatedQty).toLocaleString()} MT` : null}
+            mono
+          />
+          <Field label="Loadport" value={deal.loadport} />
+          <Field label="Discharge" value={deal.dischargePort} />
+          <Field
+            label="Laycan"
+            value={`${deal.laycanStart} — ${deal.laycanEnd}`}
+            mono
+          />
+          <Field label="Status" value={deal.status.charAt(0).toUpperCase() + deal.status.slice(1)} />
+        </dl>
+      </div>
+
+      {/* Workflow for this deal */}
+      <div className="border-t border-[var(--color-border-subtle)] px-4 py-3">
+        <WorkflowSection
+          dealId={deal.id}
+          dealStatus={deal.status}
+          isOperator={isOperator}
+          loadport={deal.loadport}
+          dischargePort={deal.dischargePort ?? null}
+        />
+      </div>
+    </Card>
+  );
+}
+
+// ============================================================
+// ADD SALE BUTTON
+// ============================================================
+
+function AddSaleButton({ linkageCode }: { linkageCode: string }) {
+  const router = useRouter();
+  return (
+    <button
+      onClick={() => router.push(`/deals/new?linkageCode=${encodeURIComponent(linkageCode)}&direction=sell`)}
+      className="w-full rounded-[var(--radius-md)] border-2 border-dashed border-[var(--color-border-subtle)] hover:border-[var(--color-accent)] bg-transparent hover:bg-[var(--color-accent-muted)] transition-all py-8 flex flex-col items-center justify-center gap-2 group cursor-pointer"
+    >
+      <div className="h-9 w-9 rounded-full bg-[var(--color-surface-3)] group-hover:bg-[var(--color-accent)] flex items-center justify-center transition-colors">
+        <Plus className="h-4 w-4 text-[var(--color-text-tertiary)] group-hover:text-[var(--color-text-inverse)] transition-colors" />
+      </div>
+      <span className="text-sm font-medium text-[var(--color-text-tertiary)] group-hover:text-[var(--color-accent-text)] transition-colors">
+        Add Sale
+      </span>
+    </button>
+  );
+}
+
+// ============================================================
+// LINKAGE VIEW (two-column buy/sell layout)
+// ============================================================
+
+interface LinkageViewProps {
+  deal: DealDetail;
+  linkedDeals: LinkedDeal[];
+  isOperator: boolean;
+  fetchDeal: () => void;
+}
+
+function LinkageView({ deal, linkedDeals, isOperator, fetchDeal }: LinkageViewProps) {
+  const buyDeals = linkedDeals.filter((d) => d.direction === "buy");
+  const sellDeals = linkedDeals.filter((d) => d.direction === "sell");
+
+  // Gather shared voyage info from whichever deal has it
+  const voyageSource = linkedDeals.find((d) => d.vesselName) ?? linkedDeals[0];
+  const pricingSource = linkedDeals.find((d) => d.pricingFormula || d.pricingType) ?? linkedDeals[0];
+
+  return (
+    <div className="space-y-6">
+      {/* Back + edit header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Link
+            href="/deals"
+            className="p-1.5 rounded-[var(--radius-md)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-surface-3)] transition-colors"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Link>
+          <div>
+            <h1 className="text-xl font-bold text-[var(--color-text-primary)]">
+              Linked Voyage
+            </h1>
+            <p className="text-sm text-[var(--color-text-secondary)] mt-0.5">
+              {buyDeals.length} purchase{buyDeals.length !== 1 ? "s" : ""} + {sellDeals.length} sale{sellDeals.length !== 1 ? "s" : ""}
+            </p>
+          </div>
+        </div>
+        {isOperator && (
+          <Link href={`/deals/${deal.id}/edit`}>
+            <Button variant="secondary" size="md">
+              <Pencil className="h-3.5 w-3.5" />
+              Edit Current
+            </Button>
+          </Link>
+        )}
+      </div>
+
+      {/* Voyage Info Bar */}
+      <VoyageInfoBar
+        linkageCode={deal.linkageCode!}
+        vesselName={voyageSource?.vesselName ?? null}
+        vesselImo={voyageSource?.vesselImo ?? null}
+        product={voyageSource?.product ?? deal.product}
+        assignedOperatorId={voyageSource?.assignedOperatorId ?? null}
+        secondaryOperatorId={voyageSource?.secondaryOperatorId ?? null}
+        pricingType={pricingSource?.pricingType ?? null}
+        pricingFormula={pricingSource?.pricingFormula ?? null}
+        pricingEstimatedDate={pricingSource?.pricingEstimatedDate ?? null}
+      />
+
+      {/* Two-column grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Left: Buy side */}
+        <div className="space-y-4">
+          <h2 className="text-sm font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide flex items-center gap-2">
+            <span className="h-2 w-2 rounded-full bg-blue-500/60" />
+            Buy Side
+            <span className="text-xs font-normal text-[var(--color-text-tertiary)] ml-1">
+              ({buyDeals.length} deal{buyDeals.length !== 1 ? "s" : ""})
+            </span>
+          </h2>
+          {buyDeals.length === 0 ? (
+            <div className="rounded-[var(--radius-md)] border border-dashed border-[var(--color-border-subtle)] py-8 text-center">
+              <p className="text-sm text-[var(--color-text-tertiary)]">No purchase deals linked</p>
+            </div>
+          ) : (
+            buyDeals.map((d) => (
+              <LinkedDealCard
+                key={d.id}
+                deal={d}
+                side="buy"
+                isCurrent={d.id === deal.id}
+                isOperator={isOperator}
+              />
+            ))
+          )}
+        </div>
+
+        {/* Right: Sell side */}
+        <div className="space-y-4">
+          <h2 className="text-sm font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide flex items-center gap-2">
+            <span className="h-2 w-2 rounded-full bg-amber-500/60" />
+            Sell Side
+            <span className="text-xs font-normal text-[var(--color-text-tertiary)] ml-1">
+              ({sellDeals.length} deal{sellDeals.length !== 1 ? "s" : ""})
+            </span>
+          </h2>
+          {sellDeals.map((d) => (
+            <LinkedDealCard
+              key={d.id}
+              deal={d}
+              side="sell"
+              isCurrent={d.id === deal.id}
+              isOperator={isOperator}
+            />
+          ))}
+          {/* Always show "Add Sale" button */}
+          <AddSaleButton linkageCode={deal.linkageCode!} />
+        </div>
+      </div>
+
+      {/* Change History + Audit (for current deal only, below the grid) */}
+      <DealFooterSections deal={deal} />
+    </div>
+  );
+}
+
+// ============================================================
+// SINGLE DEAL VIEW (original layout, no linkage)
+// ============================================================
+
+interface SingleDealViewProps {
+  deal: DealDetail;
+  canEdit: boolean;
+  isOperator: boolean;
+  fetchDeal: () => void;
+}
+
+function SingleDealView({ deal, canEdit, isOperator, fetchDeal }: SingleDealViewProps) {
   return (
     <div className="max-w-4xl space-y-6">
       {/* Header */}
@@ -912,7 +1296,7 @@ export default function DealDetailPage() {
             </div>
           </div>
           {canEdit && (
-            <Link href={`/deals/${id}/edit`}>
+            <Link href={`/deals/${deal.id}/edit`}>
               <Button variant="secondary" size="md">
                 <Pencil className="h-3.5 w-3.5" />
                 Edit
@@ -1019,9 +1403,24 @@ export default function DealDetailPage() {
           dealId={deal.id}
           dealStatus={deal.status}
           isOperator={isOperator ?? false}
+          loadport={deal.loadport}
+          dischargePort={deal.dischargePort}
         />
       </Card>
 
+      {/* Change History + Audit */}
+      <DealFooterSections deal={deal} />
+    </div>
+  );
+}
+
+// ============================================================
+// SHARED FOOTER: CHANGE HISTORY + AUDIT LOG
+// ============================================================
+
+function DealFooterSections({ deal }: { deal: DealDetail }) {
+  return (
+    <>
       {/* Change History */}
       {deal.changeHistory.length > 0 && (
         <Card>
@@ -1088,6 +1487,85 @@ export default function DealDetailPage() {
           )}
         </div>
       </Card>
-    </div>
+    </>
+  );
+}
+
+// ============================================================
+// MAIN PAGE
+// ============================================================
+
+export default function DealDetailPage() {
+  const { id } = useParams<{ id: string }>();
+  const { data: session } = useSession();
+  const [deal, setDeal] = useState<DealDetail | null>(null);
+  const [linkedDeals, setLinkedDeals] = useState<LinkedDeal[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchDeal = useCallback(() => {
+    fetch(`/api/deals/${id}`)
+      .then((r) => r.json())
+      .then(async (data) => {
+        setDeal(data);
+
+        // If deal has a linkageCode, fetch all linked deals
+        if (data.linkageCode) {
+          try {
+            const res = await fetch(`/api/deals?linkageCode=${encodeURIComponent(data.linkageCode)}&perPage=50`);
+            const linked = await res.json();
+            setLinkedDeals(linked.items ?? []);
+          } catch {
+            setLinkedDeals([]);
+          }
+        } else {
+          setLinkedDeals([]);
+        }
+
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, [id]);
+
+  useEffect(() => {
+    fetchDeal();
+  }, [fetchDeal]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <div className="h-6 w-6 rounded-full border-2 border-[var(--color-accent)] border-t-transparent animate-spin" />
+      </div>
+    );
+  }
+
+  if (!deal) {
+    return <p className="text-[var(--color-text-secondary)]">Deal not found</p>;
+  }
+
+  const canEdit = session?.user?.role === "operator" || session?.user?.role === "admin";
+  const isOperator = canEdit;
+
+  // Linkage view when deal has a linkageCode and we found linked deals
+  if (deal.linkageCode && linkedDeals.length > 0) {
+    return (
+      <div className="max-w-6xl space-y-6">
+        <LinkageView
+          deal={deal}
+          linkedDeals={linkedDeals}
+          isOperator={isOperator ?? false}
+          fetchDeal={fetchDeal}
+        />
+      </div>
+    );
+  }
+
+  // Single deal view (original)
+  return (
+    <SingleDealView
+      deal={deal}
+      canEdit={canEdit ?? false}
+      isOperator={isOperator ?? false}
+      fetchDeal={fetchDeal}
+    />
   );
 }

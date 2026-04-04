@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/lib/middleware/with-auth";
 import { getDb } from "@/lib/db";
 import * as schema from "@/lib/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, ne, inArray } from "drizzle-orm";
 import { advanceStep, generateDraft } from "@/lib/workflow-engine";
 
 // Valid step transitions by action
@@ -16,6 +16,7 @@ const STEP_ACTIONS = {
   mark_na: { from: ["pending", "blocked", "ready", "draft_generated", "needs_update"], to: "na" as const },
   needs_update: { from: ["sent", "acknowledged"], to: "needs_update" as const },
   assign_party: { from: ["pending", "blocked", "ready", "draft_generated", "needs_update"], to: null as null },
+  mark_vessel_swap: { from: ["pending", "blocked", "ready", "draft_generated", "sent", "acknowledged", "received", "needs_update"], to: null as null },
 } as const;
 
 type StepAction = keyof typeof STEP_ACTIONS;
@@ -91,6 +92,164 @@ export const PUT = withAuth(
       return NextResponse.json({ error: "partyId is required" }, { status: 400 });
     }
 
+    // mark_vessel_swap: update vessel on deal + cascade to linked deals
+    if (action === "mark_vessel_swap") {
+      const { newVesselName, newVesselImo } = body as {
+        action: StepAction;
+        newVesselName?: string;
+        newVesselImo?: string;
+      };
+
+      if (!newVesselName) {
+        return NextResponse.json({ error: "newVesselName is required" }, { status: 400 });
+      }
+
+      // Fetch the deal via the workflow instance
+      const [instance] = await db
+        .select()
+        .from(schema.workflowInstances)
+        .where(eq(schema.workflowInstances.id, step.workflowInstanceId));
+      if (!instance) {
+        return NextResponse.json({ error: "Workflow instance not found" }, { status: 404 });
+      }
+
+      const [deal] = await db
+        .select()
+        .from(schema.deals)
+        .where(eq(schema.deals.id, instance.dealId));
+      if (!deal) {
+        return NextResponse.json({ error: "Deal not found" }, { status: 404 });
+      }
+
+      // Collect all deal IDs to update (this deal + linked deals)
+      const dealIdsToUpdate: string[] = [deal.id];
+
+      if (deal.linkageCode) {
+        const linkedDeals = await db
+          .select({ id: schema.deals.id })
+          .from(schema.deals)
+          .where(
+            and(
+              eq(schema.deals.tenantId, session.user.tenantId),
+              eq(schema.deals.linkageCode, deal.linkageCode),
+              ne(schema.deals.id, deal.id)
+            )
+          );
+        dealIdsToUpdate.push(...linkedDeals.map((d) => d.id));
+      }
+
+      // Update vessel fields on all deals
+      for (const dealId of dealIdsToUpdate) {
+        await db
+          .update(schema.deals)
+          .set({
+            vesselName: newVesselName,
+            vesselImo: newVesselImo ?? null,
+            updatedAt: new Date(),
+          })
+          .where(eq(schema.deals.id, dealId));
+
+        // Record change log
+        await db.insert(schema.dealChangeLogs).values({
+          tenantId: session.user.tenantId,
+          dealId,
+          fieldChanged: "vesselName",
+          oldValue: deal.vesselName ?? null,
+          newValue: newVesselName,
+          changedBy: session.user.id,
+        });
+        if (newVesselImo !== undefined) {
+          await db.insert(schema.dealChangeLogs).values({
+            tenantId: session.user.tenantId,
+            dealId,
+            fieldChanged: "vesselImo",
+            oldValue: deal.vesselImo ?? null,
+            newValue: newVesselImo ?? null,
+            changedBy: session.user.id,
+          });
+        }
+      }
+
+      // Flag all sent/acknowledged steps across all affected deals as needs_update
+      // (emails that used vessel_name or vessel_imo merge fields)
+      let totalFlagged = 0;
+      for (const dealId of dealIdsToUpdate) {
+        const [inst] = await db
+          .select()
+          .from(schema.workflowInstances)
+          .where(
+            and(
+              eq(schema.workflowInstances.dealId, dealId),
+              eq(schema.workflowInstances.tenantId, session.user.tenantId)
+            )
+          );
+        if (!inst) continue;
+
+        const sentSteps = await db
+          .select()
+          .from(schema.workflowSteps)
+          .where(
+            and(
+              eq(schema.workflowSteps.workflowInstanceId, inst.id),
+              inArray(schema.workflowSteps.status, ["sent", "acknowledged"])
+            )
+          );
+
+        const stepIdsWithDrafts = sentSteps
+          .map((s) => s.emailDraftId)
+          .filter((id): id is string => id != null);
+
+        if (stepIdsWithDrafts.length > 0) {
+          const draftsToCheck = await db
+            .select()
+            .from(schema.emailDrafts)
+            .where(inArray(schema.emailDrafts.id, stepIdsWithDrafts));
+
+          const affectedDraftIds = draftsToCheck
+            .filter((d) => {
+              const used = (d.mergeFieldsUsed ?? {}) as Record<string, string>;
+              return "vessel_name" in used || "vessel_imo" in used;
+            })
+            .map((d) => d.id);
+
+          if (affectedDraftIds.length > 0) {
+            const affectedStepIds = sentSteps
+              .filter((s) => s.emailDraftId && affectedDraftIds.includes(s.emailDraftId))
+              .map((s) => s.id);
+
+            if (affectedStepIds.length > 0) {
+              await db
+                .update(schema.workflowSteps)
+                .set({ status: "needs_update" })
+                .where(inArray(schema.workflowSteps.id, affectedStepIds));
+              totalFlagged += affectedStepIds.length;
+            }
+          }
+        }
+
+        // Audit log per deal
+        await db.insert(schema.auditLogs).values({
+          tenantId: session.user.tenantId,
+          dealId,
+          userId: session.user.id,
+          action: "workflow.vessel_swap",
+          details: {
+            newVesselName,
+            newVesselImo: newVesselImo ?? null,
+            oldVesselName: deal.vesselName,
+            oldVesselImo: deal.vesselImo,
+            triggeredFromDealId: deal.id,
+          },
+        });
+      }
+
+      return NextResponse.json({
+        success: true,
+        dealsUpdated: dealIdsToUpdate.length,
+        stepsFlagged: totalFlagged,
+      });
+    }
+
     // For generate_draft, we create an EmailDraft first
     if (action === "generate_draft") {
       // Fetch the deal via the instance
@@ -136,6 +295,101 @@ export const PUT = withAuth(
       return NextResponse.json({ error: "Invalid action" }, { status: 400 });
     }
     await advanceStep(stepId, to, db);
+
+    // Cancel cascade: flag linked deal steps for review
+    if (action === "mark_cancelled") {
+      const [cancelInstance] = await db
+        .select()
+        .from(schema.workflowInstances)
+        .where(eq(schema.workflowInstances.id, step.workflowInstanceId));
+
+      if (cancelInstance) {
+        const [cancelDeal] = await db
+          .select()
+          .from(schema.deals)
+          .where(eq(schema.deals.id, cancelInstance.dealId));
+
+        if (cancelDeal?.linkageCode) {
+          // Find all linked deals with same linkageCode
+          const linkedDeals = await db
+            .select()
+            .from(schema.deals)
+            .where(
+              and(
+                eq(schema.deals.tenantId, session.user.tenantId),
+                eq(schema.deals.linkageCode, cancelDeal.linkageCode),
+                ne(schema.deals.id, cancelDeal.id)
+              )
+            );
+
+          let cascadeFlagged = 0;
+          for (const linkedDeal of linkedDeals) {
+            const [linkedInstance] = await db
+              .select()
+              .from(schema.workflowInstances)
+              .where(
+                and(
+                  eq(schema.workflowInstances.dealId, linkedDeal.id),
+                  eq(schema.workflowInstances.tenantId, session.user.tenantId)
+                )
+              );
+            if (!linkedInstance) continue;
+
+            // Find sent steps on linked deal with same recipientPartyType
+            const linkedSentSteps = await db
+              .select()
+              .from(schema.workflowSteps)
+              .where(
+                and(
+                  eq(schema.workflowSteps.workflowInstanceId, linkedInstance.id),
+                  eq(schema.workflowSteps.recipientPartyType, step.recipientPartyType),
+                  inArray(schema.workflowSteps.status, ["sent"])
+                )
+              );
+
+            if (linkedSentSteps.length > 0) {
+              const linkedStepIds = linkedSentSteps.map((s) => s.id);
+              await db
+                .update(schema.workflowSteps)
+                .set({ status: "needs_update" })
+                .where(inArray(schema.workflowSteps.id, linkedStepIds));
+              cascadeFlagged += linkedStepIds.length;
+
+              // Audit log for each linked deal
+              await db.insert(schema.auditLogs).values({
+                tenantId: session.user.tenantId,
+                dealId: linkedDeal.id,
+                userId: session.user.id,
+                action: "workflow.cancel_cascade_flagged",
+                details: {
+                  triggerDealId: cancelDeal.id,
+                  triggerStepId: step.id,
+                  triggerStepName: step.stepName,
+                  partyType: step.recipientPartyType,
+                  flaggedSteps: linkedStepIds.length,
+                },
+              });
+            }
+          }
+
+          // Audit log on source deal about the cascade
+          if (cascadeFlagged > 0) {
+            await db.insert(schema.auditLogs).values({
+              tenantId: session.user.tenantId,
+              dealId: cancelDeal.id,
+              userId: session.user.id,
+              action: "workflow.cancel_cascade_triggered",
+              details: {
+                stepId: step.id,
+                stepName: step.stepName,
+                linkedDealsAffected: linkedDeals.length,
+                totalStepsFlagged: cascadeFlagged,
+              },
+            });
+          }
+        }
+      }
+    }
 
     // If marking sent, update the email draft status (V1: operator already copied to Outlook)
     if (action === "mark_sent") {

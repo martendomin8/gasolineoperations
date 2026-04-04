@@ -17,8 +17,12 @@ import {
   FlaskConical,
   ChevronDown,
   ChevronUp,
+  Link2,
+  List,
+  Plus,
 } from "lucide-react";
 import Link from "next/link";
+import { Dialog } from "@/components/ui/dialog";
 
 // ============================================================
 // TYPES
@@ -450,6 +454,14 @@ export default function ParseDealPage() {
   const [editedFields, setEditedFields] = useState<Record<string, string>>({});
   const [creating, setCreating] = useState(false);
 
+  // Duplicate detection state
+  const [duplicates, setDuplicates] = useState<any[]>([]);
+  const [showDupDialog, setShowDupDialog] = useState(false);
+  const [dupChoice, setDupChoice] = useState<"ai" | "manual" | "new">("ai");
+  const [manualLinkageCode, setManualLinkageCode] = useState("");
+  const [activeLinkageCodes, setActiveLinkageCodes] = useState<string[]>([]);
+  const [pendingPayload, setPendingPayload] = useState<any>(null);
+
   // E2E: parse then immediately create and navigate — one click
   const [e2eRunning, setE2eRunning] = useState(false);
   const [e2eStatus, setE2eStatus] = useState<string | null>(null);
@@ -510,12 +522,12 @@ export default function ParseDealPage() {
     sourceRawText: source,
   });
 
-  const handleCreateDeal = async () => {
+  const submitDeal = async (payload: any) => {
     setCreating(true);
     const res = await fetch("/api/deals", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(buildDealPayload(editedFields, rawText)),
+      body: JSON.stringify(payload),
     });
     const data = await res.json();
     setCreating(false);
@@ -524,6 +536,56 @@ export default function ParseDealPage() {
     } else {
       setError(data.error ?? "Failed to create deal");
     }
+  };
+
+  const handleCreateDeal = async () => {
+    setCreating(true);
+    setError(null);
+    const payload = buildDealPayload(editedFields, rawText);
+
+    try {
+      // Check for duplicates first
+      const dupRes = await fetch("/api/deals/check-duplicates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          counterparty: payload.counterparty ?? "",
+          direction: payload.direction ?? "buy",
+          product: payload.product ?? "",
+          quantityMt: payload.quantityMt ?? 0,
+          laycanStart: payload.laycanStart ?? "",
+          loadport: payload.loadport ?? "",
+          dischargePort: payload.dischargePort ?? "",
+        }),
+      });
+
+      if (dupRes.ok) {
+        const { duplicates: dups } = await dupRes.json();
+        if (dups.length > 0) {
+          setDuplicates(dups);
+          setPendingPayload(payload);
+          setDupChoice("ai");
+          setManualLinkageCode("");
+          // Fetch active linkage codes for manual selection
+          fetch("/api/deals?perPage=200")
+            .then((r) => r.json())
+            .then((data) => {
+              const codes = (data.items ?? [])
+                .map((d: any) => d.linkageCode as string | null)
+                .filter((c: string | null): c is string => !!c);
+              setActiveLinkageCodes([...new Set(codes)] as string[]);
+            })
+            .catch(() => {});
+          setShowDupDialog(true);
+          setCreating(false);
+          return;
+        }
+      }
+    } catch {
+      // If duplicate check fails, proceed with creation
+    }
+
+    await submitDeal(payload);
   };
 
   /** E2E: load fixture → parse → create → navigate to deal detail.
@@ -848,6 +910,139 @@ Price: Platts CIF NWE -$5/MT`}
           )}
         </div>
       </div>
+
+      {/* Duplicate / linkage dialog */}
+      <Dialog
+        open={showDupDialog}
+        onClose={() => { setShowDupDialog(false); setCreating(false); }}
+        title="Potential Duplicate Found"
+        description="A matching deal already exists. How would you like to proceed?"
+      >
+        {/* Matched deal summary */}
+        <div className="space-y-2 mb-4">
+          {duplicates.map((dup) => (
+            <div
+              key={dup.id}
+              className="flex items-center gap-3 p-3 rounded-[var(--radius-md)] bg-[var(--color-warning-muted)] border border-[var(--color-warning)]"
+            >
+              <AlertTriangle className="h-4 w-4 text-[var(--color-warning)] flex-shrink-0" />
+              <div className="text-sm">
+                <span className="font-medium text-[var(--color-text-primary)]">{dup.counterparty}</span>
+                <span className="text-[var(--color-text-secondary)]">
+                  {" "}{dup.direction.toUpperCase()} {dup.product} — {Number(dup.quantityMt).toLocaleString()} MT
+                </span>
+                {dup.linkageCode && (
+                  <span className="ml-2 text-xs font-mono px-1.5 py-0.5 rounded bg-[var(--color-surface-3)] text-[var(--color-accent-text)]">
+                    {dup.linkageCode}
+                  </span>
+                )}
+                <span className="text-xs text-[var(--color-text-tertiary)] ml-2">
+                  {dup.laycanStart}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Three options */}
+        <div className="space-y-2 mb-4">
+          {/* Option 1: AI suggestion — link to matched deal */}
+          {duplicates.length > 0 && duplicates[0].linkageCode && (
+            <button
+              onClick={() => setDupChoice("ai")}
+              className={`w-full flex items-start gap-3 p-3 rounded-[var(--radius-md)] border text-left transition-colors ${
+                dupChoice === "ai"
+                  ? "border-[var(--color-accent)] bg-[var(--color-accent-muted)]"
+                  : "border-[var(--color-border-default)] hover:bg-[var(--color-surface-3)]"
+              }`}
+            >
+              <Link2 className="h-4 w-4 mt-0.5 flex-shrink-0 text-[var(--color-accent)]" />
+              <div>
+                <p className="text-sm font-medium text-[var(--color-text-primary)]">
+                  Link to {duplicates[0].counterparty} — {duplicates[0].linkageCode}
+                </p>
+                <p className="text-xs text-[var(--color-text-secondary)] mt-0.5">
+                  Set this deal&apos;s linkage code to match the existing deal
+                </p>
+              </div>
+            </button>
+          )}
+
+          {/* Option 2: Manual linkage selection */}
+          <button
+            onClick={() => setDupChoice("manual")}
+            className={`w-full flex items-start gap-3 p-3 rounded-[var(--radius-md)] border text-left transition-colors ${
+              dupChoice === "manual"
+                ? "border-[var(--color-accent)] bg-[var(--color-accent-muted)]"
+                : "border-[var(--color-border-default)] hover:bg-[var(--color-surface-3)]"
+            }`}
+          >
+            <List className="h-4 w-4 mt-0.5 flex-shrink-0 text-[var(--color-info)]" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-[var(--color-text-primary)]">Pick linkage manually</p>
+              <p className="text-xs text-[var(--color-text-secondary)] mt-0.5">
+                Choose an existing linkage code from active deals
+              </p>
+              {dupChoice === "manual" && (
+                <select
+                  value={manualLinkageCode}
+                  onChange={(e) => setManualLinkageCode(e.target.value)}
+                  onClick={(e) => e.stopPropagation()}
+                  className="mt-2 w-full h-8 px-2 text-sm bg-[var(--color-surface-2)] border border-[var(--color-border-default)] rounded-[var(--radius-md)] text-[var(--color-text-primary)]"
+                >
+                  <option value="">Select a linkage code...</option>
+                  {activeLinkageCodes.map((code) => (
+                    <option key={code} value={code}>{code}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+          </button>
+
+          {/* Option 3: Create as new */}
+          <button
+            onClick={() => setDupChoice("new")}
+            className={`w-full flex items-start gap-3 p-3 rounded-[var(--radius-md)] border text-left transition-colors ${
+              dupChoice === "new"
+                ? "border-[var(--color-accent)] bg-[var(--color-accent-muted)]"
+                : "border-[var(--color-border-default)] hover:bg-[var(--color-surface-3)]"
+            }`}
+          >
+            <Plus className="h-4 w-4 mt-0.5 flex-shrink-0 text-[var(--color-text-secondary)]" />
+            <div>
+              <p className="text-sm font-medium text-[var(--color-text-primary)]">Create as new deal</p>
+              <p className="text-xs text-[var(--color-text-secondary)] mt-0.5">
+                No linkage — this is a standalone deal
+              </p>
+            </div>
+          </button>
+        </div>
+
+        <div className="flex gap-3">
+          <Button
+            variant="primary"
+            disabled={dupChoice === "manual" && !manualLinkageCode}
+            onClick={() => {
+              setShowDupDialog(false);
+              const updatedPayload = { ...pendingPayload };
+              if (dupChoice === "ai" && duplicates[0]?.linkageCode) {
+                updatedPayload.linkageCode = duplicates[0].linkageCode;
+              } else if (dupChoice === "manual" && manualLinkageCode) {
+                updatedPayload.linkageCode = manualLinkageCode;
+              }
+              submitDeal(updatedPayload);
+            }}
+          >
+            {dupChoice === "new" ? "Create Deal" : "Link & Create"}
+          </Button>
+          <Button
+            variant="ghost"
+            onClick={() => { setShowDupDialog(false); setCreating(false); }}
+          >
+            Cancel
+          </Button>
+        </div>
+      </Dialog>
     </div>
   );
 }

@@ -3,7 +3,7 @@ import { withAuth } from "@/lib/middleware/with-auth";
 import { withTenantDb } from "@/lib/db";
 import { deals, auditLogs } from "@/lib/db/schema";
 import { createDealSchema, dealFilterSchema } from "@/lib/types/deal";
-import { eq, and, ilike, or, desc, sql } from "drizzle-orm";
+import { eq, and, ilike, or, desc, sql, notInArray } from "drizzle-orm";
 
 // GET /api/deals — Paginated deal list
 export const GET = withAuth(async (req, _ctx, session) => {
@@ -13,6 +13,7 @@ export const GET = withAuth(async (req, _ctx, session) => {
     direction: url.searchParams.get("direction") || undefined,
     incoterm: url.searchParams.get("incoterm") || undefined,
     counterparty: url.searchParams.get("counterparty") || undefined,
+    linkageCode: url.searchParams.get("linkageCode") || undefined,
     assignedOperatorId: url.searchParams.get("assignedOperatorId") || undefined,
     search: url.searchParams.get("search") || undefined,
     page: url.searchParams.get("page") || 1,
@@ -22,9 +23,17 @@ export const GET = withAuth(async (req, _ctx, session) => {
   const result = await withTenantDb(session.user.tenantId, async (db) => {
     const conditions = [eq(deals.tenantId, session.user.tenantId)];
 
-    if (filters.status) conditions.push(eq(deals.status, filters.status));
+    if (filters.status) {
+      conditions.push(eq(deals.status, filters.status));
+    } else if (!filters.linkageCode) {
+      // By default, exclude completed and cancelled deals from the listing
+      // (but show all statuses when fetching linked deals by linkageCode)
+      conditions.push(notInArray(deals.status, ["completed", "cancelled"]));
+    }
     if (filters.direction) conditions.push(eq(deals.direction, filters.direction));
     if (filters.incoterm) conditions.push(eq(deals.incoterm, filters.incoterm));
+    if (filters.linkageCode)
+      conditions.push(eq(deals.linkageCode, filters.linkageCode));
     if (filters.assignedOperatorId)
       conditions.push(eq(deals.assignedOperatorId, filters.assignedOperatorId));
     if (filters.search) {
@@ -47,18 +56,26 @@ export const GET = withAuth(async (req, _ctx, session) => {
         .select({
           id: deals.id,
           externalRef: deals.externalRef,
+          linkageCode: deals.linkageCode,
           counterparty: deals.counterparty,
           direction: deals.direction,
           product: deals.product,
           quantityMt: deals.quantityMt,
+          contractedQty: deals.contractedQty,
+          nominatedQty: deals.nominatedQty,
           incoterm: deals.incoterm,
           loadport: deals.loadport,
           dischargePort: deals.dischargePort,
           laycanStart: deals.laycanStart,
           laycanEnd: deals.laycanEnd,
           vesselName: deals.vesselName,
+          vesselImo: deals.vesselImo,
           status: deals.status,
+          pricingType: deals.pricingType,
+          pricingFormula: deals.pricingFormula,
+          pricingEstimatedDate: deals.pricingEstimatedDate,
           assignedOperatorId: deals.assignedOperatorId,
+          secondaryOperatorId: deals.secondaryOperatorId,
           createdAt: deals.createdAt,
         })
         .from(deals)

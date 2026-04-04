@@ -2,23 +2,39 @@ import { NextResponse } from "next/server";
 import { withAuth } from "@/lib/middleware/with-auth";
 import { getDb } from "@/lib/db";
 import * as schema from "@/lib/db/schema";
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and, inArray, notInArray } from "drizzle-orm";
 
 // GET /api/notifications — lightweight badge count for header bell
 export const GET = withAuth(async (_req, _ctx, session) => {
   const db = getDb();
   const tenantId = session.user.tenantId;
 
-  // Active workflow instances
-  const instances = await db
+  // Exclude completed/cancelled deals — get their IDs
+  const excludedDeals = await db
+    .select({ id: schema.deals.id })
+    .from(schema.deals)
+    .where(
+      and(
+        eq(schema.deals.tenantId, tenantId),
+        inArray(schema.deals.status, ["completed", "cancelled"])
+      )
+    );
+  const excludedDealIds = excludedDeals.map((d) => d.id);
+
+  // Active workflow instances (excluding those for completed/cancelled deals)
+  const instanceQuery = db
     .select({ id: schema.workflowInstances.id })
     .from(schema.workflowInstances)
     .where(
       and(
         eq(schema.workflowInstances.tenantId, tenantId),
-        eq(schema.workflowInstances.status, "active")
+        eq(schema.workflowInstances.status, "active"),
+        ...(excludedDealIds.length > 0
+          ? [notInArray(schema.workflowInstances.dealId, excludedDealIds)]
+          : [])
       )
     );
+  const instances = await instanceQuery;
 
   if (instances.length === 0) {
     return NextResponse.json({ pending: 0, renotify: 0, total: 0 });
