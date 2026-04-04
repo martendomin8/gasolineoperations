@@ -9,7 +9,7 @@ import { alias } from "drizzle-orm/pg-core";
 // GET /api/deals — Paginated deal list
 export const GET = withAuth(async (req, _ctx, session) => {
   const url = new URL(req.url);
-  const filters = dealFilterSchema.parse({
+  const filterResult = dealFilterSchema.safeParse({
     status: url.searchParams.get("status") || undefined,
     direction: url.searchParams.get("direction") || undefined,
     incoterm: url.searchParams.get("incoterm") || undefined,
@@ -20,6 +20,10 @@ export const GET = withAuth(async (req, _ctx, session) => {
     page: url.searchParams.get("page") || 1,
     perPage: url.searchParams.get("perPage") || 25,
   });
+  if (!filterResult.success) {
+    return NextResponse.json({ error: "Invalid filters", issues: filterResult.error.issues }, { status: 400 });
+  }
+  const filters = filterResult.data;
 
   const result = await withTenantDb(session.user.tenantId, async (db) => {
     const conditions = [eq(deals.tenantId, session.user.tenantId)];

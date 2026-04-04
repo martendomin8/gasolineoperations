@@ -177,7 +177,7 @@ export default function ExcelPage() {
   const [activeTab, setActiveTab] = useState<"ongoing" | "completed">("ongoing");
 
   useEffect(() => {
-    fetch("/api/deals?perPage=500")
+    fetch("/api/deals?perPage=100")
       .then((r) => r.json())
       .then((data) => {
         setDeals(data.items ?? []);
