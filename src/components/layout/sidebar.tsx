@@ -3,15 +3,13 @@
 import { cn } from "@/lib/utils/cn";
 import {
   LayoutDashboard,
-  FileText,
   Users,
-  Upload,
   Settings,
-  Fuel,
-  ChevronLeft,
   Sparkles,
   Mail,
-  Ship,
+  ChevronLeft,
+  Fuel,
+  Table2,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -19,14 +17,9 @@ import { useState } from "react";
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { name: "Pipeline", href: "/pipeline", icon: Ship },
-  { name: "Deals", href: "/deals", icon: FileText },
+  { name: "Excel", href: "/excel", icon: Table2 },
   { name: "Parse Email", href: "/deals/parse", icon: Sparkles },
   { name: "Parties", href: "/parties", icon: Users },
-  { name: "Import", href: "/import", icon: Upload },
-];
-
-const adminNav = [
   { name: "Templates", href: "/settings/templates", icon: Mail },
   { name: "Settings", href: "/settings", icon: Settings },
 ];
@@ -41,8 +34,6 @@ export function Sidebar({ userRole }: SidebarProps) {
 
   const isActive = (href: string) =>
     pathname === href || (href !== "/dashboard" && pathname.startsWith(href));
-
-  const navItems = userRole === "admin" ? [...navigation, ...adminNav] : navigation;
 
   return (
     <aside
@@ -60,7 +51,7 @@ export function Sidebar({ userRole }: SidebarProps) {
         {!collapsed && (
           <div className="flex flex-col min-w-0">
             <span className="text-sm font-bold text-[var(--color-text-primary)] tracking-tight truncate">
-              NomEngine
+              GasOps
             </span>
             <span className="text-[0.625rem] text-[var(--color-text-tertiary)] uppercase tracking-widest">
               Operations
@@ -71,7 +62,7 @@ export function Sidebar({ userRole }: SidebarProps) {
 
       {/* Navigation */}
       <nav className="flex-1 py-3 px-2 space-y-0.5 overflow-y-auto">
-        {navItems.map((item) => {
+        {navigation.map((item) => {
           const active = isActive(item.href);
           return (
             <Link
