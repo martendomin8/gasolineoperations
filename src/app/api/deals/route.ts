@@ -1,9 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { withAuth } from "@/lib/middleware/with-auth";
 import { withTenantDb } from "@/lib/db";
-import { deals, auditLogs } from "@/lib/db/schema";
+import { deals, auditLogs, users } from "@/lib/db/schema";
 import { createDealSchema, dealFilterSchema } from "@/lib/types/deal";
 import { eq, and, ilike, or, desc, sql, notInArray } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 
 // GET /api/deals — Paginated deal list
 export const GET = withAuth(async (req, _ctx, session) => {
@@ -48,6 +49,8 @@ export const GET = withAuth(async (req, _ctx, session) => {
     }
 
     const offset = (filters.page - 1) * filters.perPage;
+    const primaryOp = alias(users, "primaryOp");
+    const secondaryOp = alias(users, "secondaryOp");
 
     const [items, [{ count }]] = await Promise.all([
       db
@@ -74,9 +77,13 @@ export const GET = withAuth(async (req, _ctx, session) => {
           pricingEstimatedDate: deals.pricingEstimatedDate,
           assignedOperatorId: deals.assignedOperatorId,
           secondaryOperatorId: deals.secondaryOperatorId,
+          operatorName: primaryOp.name,
+          secondaryOperatorName: secondaryOp.name,
           createdAt: deals.createdAt,
         })
         .from(deals)
+        .leftJoin(primaryOp, eq(deals.assignedOperatorId, primaryOp.id))
+        .leftJoin(secondaryOp, eq(deals.secondaryOperatorId, secondaryOp.id))
         .where(and(...conditions))
         .orderBy(desc(deals.createdAt))
         .limit(filters.perPage)
