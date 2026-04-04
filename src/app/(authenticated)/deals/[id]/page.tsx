@@ -352,53 +352,62 @@ function WorkflowStepCard({ step, onAction, isOperator, loadport, dischargePort 
           : "border-[var(--color-border-default)] bg-[var(--color-surface-2)]"
       }`}
     >
-      {/* Step header */}
-      <div className="flex items-center gap-3 p-3">
-        {/* Step type icon */}
-        <div
-          className={`h-8 w-8 rounded-[var(--radius-sm)] flex items-center justify-center flex-shrink-0 ${
-            isDone
-              ? "bg-[var(--color-success-muted)]"
-              : step.status === "needs_update"
-              ? "bg-[var(--color-danger-muted,#3d1515)]"
-              : isBlocked
-              ? "bg-[var(--color-surface-3)]"
-              : "bg-[var(--color-accent-muted)]"
-          }`}
-        >
-          <TypeIcon
-            className={`h-4 w-4 ${
+      {/* Step header — two rows: top = icon+name+status+actions, bottom = metadata */}
+      <div className="p-3 space-y-1.5">
+        {/* Row 1: icon + name + right-aligned status & actions */}
+        <div className="flex items-center gap-2">
+          {/* Step type icon */}
+          <div
+            className={`h-7 w-7 rounded-[var(--radius-sm)] flex items-center justify-center flex-shrink-0 ${
               isDone
-                ? "text-[var(--color-success)]"
+                ? "bg-[var(--color-success-muted)]"
                 : step.status === "needs_update"
-                ? "text-[var(--color-danger)]"
+                ? "bg-[var(--color-danger-muted,#3d1515)]"
                 : isBlocked
-                ? "text-[var(--color-text-tertiary)]"
-                : "text-[var(--color-accent)]"
+                ? "bg-[var(--color-surface-3)]"
+                : "bg-[var(--color-accent-muted)]"
             }`}
-          />
-        </div>
-
-        {/* Name + metadata */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span
-              className={`text-sm font-medium ${
-                isBlocked ? "text-[var(--color-text-tertiary)]" : "text-[var(--color-text-primary)]"
+          >
+            <TypeIcon
+              className={`h-3.5 w-3.5 ${
+                isDone
+                  ? "text-[var(--color-success)]"
+                  : step.status === "needs_update"
+                  ? "text-[var(--color-danger)]"
+                  : isBlocked
+                  ? "text-[var(--color-text-tertiary)]"
+                  : "text-[var(--color-accent)]"
               }`}
-            >
-              {step.stepName}
-            </span>
+            />
+          </div>
+
+          {/* Step name */}
+          <span
+            className={`text-sm font-medium truncate flex-1 min-w-0 ${
+              isBlocked ? "text-[var(--color-text-tertiary)]" : "text-[var(--color-text-primary)]"
+            }`}
+          >
+            {step.stepName}
+          </span>
+
+          {/* Right side: status badge + action + expand — always right-aligned */}
+          <div className="flex items-center gap-1.5 flex-shrink-0 ml-auto">
             {step.isExternalWait && (
-              <span className="text-[0.625rem] font-mono px-1.5 py-0.5 rounded bg-[var(--color-info-muted)] text-[var(--color-info)] uppercase tracking-wider">
-                Ext. Wait
+              <span className="text-[0.5rem] font-mono px-1 py-0.5 rounded bg-[var(--color-info-muted)] text-[var(--color-info)] uppercase tracking-wider">
+                Ext.
               </span>
             )}
+            <Badge variant={cfg.color as any} dot>
+              {cfg.label}
+            </Badge>
           </div>
-          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-            <span className="text-xs text-[var(--color-text-tertiary)]">
-              → {RECIPIENT_LABELS[step.recipientPartyType] ?? step.recipientPartyType}
-            </span>
+        </div>
+
+        {/* Row 2: metadata + action buttons */}
+        <div className="flex items-center gap-2 pl-9">
+          <span className="text-xs text-[var(--color-text-tertiary)]">
+            → {RECIPIENT_LABELS[step.recipientPartyType] ?? step.recipientPartyType}
+          </span>
             {step.assignedPartyName && (
               <span className="text-xs text-[var(--color-accent-text)] font-medium">
                 {step.assignedPartyName}
@@ -409,89 +418,54 @@ function WorkflowStepCard({ step, onAction, isOperator, loadport, dischargePort 
                 )}
               </span>
             )}
-            {step.status === "blocked" && step.blockedByStepName && (
-              <span className="text-xs text-[var(--color-text-tertiary)]">
-                · blocked by <span className="italic">{step.blockedByStepName}</span>
-              </span>
-            )}
             {step.status === "needs_update" && (
-              <span className="text-xs text-[var(--color-danger)]">· deal fields changed, re-send required</span>
+              <span className="text-xs text-[var(--color-danger)]">· re-send required</span>
             )}
-          </div>
-        </div>
 
-        {/* Status badge + actions */}
-        <div className="flex items-center gap-2 flex-shrink-0">
-          <Badge variant={cfg.color as any} dot>
-            {cfg.label}
-          </Badge>
+            {/* Action buttons — right-aligned in the metadata row */}
+            <div className="flex items-center gap-1 ml-auto">
+              {isOperator && !isBlocked && (
+                <>
+                  {(step.status === "ready" || step.status === "needs_update") && step.emailTemplateId && (
+                    <Button variant="secondary" size="sm" onClick={() => handleAction("generate_draft")} disabled={loading} data-tour="generate-draft">
+                      <Mail className="h-3 w-3" />
+                      Draft
+                    </Button>
+                  )}
+                  {step.status === "draft_generated" && (
+                    <Button variant="primary" size="sm" onClick={() => handleAction("mark_sent")} disabled={loading}>
+                      <Send className="h-3 w-3" />
+                      Sent
+                    </Button>
+                  )}
+                  {step.status === "sent" && step.isExternalWait && (
+                    <Button variant="secondary" size="sm" onClick={() => handleAction("mark_acknowledged")} disabled={loading}>
+                      <CheckCircle2 className="h-3 w-3" />
+                      Received
+                    </Button>
+                  )}
+                  {step.status === "needs_update" && step.emailDraft && (
+                    <Button variant="primary" size="sm" onClick={() => handleAction("mark_sent")} disabled={loading}>
+                      <RefreshCw className="h-3 w-3" />
+                      Re-sent
+                    </Button>
+                  )}
+                </>
+              )}
 
-          {isOperator && !isBlocked && (
-            <div className="flex items-center gap-1">
-              {/* READY / NEEDS_UPDATE: Draft button (primary action) */}
-              {(step.status === "ready" || step.status === "needs_update") && step.emailTemplateId && (
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => handleAction("generate_draft")}
-                  disabled={loading}
-                  data-tour="generate-draft"
+              {/* Expand toggle */}
+              {hasExpandContent && (
+                <button
+                  onClick={() => setExpanded(!expanded)}
+                  data-tour={step.emailDraft != null ? "expand-draft" : undefined}
+                  className="p-1 rounded text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-3)] transition-colors"
                 >
-                  <Mail className="h-3 w-3" />
-                  Draft
-                </Button>
-              )}
-              {/* DRAFT_GENERATED: Sent (operator copied to Outlook) */}
-              {step.status === "draft_generated" && (
-                <Button
-                  variant="primary"
-                  size="sm"
-                  onClick={() => handleAction("mark_sent")}
-                  disabled={loading}
-                >
-                  <Send className="h-3 w-3" />
-                  Sent
-                </Button>
-              )}
-              {/* SENT + EXTERNAL WAIT: Received */}
-              {step.status === "sent" && step.isExternalWait && (
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => handleAction("mark_acknowledged")}
-                  disabled={loading}
-                >
-                  <CheckCircle2 className="h-3 w-3" />
-                  Received
-                </Button>
-              )}
-              {/* NEEDS_UPDATE with existing draft: Re-sent */}
-              {step.status === "needs_update" && step.emailDraft && (
-                <Button
-                  variant="primary"
-                  size="sm"
-                  onClick={() => handleAction("mark_sent")}
-                  disabled={loading}
-                >
-                  <RefreshCw className="h-3 w-3" />
-                  Re-sent
-                </Button>
+                  {expanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                </button>
               )}
             </div>
-          )}
-
-          {/* Expand toggle */}
-          {hasExpandContent && (
-            <button
-              onClick={() => setExpanded(!expanded)}
-              data-tour={step.emailDraft != null ? "expand-draft" : undefined}
-              className="p-1 rounded text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-3)] transition-colors"
-            >
-              {expanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-            </button>
-          )}
+          </div>
         </div>
-      </div>
 
       {/* Expanded content */}
       {expanded && (
