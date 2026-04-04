@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { Dialog } from "@/components/ui/dialog";
+import { FileDropZone } from "@/components/ui/file-drop-zone";
 
 // ============================================================
 // TYPES
@@ -448,6 +449,7 @@ function DebugPanel({ onLoad }: { onLoad: (text: string) => void }) {
 export default function ParseDealPage() {
   const router = useRouter();
   const [rawText, setRawText] = useState("");
+  const [uploadedFilename, setUploadedFilename] = useState<string | null>(null);
   const [parsing, setParsing] = useState(false);
   const [result, setResult] = useState<ParseResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -729,9 +731,37 @@ export default function ParseDealPage() {
               <CardTitle>Raw Email / Recap</CardTitle>
             </CardHeader>
 
+            <FileDropZone
+              onTextExtracted={(text, filename) => {
+                setRawText(text);
+                setUploadedFilename(filename);
+                setResult(null);
+                setError(null);
+                setEditedFields({});
+              }}
+              disabled={parsing}
+            />
+
+            <div className="flex items-center gap-3 py-2">
+              <div className="flex-1 border-t border-[var(--color-border-subtle)]" />
+              <span className="text-xs text-[var(--color-text-tertiary)]">or paste text</span>
+              <div className="flex-1 border-t border-[var(--color-border-subtle)]" />
+            </div>
+
+            {uploadedFilename && rawText && (
+              <div className="flex items-center gap-1.5 pb-1">
+                <span className="text-[0.625rem] font-medium text-[var(--color-accent)] uppercase tracking-wider">
+                  Loaded from: {uploadedFilename}
+                </span>
+              </div>
+            )}
+
             <textarea
               value={rawText}
-              onChange={(e) => setRawText(e.target.value)}
+              onChange={(e) => {
+                setRawText(e.target.value);
+                if (uploadedFilename) setUploadedFilename(null);
+              }}
               placeholder={`Paste the trader email or deal recap here…
 
 Example:
@@ -740,7 +770,7 @@ Sold to Shell Trading
 Load Amsterdam, Laycan 5/7 April
 Vessel MT Gannet Arrow IMO 9786543
 Price: Platts CIF NWE -$5/MT`}
-              className="w-full h-72 text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] bg-transparent border-0 outline-none resize-none font-mono leading-relaxed"
+              className="w-full h-52 text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] bg-transparent border-0 outline-none resize-none font-mono leading-relaxed"
             />
 
             <div className="flex items-center gap-2 pt-2 border-t border-[var(--color-border-subtle)]">
@@ -764,7 +794,7 @@ Price: Platts CIF NWE -$5/MT`}
               </Button>
               {rawText && (
                 <button
-                  onClick={() => { setRawText(""); setResult(null); setError(null); }}
+                  onClick={() => { setRawText(""); setUploadedFilename(null); setResult(null); setError(null); }}
                   className="text-xs text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] transition-colors"
                 >
                   Clear

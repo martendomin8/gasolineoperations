@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/lib/middleware/with-auth";
 import { getDb } from "@/lib/db";
 import * as schema from "@/lib/db/schema";
-import { eq, and, inArray, lte, gte, sql } from "drizzle-orm";
+import { eq, and, inArray, lte, gte, isNotNull, sql } from "drizzle-orm";
 
 interface TaskItem {
   stepId: string;
@@ -185,6 +185,39 @@ export const GET = withAuth(
       return { ...d, daysUntil };
     });
 
-    return NextResponse.json({ tasks, stats, urgentDeals });
+    // Pricing alerts: deals with pricingEstimatedDate within next 3 days
+    const pricingAlertsRaw = await db
+      .select({
+        id: schema.deals.id,
+        externalRef: schema.deals.externalRef,
+        counterparty: schema.deals.counterparty,
+        product: schema.deals.product,
+        incoterm: schema.deals.incoterm,
+        direction: schema.deals.direction,
+        pricingType: schema.deals.pricingType,
+        pricingFormula: schema.deals.pricingFormula,
+        pricingEstimatedDate: schema.deals.pricingEstimatedDate,
+      })
+      .from(schema.deals)
+      .where(
+        and(
+          eq(schema.deals.tenantId, tenantId),
+          inArray(schema.deals.status, ["active", "loading", "sailing", "discharging"]),
+          isNotNull(schema.deals.pricingEstimatedDate),
+          gte(schema.deals.pricingEstimatedDate, sql`CURRENT_DATE`),
+          lte(schema.deals.pricingEstimatedDate, sql`(CURRENT_DATE + INTERVAL '3 days')::date`)
+        )
+      )
+      .orderBy(schema.deals.pricingEstimatedDate);
+
+    const pricingAlerts = pricingAlertsRaw.map((d) => {
+      const pricingDate = new Date(d.pricingEstimatedDate!);
+      const todayDate = new Date();
+      todayDate.setHours(0, 0, 0, 0);
+      const daysUntil = Math.ceil((pricingDate.getTime() - todayDate.getTime()) / (1000 * 60 * 60 * 24));
+      return { ...d, daysUntil };
+    });
+
+    return NextResponse.json({ tasks, stats, urgentDeals, pricingAlerts });
   }
 );

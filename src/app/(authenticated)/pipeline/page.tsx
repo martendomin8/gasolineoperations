@@ -14,6 +14,8 @@ import {
   CheckCircle2,
   XCircle,
   Clock,
+  FileSpreadsheet,
+  Loader2,
 } from "lucide-react";
 import type { DealStatus } from "@/lib/db/schema";
 
@@ -105,6 +107,7 @@ export default function PipelinePage() {
   const [deals, setDeals] = useState<DealSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [cancelledCount, setCancelledCount] = useState(0);
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     fetch("/api/deals?perPage=100")
@@ -128,6 +131,27 @@ export default function PipelinePage() {
 
   const totalActive = deals.length;
 
+  async function handleExportExcel() {
+    setExporting(true);
+    try {
+      const res = await fetch("/api/export/excel", { method: "POST" });
+      if (!res.ok) throw new Error("Export failed");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `GASOLINE VESSELS LIST ${new Date().getFullYear()}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Excel export error:", err);
+    } finally {
+      setExporting(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -141,8 +165,21 @@ export default function PipelinePage() {
             )}
           </p>
         </div>
-        {/* Summary stats */}
+        {/* Export + summary stats */}
         <div className="flex items-center gap-3">
+          <button
+            onClick={handleExportExcel}
+            disabled={exporting}
+            className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-[var(--radius-md)] border border-[var(--color-border-default)] bg-[var(--color-surface-2)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-3)] hover:text-[var(--color-text-primary)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {exporting ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <FileSpreadsheet className="h-4 w-4" />
+            )}
+            Export Excel
+          </button>
+          <div className="w-px h-6 bg-[var(--color-border-subtle)]" />
           {STATUS_COLUMNS.map((col) => {
             const count = deals.filter((d) => d.status === col.status).length;
             if (count === 0) return null;

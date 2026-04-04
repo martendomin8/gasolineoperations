@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { withAuth } from "@/lib/middleware/with-auth";
 import { getDb } from "@/lib/db";
 import * as schema from "@/lib/db/schema";
-import { eq, and, inArray, notInArray } from "drizzle-orm";
+import { eq, and, inArray, notInArray, isNotNull, lte, gte, sql } from "drizzle-orm";
 
 // GET /api/notifications — lightweight badge count for header bell
 export const GET = withAuth(async (_req, _ctx, session) => {
@@ -66,9 +66,24 @@ export const GET = withAuth(async (_req, _ctx, session) => {
       )
     );
 
+  // Count deals with pricing dates within 3 days
+  const pricingAlerts = await db
+    .select({ id: schema.deals.id })
+    .from(schema.deals)
+    .where(
+      and(
+        eq(schema.deals.tenantId, tenantId),
+        inArray(schema.deals.status, ["active", "loading", "sailing", "discharging"]),
+        isNotNull(schema.deals.pricingEstimatedDate),
+        gte(schema.deals.pricingEstimatedDate, sql`CURRENT_DATE`),
+        lte(schema.deals.pricingEstimatedDate, sql`(CURRENT_DATE + INTERVAL '3 days')::date`)
+      )
+    );
+
   return NextResponse.json({
     pending: pending.length,
     renotify: renotify.length,
-    total: pending.length + renotify.length,
+    pricingAlerts: pricingAlerts.length,
+    total: pending.length + renotify.length + pricingAlerts.length,
   });
 });

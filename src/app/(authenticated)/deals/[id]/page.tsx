@@ -37,6 +37,8 @@ import {
   Link2,
   DollarSign,
   Users,
+  FileText,
+  Upload,
 } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
@@ -1018,24 +1020,40 @@ interface LinkedDealCardProps {
 }
 
 function LinkedDealCard({ deal, side, isCurrent, isOperator }: LinkedDealCardProps) {
-  const borderColor = side === "buy"
+  const ownTerminal = isOwnTerminalDeal(deal.counterparty);
+  const borderColor = ownTerminal
+    ? "border-l-teal-500/60"
+    : side === "buy"
     ? "border-l-blue-500/60"
     : "border-l-amber-500/60";
+
+  const displayName = ownTerminal
+    ? deal.counterparty.replace(OWN_TERMINAL_PREFIX, "")
+    : deal.counterparty;
 
   return (
     <Card className={`border-l-[3px] ${borderColor} ${isCurrent ? "ring-1 ring-[var(--color-accent)]/30" : ""}`}>
       {/* Card header */}
       <div className="flex items-center justify-between px-4 pt-3 pb-2">
         <div className="flex items-center gap-2.5 min-w-0">
+          {ownTerminal && (
+            <Anchor className="h-3.5 w-3.5 text-teal-500 flex-shrink-0" />
+          )}
           <Link
             href={`/deals/${deal.id}`}
             className="text-sm font-semibold text-[var(--color-text-primary)] hover:text-[var(--color-accent-text)] transition-colors truncate"
           >
-            {deal.counterparty}
+            {displayName}
           </Link>
-          <Badge variant={deal.direction === "buy" ? "info" : "accent"}>
-            {deal.direction}
-          </Badge>
+          {ownTerminal ? (
+            <span className="text-[0.5625rem] font-semibold px-1.5 py-0.5 rounded bg-teal-100 dark:bg-teal-900/40 text-teal-700 dark:text-teal-300 uppercase tracking-wider flex-shrink-0">
+              Own Terminal
+            </span>
+          ) : (
+            <Badge variant={deal.direction === "buy" ? "info" : "accent"}>
+              {deal.direction}
+            </Badge>
+          )}
           <Badge variant="muted">{deal.incoterm}</Badge>
           {isCurrent && (
             <span className="text-[0.5625rem] font-mono px-1.5 py-0.5 rounded bg-[var(--color-accent-muted)] text-[var(--color-accent-text)] uppercase tracking-wider">
@@ -1089,23 +1107,222 @@ function LinkedDealCard({ deal, side, isCurrent, isOperator }: LinkedDealCardPro
 }
 
 // ============================================================
-// ADD SALE BUTTON
+// OWN TERMINAL PREFIX (used to detect discharge-to-own-terminal deals)
 // ============================================================
 
-function AddSaleButton({ linkageCode }: { linkageCode: string }) {
+const OWN_TERMINAL_PREFIX = "Own Terminal — ";
+
+function isOwnTerminalDeal(counterparty: string): boolean {
+  return counterparty.startsWith(OWN_TERMINAL_PREFIX);
+}
+
+// ============================================================
+// ADD SALE MENU (two options: Add Sale + Discharge to Terminal)
+// ============================================================
+
+interface Party {
+  id: string;
+  name: string;
+  port: string | null;
+  type: string;
+  isFixed: boolean;
+}
+
+interface AddSaleMenuProps {
+  linkageCode: string;
+  purchaseDeal: LinkedDeal | null;
+  onCreated: () => void;
+}
+
+function AddSaleMenu({ linkageCode, purchaseDeal, onCreated }: AddSaleMenuProps) {
   const router = useRouter();
-  return (
-    <button
-      onClick={() => router.push(`/deals/new?linkageCode=${encodeURIComponent(linkageCode)}&direction=sell`)}
-      className="w-full rounded-[var(--radius-md)] border-2 border-dashed border-[var(--color-border-subtle)] hover:border-[var(--color-accent)] bg-transparent hover:bg-[var(--color-accent-muted)] transition-all py-8 flex flex-col items-center justify-center gap-2 group cursor-pointer"
-    >
-      <div className="h-9 w-9 rounded-full bg-[var(--color-surface-3)] group-hover:bg-[var(--color-accent)] flex items-center justify-center transition-colors">
-        <Plus className="h-4 w-4 text-[var(--color-text-tertiary)] group-hover:text-[var(--color-text-inverse)] transition-colors" />
+  const [showMenu, setShowMenu] = useState(false);
+  const [showTerminalPicker, setShowTerminalPicker] = useState(false);
+  const [terminals, setTerminals] = useState<Party[]>([]);
+  const [loadingTerminals, setLoadingTerminals] = useState(false);
+  const [creating, setCreating] = useState<string | null>(null);
+
+  const fetchTerminals = async () => {
+    setLoadingTerminals(true);
+    try {
+      const res = await fetch("/api/parties?type=terminal");
+      const data = await res.json();
+      // API returns either flat array or { matched, rest } — handle both
+      const all: Party[] = Array.isArray(data) ? data : [...(data.matched ?? []), ...(data.rest ?? [])];
+      // Filter to company's own terminals (isFixed = true)
+      setTerminals(all.filter((t) => t.isFixed));
+    } catch {
+      setTerminals([]);
+    }
+    setLoadingTerminals(false);
+  };
+
+  const handleDischargeToTerminal = async (terminal: Party) => {
+    setCreating(terminal.id);
+    try {
+      // Build deal from purchase data
+      const today = new Date().toISOString().slice(0, 10);
+      const dealPayload = {
+        counterparty: `${OWN_TERMINAL_PREFIX}${terminal.name}`,
+        direction: "sell" as const,
+        product: purchaseDeal?.product ?? "Gasoline",
+        quantityMt: 1, // Placeholder — operator will update
+        incoterm: purchaseDeal?.incoterm ?? "FOB",
+        loadport: purchaseDeal?.loadport ?? "",
+        dischargePort: terminal.port ?? terminal.name,
+        laycanStart: purchaseDeal?.laycanStart ?? today,
+        laycanEnd: purchaseDeal?.laycanEnd ?? today,
+        linkageCode,
+        vesselName: purchaseDeal?.vesselName ?? null,
+        vesselImo: purchaseDeal?.vesselImo ?? null,
+        specialInstructions: `Discharge to own terminal: ${terminal.name}`,
+      };
+
+      const res = await fetch("/api/deals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(dealPayload),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.error ?? "Failed to create discharge deal");
+        setCreating(null);
+        return;
+      }
+
+      const newDeal = await res.json();
+
+      // Create workflow for the new deal
+      await fetch(`/api/deals/${newDeal.id}/workflow`, { method: "POST" });
+
+      toast.success(`Discharge to ${terminal.name} created`);
+      setShowTerminalPicker(false);
+      setShowMenu(false);
+      onCreated();
+    } catch {
+      toast.error("Failed to create discharge deal");
+    }
+    setCreating(null);
+  };
+
+  // Terminal picker sub-view
+  if (showTerminalPicker) {
+    return (
+      <div className="rounded-[var(--radius-md)] border-2 border-dashed border-teal-400/50 bg-teal-50/30 dark:bg-teal-950/20 p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Anchor className="h-4 w-4 text-teal-600 dark:text-teal-400" />
+            <span className="text-sm font-semibold text-[var(--color-text-primary)]">
+              Select Terminal
+            </span>
+          </div>
+          <button
+            onClick={() => { setShowTerminalPicker(false); setShowMenu(false); }}
+            className="p-1 rounded hover:bg-[var(--color-surface-3)] transition-colors"
+          >
+            <X className="h-3.5 w-3.5 text-[var(--color-text-tertiary)]" />
+          </button>
+        </div>
+
+        {loadingTerminals ? (
+          <div className="flex items-center justify-center py-4">
+            <div className="h-4 w-4 rounded-full border-2 border-teal-500 border-t-transparent animate-spin" />
+          </div>
+        ) : terminals.length === 0 ? (
+          <p className="text-sm text-[var(--color-text-tertiary)] text-center py-3">
+            No own terminals found. Add terminals with &quot;Fixed&quot; flag in Party Management.
+          </p>
+        ) : (
+          <div className="grid gap-2">
+            {terminals.map((t) => (
+              <button
+                key={t.id}
+                onClick={() => handleDischargeToTerminal(t)}
+                disabled={creating !== null}
+                className="flex items-center gap-3 px-3 py-2.5 rounded-[var(--radius-md)] border border-[var(--color-border-default)] bg-[var(--color-surface-1)] hover:bg-teal-50 dark:hover:bg-teal-950/30 hover:border-teal-400/50 transition-all text-left disabled:opacity-50"
+              >
+                <div className="h-8 w-8 rounded-full bg-teal-100 dark:bg-teal-900/40 flex items-center justify-center flex-shrink-0">
+                  <Anchor className="h-3.5 w-3.5 text-teal-600 dark:text-teal-400" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium text-[var(--color-text-primary)] truncate">
+                    {t.name}
+                  </div>
+                  {t.port && (
+                    <div className="text-xs text-[var(--color-text-tertiary)]">{t.port}</div>
+                  )}
+                </div>
+                {creating === t.id && (
+                  <div className="h-4 w-4 rounded-full border-2 border-teal-500 border-t-transparent animate-spin flex-shrink-0" />
+                )}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
-      <span className="text-sm font-medium text-[var(--color-text-tertiary)] group-hover:text-[var(--color-accent-text)] transition-colors">
-        Add Sale
-      </span>
-    </button>
+    );
+  }
+
+  // Main menu (collapsed or expanded)
+  if (!showMenu) {
+    return (
+      <button
+        onClick={() => setShowMenu(true)}
+        className="w-full rounded-[var(--radius-md)] border-2 border-dashed border-[var(--color-border-subtle)] hover:border-[var(--color-accent)] bg-transparent hover:bg-[var(--color-accent-muted)] transition-all py-8 flex flex-col items-center justify-center gap-2 group cursor-pointer"
+      >
+        <div className="h-9 w-9 rounded-full bg-[var(--color-surface-3)] group-hover:bg-[var(--color-accent)] flex items-center justify-center transition-colors">
+          <Plus className="h-4 w-4 text-[var(--color-text-tertiary)] group-hover:text-[var(--color-text-inverse)] transition-colors" />
+        </div>
+        <span className="text-sm font-medium text-[var(--color-text-tertiary)] group-hover:text-[var(--color-accent-text)] transition-colors">
+          Add Sale / Discharge
+        </span>
+      </button>
+    );
+  }
+
+  // Expanded menu with two options
+  return (
+    <div className="rounded-[var(--radius-md)] border-2 border-dashed border-[var(--color-border-subtle)] bg-[var(--color-surface-1)] overflow-hidden">
+      <button
+        onClick={() => {
+          setShowMenu(false);
+          router.push(`/deals/new?linkageCode=${encodeURIComponent(linkageCode)}&direction=sell`);
+        }}
+        className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-[var(--color-accent-muted)] transition-colors text-left border-b border-[var(--color-border-subtle)]"
+      >
+        <div className="h-8 w-8 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center flex-shrink-0">
+          <Plus className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+        </div>
+        <div>
+          <div className="text-sm font-medium text-[var(--color-text-primary)]">Add Sale</div>
+          <div className="text-xs text-[var(--color-text-tertiary)]">New sale to counterparty</div>
+        </div>
+      </button>
+
+      <button
+        onClick={() => {
+          setShowTerminalPicker(true);
+          fetchTerminals();
+        }}
+        className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-teal-50 dark:hover:bg-teal-950/20 transition-colors text-left"
+      >
+        <div className="h-8 w-8 rounded-full bg-teal-100 dark:bg-teal-900/30 flex items-center justify-center flex-shrink-0">
+          <Anchor className="h-3.5 w-3.5 text-teal-600 dark:text-teal-400" />
+        </div>
+        <div>
+          <div className="text-sm font-medium text-[var(--color-text-primary)]">Discharge to Terminal</div>
+          <div className="text-xs text-[var(--color-text-tertiary)]">Own terminal (Amsterdam, Klaipeda, Antwerp)</div>
+        </div>
+      </button>
+
+      <button
+        onClick={() => setShowMenu(false)}
+        className="w-full py-2 text-xs text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] transition-colors"
+      >
+        Cancel
+      </button>
+    </div>
   );
 }
 
@@ -1171,6 +1388,9 @@ function LinkageView({ deal, linkedDeals, isOperator, fetchDeal }: LinkageViewPr
         pricingEstimatedDate={pricingSource?.pricingEstimatedDate ?? null}
       />
 
+      {/* Documents */}
+      <DocumentsSection dealId={deal.id} />
+
       {/* Two-column grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Left: Buy side */}
@@ -1217,8 +1437,12 @@ function LinkageView({ deal, linkedDeals, isOperator, fetchDeal }: LinkageViewPr
               isOperator={isOperator}
             />
           ))}
-          {/* Always show "Add Sale" button */}
-          <AddSaleButton linkageCode={deal.linkageCode!} />
+          {/* Always show "Add Sale / Discharge" menu */}
+          <AddSaleMenu
+            linkageCode={deal.linkageCode!}
+            purchaseDeal={buyDeals[0] ?? null}
+            onCreated={fetchDeal}
+          />
         </div>
       </div>
 
@@ -1350,6 +1574,10 @@ function SingleDealView({ deal, canEdit, isOperator, fetchDeal }: SingleDealView
           </dl>
         </Card>
 
+        <div className="col-span-2">
+          <DocumentsSection dealId={deal.id} />
+        </div>
+
         <Card>
           <CardHeader>
             <CardTitle>Additional</CardTitle>
@@ -1382,6 +1610,213 @@ function SingleDealView({ deal, canEdit, isOperator, fetchDeal }: SingleDealView
       {/* Change History + Audit */}
       <DealFooterSections deal={deal} />
     </div>
+  );
+}
+
+// ============================================================
+// DOCUMENTS SECTION
+// ============================================================
+
+interface DocumentRecord {
+  id: string;
+  filename: string;
+  fileType: string;
+  storagePath: string;
+  uploadedBy: string | null;
+  createdAt: string;
+}
+
+const FILE_TYPE_BADGE: Record<string, { label: string; color: string }> = {
+  q88:      { label: "Q88",      color: "bg-blue-500/20 text-blue-400" },
+  cp_recap: { label: "CP Recap", color: "bg-purple-500/20 text-purple-400" },
+  bl:       { label: "B/L",      color: "bg-green-500/20 text-green-400" },
+  coa:      { label: "COA",      color: "bg-amber-500/20 text-amber-400" },
+  other:    { label: "Other",    color: "bg-[var(--color-surface-3)] text-[var(--color-text-tertiary)]" },
+};
+
+function DocumentsSection({ dealId }: { dealId: string }) {
+  const [docs, setDocs] = useState<DocumentRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const [showUploadForm, setShowUploadForm] = useState(false);
+  const [newFilename, setNewFilename] = useState("");
+  const [newFileType, setNewFileType] = useState("other");
+
+  const fetchDocs = useCallback(() => {
+    fetch(`/api/documents?dealId=${dealId}`)
+      .then((r) => r.json())
+      .then((data) => {
+        setDocs(data.documents ?? []);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, [dealId]);
+
+  useEffect(() => {
+    fetchDocs();
+  }, [fetchDocs]);
+
+  const handleUpload = async () => {
+    if (!newFilename.trim()) return;
+    setUploading(true);
+    try {
+      const res = await fetch("/api/documents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          dealId,
+          filename: newFilename.trim(),
+          fileType: newFileType,
+        }),
+      });
+      if (res.ok) {
+        setNewFilename("");
+        setNewFileType("other");
+        setShowUploadForm(false);
+        fetchDocs();
+        toast.success("Document recorded");
+      } else {
+        const data = await res.json();
+        toast.error(data.error ?? "Failed to record document");
+      }
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setNewFilename(file.name);
+      // Auto-detect type from filename
+      const lower = file.name.toLowerCase();
+      if (lower.includes("q88")) setNewFileType("q88");
+      else if (lower.includes("cp") || lower.includes("recap")) setNewFileType("cp_recap");
+      else if (lower.includes("bl") || lower.includes("bill")) setNewFileType("bl");
+      else if (lower.includes("coa")) setNewFileType("coa");
+      else setNewFileType("other");
+      setShowUploadForm(true);
+    }
+    // Reset input so same file can be selected again
+    e.target.value = "";
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center gap-2">
+          <FileText className="h-3.5 w-3.5 text-[var(--color-text-tertiary)]" />
+          <CardTitle>Documents</CardTitle>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-[var(--color-text-tertiary)]">
+            {docs.length} file{docs.length !== 1 ? "s" : ""}
+          </span>
+          <label className="cursor-pointer">
+            <input
+              type="file"
+              className="hidden"
+              onChange={handleFileSelect}
+              accept=".pdf,.doc,.docx,.xls,.xlsx,.eml,.msg,.txt,.csv"
+            />
+            <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-[var(--radius-sm)] bg-[var(--color-accent-muted)] text-[var(--color-accent-text)] hover:bg-[var(--color-accent)] hover:text-[var(--color-text-inverse)] transition-colors">
+              <Upload className="h-3 w-3" />
+              Upload
+            </span>
+          </label>
+        </div>
+      </CardHeader>
+
+      {loading ? (
+        <div className="flex items-center justify-center py-6">
+          <div className="h-4 w-4 rounded-full border-2 border-[var(--color-accent)] border-t-transparent animate-spin" />
+        </div>
+      ) : (
+        <>
+          {/* Upload form */}
+          {showUploadForm && (
+            <div className="mb-3 p-3 rounded-[var(--radius-md)] bg-[var(--color-surface-2)] border border-[var(--color-border-subtle)] space-y-2">
+              <div>
+                <label className="text-[0.625rem] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wide">
+                  Filename
+                </label>
+                <input
+                  type="text"
+                  value={newFilename}
+                  onChange={(e) => setNewFilename(e.target.value)}
+                  className="w-full mt-0.5 text-xs font-mono p-1.5 rounded-[var(--radius-sm)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-1)] text-[var(--color-text-primary)] outline-none focus:border-[var(--color-border-default)]"
+                />
+              </div>
+              <div>
+                <label className="text-[0.625rem] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wide">
+                  Document Type
+                </label>
+                <select
+                  value={newFileType}
+                  onChange={(e) => setNewFileType(e.target.value)}
+                  className="w-full mt-0.5 text-xs p-1.5 rounded-[var(--radius-sm)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-1)] text-[var(--color-text-primary)] outline-none focus:border-[var(--color-border-default)]"
+                >
+                  <option value="q88">Q88</option>
+                  <option value="cp_recap">CP Recap</option>
+                  <option value="bl">Bill of Lading</option>
+                  <option value="coa">COA</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+              <div className="flex items-center gap-2 pt-1">
+                <button
+                  onClick={handleUpload}
+                  disabled={uploading || !newFilename.trim()}
+                  className="text-xs font-medium px-3 py-1.5 rounded-[var(--radius-sm)] bg-[var(--color-accent)] text-[var(--color-text-inverse)] hover:opacity-90 transition-opacity disabled:opacity-50"
+                >
+                  {uploading ? "Saving..." : "Save"}
+                </button>
+                <button
+                  onClick={() => { setShowUploadForm(false); setNewFilename(""); }}
+                  className="text-xs px-3 py-1.5 rounded-[var(--radius-sm)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-3)] transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Document list */}
+          {docs.length === 0 && !showUploadForm ? (
+            <div className="py-6 text-center">
+              <FileText className="h-5 w-5 mx-auto text-[var(--color-text-tertiary)] mb-1.5" />
+              <p className="text-xs text-[var(--color-text-tertiary)]">No documents attached</p>
+            </div>
+          ) : (
+            <div className="space-y-1">
+              {docs.map((doc) => {
+                const badge = FILE_TYPE_BADGE[doc.fileType] ?? FILE_TYPE_BADGE.other;
+                return (
+                  <div
+                    key={doc.id}
+                    className="flex items-center gap-3 py-2 px-1 rounded-[var(--radius-sm)] hover:bg-[var(--color-surface-2)] transition-colors"
+                  >
+                    <FileText className="h-3.5 w-3.5 text-[var(--color-text-tertiary)] flex-shrink-0" />
+                    <span className="text-sm text-[var(--color-text-primary)] truncate flex-1 font-mono">
+                      {doc.filename}
+                    </span>
+                    <span className={`text-[0.625rem] font-semibold px-1.5 py-0.5 rounded ${badge.color} uppercase tracking-wider`}>
+                      {badge.label}
+                    </span>
+                    <span className="text-xs text-[var(--color-text-tertiary)] font-mono flex-shrink-0">
+                      {new Date(doc.createdAt).toLocaleDateString("en-GB", {
+                        day: "2-digit",
+                        month: "short",
+                      })}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
+    </Card>
   );
 }
 

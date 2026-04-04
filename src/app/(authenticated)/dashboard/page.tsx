@@ -4,7 +4,7 @@ import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   FileText, AlertTriangle, Clock, CheckCircle, Mail, Send, Anchor,
-  Hourglass, ArrowRight, Ship, Flame, Timer, Activity,
+  Hourglass, ArrowRight, Ship, Flame, Timer, Activity, DollarSign,
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -40,6 +40,19 @@ interface UrgentDeal {
   vesselName: string | null;
   status: string;
   direction: string;
+  daysUntil: number;
+}
+
+interface PricingAlert {
+  id: string;
+  externalRef: string | null;
+  counterparty: string;
+  product: string;
+  incoterm: string;
+  direction: string;
+  pricingType: string | null;
+  pricingFormula: string | null;
+  pricingEstimatedDate: string;
   daysUntil: number;
 }
 
@@ -91,6 +104,7 @@ export default function DashboardPage() {
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [urgentDeals, setUrgentDeals] = useState<UrgentDeal[]>([]);
+  const [pricingAlerts, setPricingAlerts] = useState<PricingAlert[]>([]);
   const [loading, setLoading] = useState(true);
 
   const name = session?.user?.name?.split(" ")[0] ?? "there";
@@ -104,6 +118,7 @@ export default function DashboardPage() {
         setTasks(data.tasks ?? []);
         setStats(data.stats ?? null);
         setUrgentDeals(data.urgentDeals ?? []);
+        setPricingAlerts(data.pricingAlerts ?? []);
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -249,6 +264,78 @@ export default function DashboardPage() {
                     {formatDate(deal.laycanStart)} – {formatDate(deal.laycanEnd)}
                   </p>
                   <p className="text-xs text-[var(--color-text-tertiary)] mt-0.5 capitalize">{deal.status}</p>
+                </div>
+
+                <ArrowRight className="h-3.5 w-3.5 text-[var(--color-text-tertiary)] opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
+              </Link>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {/* Pricing dates approaching */}
+      {!loading && pricingAlerts.length > 0 && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <DollarSign className="h-4 w-4 text-[var(--color-accent)]" />
+              <CardTitle>Pricing Dates Approaching</CardTitle>
+            </div>
+            <span className="text-xs text-[var(--color-text-tertiary)]">
+              {pricingAlerts.length} deal{pricingAlerts.length !== 1 ? "s" : ""} within 3 days
+            </span>
+          </CardHeader>
+          <div className="divide-y divide-[var(--color-border-subtle)]">
+            {pricingAlerts.map((alert) => (
+              <Link
+                key={alert.id}
+                href={`/deals/${alert.id}`}
+                className="flex items-center gap-4 px-1 py-3 hover:bg-[var(--color-surface-2)] rounded-[var(--radius-md)] transition-colors group"
+              >
+                <div className={`h-8 w-8 rounded-[var(--radius-sm)] flex items-center justify-center flex-shrink-0 ${
+                  alert.daysUntil <= 0 ? "bg-[var(--color-danger-muted,#3d1515)]" :
+                  alert.daysUntil <= 1 ? "bg-[var(--color-danger-muted,#3d1515)]" :
+                  "bg-[var(--color-accent-muted)]"
+                }`}>
+                  <DollarSign className={`h-4 w-4 ${
+                    alert.daysUntil <= 1 ? "text-[var(--color-danger)]" : "text-[var(--color-accent)]"
+                  }`} />
+                </div>
+
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-[var(--color-text-primary)] truncate">
+                      {alert.counterparty}
+                    </span>
+                    <Badge variant={alert.direction === "buy" ? "info" : "accent"}>
+                      {alert.direction}
+                    </Badge>
+                    <UrgencyChip days={alert.daysUntil} />
+                  </div>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className="text-xs text-[var(--color-text-secondary)]">
+                      {alert.pricingType ?? "—"} pricing
+                    </span>
+                    {alert.pricingFormula && (
+                      <>
+                        <span className="text-xs text-[var(--color-text-tertiary)]">·</span>
+                        <span className="text-xs font-mono text-[var(--color-accent-text)]">{alert.pricingFormula}</span>
+                      </>
+                    )}
+                    <span className="text-xs text-[var(--color-text-tertiary)]">·</span>
+                    <span className="text-xs text-[var(--color-text-tertiary)]">
+                      {alert.product} {alert.incoterm}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="text-right flex-shrink-0">
+                  <p className="text-xs font-mono text-[var(--color-text-secondary)]">
+                    {formatDate(alert.pricingEstimatedDate)}
+                  </p>
+                  {alert.externalRef && (
+                    <p className="text-xs font-mono text-[var(--color-text-tertiary)] mt-0.5">{alert.externalRef}</p>
+                  )}
                 </div>
 
                 <ArrowRight className="h-3.5 w-3.5 text-[var(--color-text-tertiary)] opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
