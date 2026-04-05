@@ -48,7 +48,7 @@ export default function AuthenticatedLayout({
         <Header
           userName={session.user?.name || "User"}
           userRole={session.user?.role || "operator"}
-          tenantName="NominationEngine"
+          tenantName="NEFGO"
         />
         <main className="flex-1 overflow-y-auto p-6 bg-[var(--color-surface-0)]">
           {children}

@@ -36,13 +36,11 @@ export function Header({ userName, userRole, tenantName }: HeaderProps) {
 
   return (
     <header className="flex items-center justify-between h-14 px-6 bg-[var(--color-surface-1)] border-b border-[var(--color-border-subtle)]">
-      {/* Left: tenant name */}
+      {/* Left: brand mark */}
       <div className="flex items-center gap-2">
-        {tenantName && (
-          <span className="text-xs text-[var(--color-text-tertiary)] uppercase tracking-widest font-medium">
-            {tenantName}
-          </span>
-        )}
+        <span className="text-xs text-[var(--color-text-tertiary)] uppercase tracking-[0.15em] font-medium">
+          NEFGO
+        </span>
       </div>
 
       {/* Right: notifications, user info, sign out */}

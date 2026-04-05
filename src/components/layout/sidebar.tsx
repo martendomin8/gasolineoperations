@@ -45,17 +45,16 @@ export function Sidebar({ userRole }: SidebarProps) {
     >
       {/* Logo */}
       <div className="flex items-center gap-3 px-4 h-14 border-b border-[var(--color-border-subtle)]">
-        <div className="flex items-center justify-center h-8 w-8 rounded-[var(--radius-md)] bg-[var(--color-accent)] flex-shrink-0">
-          <Fuel className="h-4 w-4 text-[var(--color-text-inverse)]" />
-        </div>
-        {!collapsed && (
-          <div className="flex flex-col min-w-0">
-            <span className="text-sm font-bold text-[var(--color-text-primary)] tracking-tight truncate">
-              GasOps
+        {!collapsed ? (
+          <div className="flex items-baseline min-w-0">
+            <span className="text-lg font-extrabold text-[var(--color-text-primary)] tracking-tight">
+              NEFGO
             </span>
-            <span className="text-[0.625rem] text-[var(--color-text-tertiary)] uppercase tracking-widest">
-              Operations
-            </span>
+            <span className="text-lg font-extrabold text-[var(--color-accent)]">.</span>
+          </div>
+        ) : (
+          <div className="flex items-center justify-center h-8 w-8">
+            <span className="text-sm font-extrabold text-[var(--color-text-primary)]">N<span className="text-[var(--color-accent)]">.</span></span>
           </div>
         )}
       </div>

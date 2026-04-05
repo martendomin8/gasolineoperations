@@ -1,11 +1,12 @@
 @import "tailwindcss";
 
 @theme {
-  /* === NOMINATIONENGINE — Industrial Utilitarian Dark === */
+  /* === NEFGO — Corporate Visual Identity === */
+  /* Ink #0F1115, Signal Amber #FFB000, Paper #FAFAF7, Steel #6B7280 */
 
-  /* Core palette: deep slate backgrounds with amber/orange industrial accents */
+  /* Core palette: Ink-based surfaces */
   --color-surface-0: #0a0c10;       /* Deepest background */
-  --color-surface-1: #0f1218;       /* Main content area */
+  --color-surface-1: #0F1115;       /* Main content — Ink */
   --color-surface-2: #161a22;       /* Cards, panels */
   --color-surface-3: #1e232d;       /* Elevated elements */
   --color-surface-4: #272d3a;       /* Hover states, active items */
@@ -16,16 +17,16 @@
   --color-border-strong: #353d4d;
 
   /* Text hierarchy */
-  --color-text-primary: #e8eaed;
+  --color-text-primary: #FAFAF7;    /* Paper */
   --color-text-secondary: #9aa0ad;
-  --color-text-tertiary: #5f6775;
-  --color-text-inverse: #0a0c10;
+  --color-text-tertiary: #6B7280;   /* Steel */
+  --color-text-inverse: #0F1115;    /* Ink */
 
-  /* Accent: amber/orange — industrial, high-visibility */
-  --color-accent: #e5983e;
-  --color-accent-hover: #f0a84e;
-  --color-accent-muted: #e5983e26;
-  --color-accent-text: #f0a84e;
+  /* Accent: Signal Amber — punctuation, not paint */
+  --color-accent: #FFB000;
+  --color-accent-hover: #ffbe33;
+  --color-accent-muted: #FFB00026;
+  --color-accent-text: #FFB000;
 
   /* Status colors — commodity trading semantics */
   --color-status-draft: #5f6775;
@@ -50,10 +51,10 @@
   --color-info: #3b82f6;
   --color-info-muted: #3b82f626;
 
-  /* Typography — Geist for the dense data-heavy UI */
-  --font-sans: "Geist", "Inter", system-ui, -apple-system, sans-serif;
-  --font-mono: "Geist Mono", "JetBrains Mono", ui-monospace, monospace;
-  --font-display: "Geist", system-ui, sans-serif;
+  /* Typography — Inter + JetBrains Mono per NEFGO CVI */
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --font-display: "Inter", system-ui, sans-serif;
 
   /* Spacing scale */
   --radius-sm: 4px;
@@ -65,7 +66,7 @@
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
   --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.4);
   --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.5);
-  --shadow-glow: 0 0 12px rgba(229, 152, 62, 0.15);
+  --shadow-glow: 0 0 12px rgba(255, 176, 0, 0.15);
 }
 
 /* === Base resets and root styling === */

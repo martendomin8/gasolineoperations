@@ -87,16 +87,13 @@ export default function SignInPage() {
 
       {/* Sign in card */}
       <div className="relative z-10 w-full max-w-sm animate-fade-in">
-        {/* Logo */}
+        {/* Logo — NEFGO. wordmark */}
         <div className="flex flex-col items-center mb-8">
-          <div className="flex items-center justify-center h-12 w-12 rounded-[var(--radius-lg)] bg-[var(--color-accent)] mb-4 shadow-[var(--shadow-glow)]">
-            <Fuel className="h-6 w-6 text-[var(--color-text-inverse)]" />
-          </div>
-          <h1 className="text-lg font-bold text-[var(--color-text-primary)] tracking-tight">
-            NominationEngine
+          <h1 className="text-4xl font-extrabold text-[var(--color-text-primary)] tracking-[-0.04em]">
+            NEFGO<span className="text-[var(--color-accent)]">.</span>
           </h1>
-          <p className="text-xs text-[var(--color-text-tertiary)] uppercase tracking-[0.2em] mt-1">
-            Operations Platform
+          <p className="text-xs text-[var(--color-text-tertiary)] uppercase tracking-[0.15em] mt-2">
+            Nomination Engine for Gasoline Operations
           </p>
         </div>
 

@@ -52,22 +52,18 @@ export default function DemoPage() {
       <div className="w-full max-w-lg">
         {/* Logo */}
         <div className="flex items-center gap-3 mb-10">
-          <div className="h-10 w-10 rounded-xl bg-[#c8972e] flex items-center justify-center">
-            <Fuel className="h-5 w-5 text-white" />
-          </div>
           <div>
-            <span className="text-lg font-bold text-white tracking-tight">NomEngine</span>
-            <span className="block text-[0.625rem] text-gray-500 uppercase tracking-widest">Operations Platform</span>
+            <span className="text-2xl font-extrabold text-white tracking-[-0.04em]">NEFGO<span className="text-[#FFB000]">.</span></span>
           </div>
         </div>
 
         {/* Headline */}
         <h1 className="text-3xl font-bold text-white mb-3 leading-tight">
           Automate your gasoline trading operations.
-          <span className="text-[#c8972e]"> In minutes.</span>
+          <span className="text-[#FFB000]"> In minutes.</span>
         </h1>
         <p className="text-gray-400 text-sm leading-relaxed mb-8">
-          From deal recap email to all nominations sent — NomEngine handles the post-trade workflow
+          From deal recap email to all nominations sent — NEFGO handles the post-trade workflow
           so your operators focus on exceptions, not copy-paste.
         </p>
 
@@ -76,7 +72,7 @@ export default function DemoPage() {
           {FEATURES.map(({ icon: Icon, text }) => (
             <div key={text} className="flex items-center gap-3">
               <div className="h-7 w-7 rounded-md bg-[#1a1a24] flex items-center justify-center flex-shrink-0">
-                <Icon className="h-3.5 w-3.5 text-[#c8972e]" />
+                <Icon className="h-3.5 w-3.5 text-[#FFB000]" />
               </div>
               <span className="text-sm text-gray-300">{text}</span>
             </div>
@@ -87,7 +83,7 @@ export default function DemoPage() {
         <button
           onClick={handleLaunchDemo}
           disabled={loading}
-          className="w-full h-12 rounded-xl bg-[#c8972e] hover:bg-[#d4a33a] text-white font-semibold text-sm transition-all duration-150 flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed shadow-lg shadow-amber-900/20"
+          className="w-full h-12 rounded-xl bg-[#FFB000] hover:bg-[#d4a33a] text-white font-semibold text-sm transition-all duration-150 flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed shadow-lg shadow-amber-900/20"
         >
           {loading ? (
             <>
