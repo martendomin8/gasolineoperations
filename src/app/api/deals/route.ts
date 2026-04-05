@@ -110,7 +110,9 @@ export const GET = withAuth(async (req, _ctx, session) => {
   if (!result) {
     return NextResponse.json({ error: "Failed to fetch deals" }, { status: 500 });
   }
-  return NextResponse.json(result);
+  const response = NextResponse.json(result);
+  response.headers.set("Cache-Control", "private, max-age=5, stale-while-revalidate=30");
+  return response;
 });
 
 // POST /api/deals — Create deal (operator/admin)

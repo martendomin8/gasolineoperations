@@ -218,6 +218,8 @@ export const GET = withAuth(
       return { ...d, daysUntil };
     });
 
-    return NextResponse.json({ tasks, stats, urgentDeals, pricingAlerts });
+    const response = NextResponse.json({ tasks, stats, urgentDeals, pricingAlerts });
+    response.headers.set("Cache-Control", "private, max-age=10, stale-while-revalidate=30");
+    return response;
   }
 );

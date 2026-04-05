@@ -23,7 +23,9 @@ export const GET = withAuth(
         .orderBy(users.name);
     });
 
-    return NextResponse.json({ users: result });
+    const response = NextResponse.json({ users: result });
+    response.headers.set("Cache-Control", "private, max-age=120, stale-while-revalidate=600");
+    return response;
   },
   { roles: ["admin"] }
 );

@@ -80,10 +80,12 @@ export const GET = withAuth(async (_req, _ctx, session) => {
       )
     );
 
-  return NextResponse.json({
+  const response = NextResponse.json({
     pending: pending.length,
     renotify: renotify.length,
     pricingAlerts: pricingAlerts.length,
     total: pending.length + renotify.length + pricingAlerts.length,
   });
+  response.headers.set("Cache-Control", "private, max-age=10, stale-while-revalidate=30");
+  return response;
 });

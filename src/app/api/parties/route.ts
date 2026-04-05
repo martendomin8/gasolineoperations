@@ -80,7 +80,9 @@ export const GET = withAuth(async (req, _ctx, session) => {
     return all;
   });
 
-  return NextResponse.json(result);
+  const response = NextResponse.json(result);
+  response.headers.set("Cache-Control", "private, max-age=60, stale-while-revalidate=300");
+  return response;
 });
 
 // POST /api/parties — Create party (admin only)

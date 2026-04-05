@@ -24,7 +24,9 @@ export const GET = withAuth(async (_req: NextRequest, _ctx: unknown, session) =>
     .where(eq(schema.emailTemplates.tenantId, session.user.tenantId))
     .orderBy(schema.emailTemplates.name);
 
-  return NextResponse.json({ templates });
+  const response = NextResponse.json({ templates });
+  response.headers.set("Cache-Control", "private, max-age=120, stale-while-revalidate=600");
+  return response;
 });
 
 // POST /api/email-templates — create new template
