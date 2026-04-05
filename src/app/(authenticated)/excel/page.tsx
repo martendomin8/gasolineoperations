@@ -157,8 +157,8 @@ function EditableStatusCell({
     }
   };
 
-  const isDone = value === "Done" || value === "DONE";
-  const bgColor = isDone ? "bg-green-900/30" : "";
+  const isDone = value === "Done" || value === "DONE" || value === "done";
+  const bgColor = isDone ? "bg-green-800/40" : "";
 
   return (
     <td className={`${EDITABLE_CELL_IDLE} ${bgColor}`}>
@@ -449,7 +449,8 @@ export default function ExcelPage() {
   const [activeTab, setActiveTab] = useState<"ongoing" | "completed">("ongoing");
 
   const fetchDeals = useCallback(() => {
-    fetch("/api/deals?perPage=100")
+    // Cache-bust to ensure we get fresh data after inline edits
+    fetch(`/api/deals?perPage=100&_t=${Date.now()}`)
       .then((r) => {
         if (!r.ok) {
           return r.json().catch(() => ({})).then((err: Record<string, string>) => {

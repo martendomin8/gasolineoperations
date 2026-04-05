@@ -384,11 +384,11 @@ export default function DashboardPage() {
 
   useEffect(() => {
     Promise.all([
-      fetch("/api/linkages?status=active").then((r) => {
+      fetch(`/api/linkages?status=active&_t=${Date.now()}`).then((r) => {
         if (!r.ok) throw new Error("Failed to load linkages");
         return r.json() as Promise<LinkageRow[]>;
       }),
-      fetch("/api/deals?perPage=100").then((r) => {
+      fetch(`/api/deals?perPage=100&_t=${Date.now()}`).then((r) => {
         if (!r.ok) throw new Error("Failed to load deals");
         return r.json() as Promise<{ items: DealItem[] }>;
       }),
