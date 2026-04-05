@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 
 interface DealRow {
@@ -25,6 +24,10 @@ interface DealRow {
   pricingType: string | null;
   pricingFormula: string | null;
   pricingEstimatedDate: string | null;
+  pricingPeriodType: string | null;
+  pricingPeriodValue: string | null;
+  pricingConfirmed: boolean;
+  estimatedBlNorDate: string | null;
   assignedOperatorId: string | null;
   secondaryOperatorId: string | null;
   operatorName: string | null;
@@ -65,6 +68,10 @@ const COLUMNS = [
   { key: "invoiceToCp", label: "INVOICE TO CP", width: "110px" },
 ];
 
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
 function formatLaycan(deal: DealRow): string {
   const dir = deal.direction === "buy" ? "P" : "S";
   const start = new Date(deal.laycanStart);
@@ -76,33 +83,191 @@ function formatLaycan(deal: DealRow): string {
   return `${dir}(${deal.incoterm} ${(deal.loadport || "TBD").toUpperCase()} ${startDay}-${endDay} ${month})`;
 }
 
-function formatPricing(deal: DealRow): string {
-  const parts: string[] = [];
-  if (deal.pricingType) parts.push(deal.pricingType);
-  if (deal.pricingFormula) parts.push(deal.pricingFormula);
-  if (deal.pricingEstimatedDate) {
-    const d = new Date(deal.pricingEstimatedDate);
-    const day = d.getDate().toString().padStart(2, "0");
-    const month = (d.getMonth() + 1).toString().padStart(2, "0");
-    parts.push(`= ${day}/${month}?`);
-  }
-  return parts.join(" ") || deal.pricingFormula || "—";
-}
-
 function formatBLFigures(deal: DealRow): string {
   return deal.contractedQty || `${deal.quantityMt} MT`;
 }
 
 function formatOps(deal: DealRow): string {
-  const primary = deal.operatorName || "—";
+  const primary = deal.operatorName || "\u2014";
   const secondary = deal.secondaryOperatorName || "";
   return secondary ? `${primary}/${secondary}` : primary;
 }
 
+// ---------------------------------------------------------------------------
+// Cell style constants
+// ---------------------------------------------------------------------------
+
+const CELL_BASE = "px-2 py-1.5 text-xs border-b border-r border-[var(--color-border-subtle)]";
+const LOCKED_CELL = `${CELL_BASE}`;
+const EDITABLE_CELL_IDLE = `${CELL_BASE} group/cell relative`;
+
+// ---------------------------------------------------------------------------
+// LockedCell — read-only, no interaction
+// ---------------------------------------------------------------------------
+
+function LockedCell({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+  return (
+    <td className={`${LOCKED_CELL} ${className}`}>
+      {children}
+    </td>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// EditableStatusCell — dropdown with Done / empty
+// ---------------------------------------------------------------------------
+
+function EditableStatusCell({
+  value,
+  dealId,
+  fieldName,
+  onUpdate,
+}: {
+  value: string | null;
+  dealId: string;
+  fieldName: string;
+  onUpdate: () => void;
+}) {
+  const [saving, setSaving] = useState(false);
+
+  const handleChange = async (newValue: string) => {
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/deals/${dealId}/status-field`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ field: fieldName, value: newValue }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.error || "Failed to update status");
+      }
+    } catch {
+      toast.error("Network error");
+    } finally {
+      setSaving(false);
+      onUpdate();
+    }
+  };
+
+  const isDone = value === "Done" || value === "DONE";
+  const bgColor = isDone ? "bg-green-900/30" : "";
+
+  return (
+    <td className={`${EDITABLE_CELL_IDLE} ${bgColor}`}>
+      <select
+        value={value || ""}
+        onChange={(e) => handleChange(e.target.value)}
+        disabled={saving}
+        className="bg-transparent text-xs cursor-pointer w-full outline-none appearance-none"
+      >
+        <option value="">{"\u2014"}</option>
+        <option value="Done">Done</option>
+      </select>
+      {/* Dropdown arrow indicator on hover */}
+      <span className="absolute right-1 top-1/2 -translate-y-1/2 text-[0.5rem] text-[var(--color-text-tertiary)] opacity-0 group-hover/cell:opacity-100 pointer-events-none select-none">
+        {"\u25BE"}
+      </span>
+    </td>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// PricingCell — pricing period display with confirm and date
+// ---------------------------------------------------------------------------
+
+function PricingCell({ deal, onUpdate }: { deal: DealRow; onUpdate: () => void }) {
+  const [savingDate, setSavingDate] = useState(false);
+  const [savingConfirm, setSavingConfirm] = useState(false);
+  const periodType = deal.pricingPeriodType;
+  const periodValue = deal.pricingPeriodValue;
+  const confirmed = deal.pricingConfirmed;
+
+  // Color logic
+  let bgColor = "";
+  if (periodType === "Fixed" || periodType === "EFP") {
+    bgColor = "bg-green-900/30";
+  } else if (periodType === "BL" || periodType === "NOR") {
+    bgColor = confirmed ? "bg-green-900/30" : "bg-yellow-900/30";
+  }
+
+  const displayText =
+    periodType && periodValue
+      ? `${periodType} ${periodValue}`
+      : periodType || deal.pricingFormula || "\u2014";
+
+  const handleDateChange = async (newDate: string) => {
+    setSavingDate(true);
+    try {
+      const res = await fetch(`/api/deals/${deal.id}/status-field`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ field: "estimatedBlNorDate", value: newDate }),
+      });
+      if (!res.ok) toast.error("Failed to update date");
+    } catch {
+      toast.error("Network error");
+    } finally {
+      setSavingDate(false);
+      onUpdate();
+    }
+  };
+
+  const handleConfirm = async () => {
+    setSavingConfirm(true);
+    try {
+      const res = await fetch(`/api/deals/${deal.id}/status-field`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ field: "pricingConfirmed", value: "true" }),
+      });
+      if (!res.ok) toast.error("Failed to confirm pricing");
+    } catch {
+      toast.error("Network error");
+    } finally {
+      setSavingConfirm(false);
+      onUpdate();
+    }
+  };
+
+  return (
+    <td className={`${CELL_BASE} ${bgColor}`}>
+      <div className="flex flex-col gap-0.5">
+        <span className="font-mono">{displayText}</span>
+        {(periodType === "BL" || periodType === "NOR") && (
+          <div className="flex items-center gap-1">
+            <input
+              type="date"
+              className="bg-transparent text-[0.6rem] w-24 outline-none"
+              value={deal.estimatedBlNorDate || ""}
+              disabled={savingDate}
+              onChange={(e) => handleDateChange(e.target.value)}
+            />
+            {!confirmed && (
+              <button
+                onClick={handleConfirm}
+                disabled={savingConfirm}
+                className="text-[0.5rem] px-1 bg-green-800/50 rounded text-green-300 hover:bg-green-700/50 cursor-pointer disabled:opacity-50"
+              >
+                {"\u2713"}
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    </td>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// StatusCell — read-only display for workflow step statuses (used for locked cells)
+// ---------------------------------------------------------------------------
+
 function StatusCell({ value }: { value: string | null }) {
-  if (!value || value === "—") return <span className="text-[var(--color-text-tertiary)]">—</span>;
+  if (!value || value === "\u2014") return <span className="text-[var(--color-text-tertiary)]">{"\u2014"}</span>;
   const colors: Record<string, string> = {
     DONE: "text-[var(--color-success)] font-medium",
+    Done: "text-[var(--color-success)] font-medium",
     SENT: "text-[var(--color-info)] font-medium",
     RECEIVED: "text-[var(--color-accent)] font-medium",
     "N/A": "text-[var(--color-text-tertiary)]",
@@ -113,6 +278,10 @@ function StatusCell({ value }: { value: string | null }) {
   const cls = colors[value] || "text-[var(--color-text-secondary)]";
   return <span className={cls}>{value}</span>;
 }
+
+// ---------------------------------------------------------------------------
+// Section header and column headers
+// ---------------------------------------------------------------------------
 
 function SectionHeader({ title }: { title: string }) {
   return (
@@ -143,45 +312,66 @@ function ColumnHeaders() {
   );
 }
 
-function DealRow({ deal }: { deal: DealRow }) {
+// ---------------------------------------------------------------------------
+// DealRow — the main row component with editable and locked cells
+// ---------------------------------------------------------------------------
+
+function DealRowComponent({ deal, onUpdate }: { deal: DealRow; onUpdate: () => void }) {
   return (
     <tr className="hover:bg-[var(--color-surface-2)] transition-colors group">
-      <td className="px-2 py-1.5 text-xs font-mono border-b border-r border-[var(--color-border-subtle)] whitespace-nowrap">
+      {/* Locked cells — system-populated, read-only */}
+      <LockedCell className="font-mono whitespace-nowrap">
         <Link href={`/deals/${deal.id}`} className="text-[var(--color-accent-text)] hover:underline">
           {formatLaycan(deal)}
         </Link>
-      </td>
-      <td className="px-2 py-1.5 text-xs border-b border-r border-[var(--color-border-subtle)]">{deal.counterparty}</td>
-      <td className="px-2 py-1.5 text-xs font-mono border-b border-r border-[var(--color-border-subtle)]">{deal.vesselName || "—"}</td>
-      <td className="px-2 py-1.5 text-xs font-mono border-b border-r border-[var(--color-border-subtle)]">{deal.linkageCode || "—"}</td>
-      <td className="px-2 py-1.5 text-xs font-mono border-b border-r border-[var(--color-border-subtle)]">{deal.externalRef || "—"}</td>
-      <td className="px-2 py-1.5 text-xs border-b border-r border-[var(--color-border-subtle)]">{formatOps(deal)}</td>
-      <td className="px-2 py-1.5 text-xs font-mono border-b border-r border-[var(--color-border-subtle)]">{formatPricing(deal)}</td>
-      <td className="px-2 py-1.5 text-xs border-b border-r border-[var(--color-border-subtle)]">{formatBLFigures(deal)}</td>
-      <td className="px-2 py-1.5 text-xs border-b border-r border-[var(--color-border-subtle)]"><StatusCell value={deal.docInstructions} /></td>
-      <td className="px-2 py-1.5 text-xs border-b border-r border-[var(--color-border-subtle)]"><StatusCell value={deal.voyDisOrders} /></td>
-      <td className="px-2 py-1.5 text-xs border-b border-r border-[var(--color-border-subtle)]"><StatusCell value={deal.vesselNomination} /></td>
-      <td className="px-2 py-1.5 text-xs border-b border-r border-[var(--color-border-subtle)]"><StatusCell value={deal.supervision} /></td>
-      <td className="px-2 py-1.5 text-xs border-b border-r border-[var(--color-border-subtle)]"><StatusCell value={deal.coaToTraders} /></td>
-      <td className="px-2 py-1.5 text-xs border-b border-r border-[var(--color-border-subtle)]"><StatusCell value={deal.dischargeNomination} /></td>
-      <td className="px-2 py-1.5 text-xs border-b border-r border-[var(--color-border-subtle)]"><StatusCell value={deal.outturn} /></td>
-      <td className="px-2 py-1.5 text-xs border-b border-r border-[var(--color-border-subtle)]"><StatusCell value={deal.freightInvoice} /></td>
-      <td className="px-2 py-1.5 text-xs border-b border-r border-[var(--color-border-subtle)]">{deal.tax || "—"}</td>
-      <td className="px-2 py-1.5 text-xs border-b border-[var(--color-border-subtle)]"><StatusCell value={deal.invoiceToCp} /></td>
+      </LockedCell>
+      <LockedCell>{deal.counterparty}</LockedCell>
+      <LockedCell className="font-mono">{deal.vesselName || "\u2014"}</LockedCell>
+      <LockedCell className="font-mono">{deal.linkageCode || "\u2014"}</LockedCell>
+      <LockedCell className="font-mono">{deal.externalRef || "\u2014"}</LockedCell>
+      <LockedCell>{formatOps(deal)}</LockedCell>
+
+      {/* Pricing — special interactive cell */}
+      <PricingCell deal={deal} onUpdate={onUpdate} />
+
+      {/* B/L Figures — locked */}
+      <LockedCell>{formatBLFigures(deal)}</LockedCell>
+
+      {/* Editable workflow step cells */}
+      <EditableStatusCell value={deal.docInstructions} dealId={deal.id} fieldName="docInstructions" onUpdate={onUpdate} />
+      <EditableStatusCell value={deal.voyDisOrders} dealId={deal.id} fieldName="voyDisOrders" onUpdate={onUpdate} />
+      <EditableStatusCell value={deal.vesselNomination} dealId={deal.id} fieldName="vesselNomination" onUpdate={onUpdate} />
+      <EditableStatusCell value={deal.supervision} dealId={deal.id} fieldName="supervision" onUpdate={onUpdate} />
+
+      {/* Editable operator-managed cells */}
+      <EditableStatusCell value={deal.coaToTraders} dealId={deal.id} fieldName="coaToTraders" onUpdate={onUpdate} />
+      <EditableStatusCell value={deal.dischargeNomination} dealId={deal.id} fieldName="dischargeNomination" onUpdate={onUpdate} />
+      <EditableStatusCell value={deal.outturn} dealId={deal.id} fieldName="outturn" onUpdate={onUpdate} />
+      <EditableStatusCell value={deal.freightInvoice} dealId={deal.id} fieldName="freightInvoice" onUpdate={onUpdate} />
+
+      {/* Tax — locked (system-derived from region) */}
+      <LockedCell>{deal.tax || "\u2014"}</LockedCell>
+
+      {/* Invoice to CP — editable operator-managed */}
+      <EditableStatusCell value={deal.invoiceToCp} dealId={deal.id} fieldName="invoiceToCp" onUpdate={onUpdate} />
     </tr>
   );
 }
+
+// ---------------------------------------------------------------------------
+// Page component
+// ---------------------------------------------------------------------------
 
 export default function ExcelPage() {
   const [deals, setDeals] = useState<DealRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"ongoing" | "completed">("ongoing");
 
-  useEffect(() => {
+  const fetchDeals = useCallback(() => {
     fetch("/api/deals?perPage=100")
       .then((r) => {
         if (!r.ok) {
-          return r.json().catch(() => ({})).then((err) => {
+          return r.json().catch(() => ({})).then((err: Record<string, string>) => {
             toast.error(err.error || "Failed to load deals");
             setLoading(false);
             return null;
@@ -201,6 +391,14 @@ export default function ExcelPage() {
         setLoading(false);
       });
   }, []);
+
+  useEffect(() => {
+    fetchDeals();
+  }, [fetchDeals]);
+
+  const refreshData = useCallback(() => {
+    fetchDeals();
+  }, [fetchDeals]);
 
   const ongoing = deals.filter((d) => d.status !== "completed" && d.status !== "cancelled");
   const completed = deals.filter((d) => d.status === "completed");
@@ -264,7 +462,7 @@ export default function ExcelPage() {
                 <SectionHeader title="PURCHASE" />
                 <ColumnHeaders />
                 {purchases.length > 0 ? (
-                  purchases.map((d) => <DealRow key={d.id} deal={d} />)
+                  purchases.map((d) => <DealRowComponent key={d.id} deal={d} onUpdate={refreshData} />)
                 ) : (
                   <tr><td colSpan={COLUMNS.length} className="px-3 py-4 text-xs text-center text-[var(--color-text-tertiary)] border-b border-[var(--color-border-subtle)]">No standalone purchases</td></tr>
                 )}
@@ -273,7 +471,7 @@ export default function ExcelPage() {
                 <SectionHeader title="SALE" />
                 <ColumnHeaders />
                 {sales.length > 0 ? (
-                  sales.map((d) => <DealRow key={d.id} deal={d} />)
+                  sales.map((d) => <DealRowComponent key={d.id} deal={d} onUpdate={refreshData} />)
                 ) : (
                   <tr><td colSpan={COLUMNS.length} className="px-3 py-4 text-xs text-center text-[var(--color-text-tertiary)] border-b border-[var(--color-border-subtle)]">No standalone sales</td></tr>
                 )}
@@ -283,7 +481,7 @@ export default function ExcelPage() {
                 <ColumnHeaders />
                 {linked.length > 0 ? (
                   linked.map((group) => (
-                    group.deals.map((d, i) => <DealRow key={d.id} deal={d} />)
+                    group.deals.map((d) => <DealRowComponent key={d.id} deal={d} onUpdate={refreshData} />)
                   ))
                 ) : (
                   <tr><td colSpan={COLUMNS.length} className="px-3 py-4 text-xs text-center text-[var(--color-text-tertiary)]">No linked deals</td></tr>
@@ -293,7 +491,7 @@ export default function ExcelPage() {
               <tbody>
                 <ColumnHeaders />
                 {completed.length > 0 ? (
-                  completed.map((d) => <DealRow key={d.id} deal={d} />)
+                  completed.map((d) => <DealRowComponent key={d.id} deal={d} onUpdate={refreshData} />)
                 ) : (
                   <tr><td colSpan={COLUMNS.length} className="px-3 py-4 text-xs text-center text-[var(--color-text-tertiary)]">No completed deals</td></tr>
                 )}

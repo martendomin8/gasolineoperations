@@ -1,10 +1,32 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { withAuth } from "@/lib/middleware/with-auth";
 import { withTenantDb } from "@/lib/db";
-import { deals, auditLogs, users } from "@/lib/db/schema";
+import { deals, auditLogs, users, workflowInstances, workflowSteps } from "@/lib/db/schema";
 import { createDealSchema, dealFilterSchema } from "@/lib/types/deal";
 import { eq, and, ilike, or, desc, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
+
+/** Map workflow step status to display value for Excel view */
+function stepStatusToDisplay(status: string | null): string | null {
+  switch (status) {
+    case "sent":
+    case "acknowledged":
+    case "done":
+      return "DONE";
+    case "draft_generated":
+      return "DRAFT READY";
+    case "needs_update":
+      return "NEEDS UPDATE";
+    case "cancelled":
+      return "CANCELLED";
+    case "received":
+      return "RECEIVED";
+    case "na":
+      return "N/A";
+    default:
+      return null;
+  }
+}
 
 // GET /api/deals — Paginated deal list
 export const GET = withAuth(async (req, _ctx, session) => {
@@ -56,7 +78,7 @@ export const GET = withAuth(async (req, _ctx, session) => {
     const primaryOp = alias(users, "primaryOp");
     const secondaryOp = alias(users, "secondaryOp");
 
-    const [items, [{ count }]] = await Promise.all([
+    const [rawItems, [{ count }]] = await Promise.all([
       db
         .select({
           id: deals.id,
@@ -79,8 +101,13 @@ export const GET = withAuth(async (req, _ctx, session) => {
           pricingType: deals.pricingType,
           pricingFormula: deals.pricingFormula,
           pricingEstimatedDate: deals.pricingEstimatedDate,
+          pricingPeriodType: deals.pricingPeriodType,
+          pricingPeriodValue: deals.pricingPeriodValue,
+          pricingConfirmed: deals.pricingConfirmed,
+          estimatedBlNorDate: deals.estimatedBlNorDate,
           assignedOperatorId: deals.assignedOperatorId,
           secondaryOperatorId: deals.secondaryOperatorId,
+          excelStatuses: deals.excelStatuses,
           operatorName: primaryOp.name,
           secondaryOperatorName: secondaryOp.name,
           createdAt: deals.createdAt,
@@ -97,6 +124,88 @@ export const GET = withAuth(async (req, _ctx, session) => {
         .from(deals)
         .where(and(...conditions)),
     ]);
+
+    // Enrich with workflow step statuses for Excel view
+    const dealIds = rawItems.map((d) => d.id);
+    const stepStatusMap = new Map<string, Record<string, string | null>>();
+
+    if (dealIds.length > 0) {
+      const instances = await db
+        .select({ id: workflowInstances.id, dealId: workflowInstances.dealId })
+        .from(workflowInstances)
+        .where(eq(workflowInstances.tenantId, session.user.tenantId));
+
+      const instanceDealMap = new Map<string, string>();
+      for (const inst of instances) {
+        instanceDealMap.set(inst.id, inst.dealId);
+      }
+
+      if (instances.length > 0) {
+        const allSteps = await db
+          .select({
+            workflowInstanceId: workflowSteps.workflowInstanceId,
+            stepType: workflowSteps.stepType,
+            stepName: workflowSteps.stepName,
+            status: workflowSteps.status,
+          })
+          .from(workflowSteps)
+          .where(eq(workflowSteps.tenantId, session.user.tenantId));
+
+        for (const step of allSteps) {
+          const dealId = instanceDealMap.get(step.workflowInstanceId);
+          if (!dealId || !dealIds.includes(dealId)) continue;
+          if (!stepStatusMap.has(dealId)) {
+            stepStatusMap.set(dealId, {
+              docInstructions: null,
+              voyDisOrders: null,
+              vesselNomination: null,
+              supervision: null,
+              dischargeNomination: null,
+              coaToTraders: null,
+              outturn: null,
+              freightInvoice: null,
+              tax: null,
+              invoiceToCp: null,
+            });
+          }
+          const statuses = stepStatusMap.get(dealId)!;
+          const displayStatus = stepStatusToDisplay(step.status);
+          const nameLower = step.stepName.toLowerCase();
+
+          if (step.stepType === "instruction" || nameLower.includes("doc")) {
+            statuses.docInstructions = displayStatus;
+          } else if (step.stepType === "order" || nameLower.includes("order")) {
+            statuses.voyDisOrders = displayStatus;
+          } else if (step.stepType === "nomination" && nameLower.includes("discharge")) {
+            statuses.dischargeNomination = displayStatus;
+          } else if (step.stepType === "nomination") {
+            statuses.vesselNomination = displayStatus;
+          } else if (step.stepType === "appointment" || nameLower.includes("inspector") || nameLower.includes("supervision")) {
+            statuses.supervision = displayStatus;
+          }
+        }
+      }
+    }
+
+    const items = rawItems.map((d) => {
+      const stepStatuses = stepStatusMap.get(d.id) ?? {};
+      const excelOverrides = (d.excelStatuses ?? {}) as Record<string, string | null>;
+
+      // Workflow step statuses take priority; operator-managed fields come from excelStatuses
+      return {
+        ...d,
+        docInstructions: stepStatuses.docInstructions ?? excelOverrides.docInstructions ?? null,
+        voyDisOrders: stepStatuses.voyDisOrders ?? excelOverrides.voyDisOrders ?? null,
+        vesselNomination: stepStatuses.vesselNomination ?? excelOverrides.vesselNomination ?? null,
+        supervision: stepStatuses.supervision ?? excelOverrides.supervision ?? null,
+        dischargeNomination: stepStatuses.dischargeNomination ?? excelOverrides.dischargeNomination ?? null,
+        coaToTraders: excelOverrides.coaToTraders ?? null,
+        outturn: excelOverrides.outturn ?? null,
+        freightInvoice: excelOverrides.freightInvoice ?? null,
+        tax: excelOverrides.tax ?? null,
+        invoiceToCp: excelOverrides.invoiceToCp ?? null,
+      };
+    });
 
     return {
       items,

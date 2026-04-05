@@ -88,13 +88,28 @@ Each has its own nomination format preferences and contact persons. Templates ar
 
 ---
 
-## Deal Linking (Cargo Chains)
+## Linkage — The Fundamental Organizational Structure
 
-Physical cargoes are rarely standalone. A purchase is usually linked to one or more sales.
+**Every deal ALWAYS belongs to a linkage.** Think of a linkage as a folder. A folder can contain one deal or many deals. There is no such thing as an "unlinked" deal.
 
-### Linkage Code
+### Linkage as Its Own Entity
 
-All deals sharing a linkage code (e.g. `086412GSS`) are part of the same cargo chain. Code comes from the tradehouse system. Operator enters manually.
+Linkage is a **database table**, not just a string field. Each linkage has:
+- `linkage_number` — official number from trader's ETRM system (nullable, entered later)
+- `temp_name` — auto-generated (e.g. "TEMP-001") when created
+- `display_name` — shows linkage_number if set, otherwise temp_name
+
+**Prompt deals**: Deals often arrive urgently before the trader generates a linkage number. The absence of a linkage number must NEVER block the operator. The system auto-generates a temp name.
+
+### Linkage Merging
+
+If the operator creates two separate linkages and later discovers they're the same cargo, the system allows merging. The system asks which linkage number to keep.
+
+### Creating Linkages
+
+- **From deal parse**: When AI creates a new deal, operator chooses: link to existing, or create new linkage
+- **From dashboard "+" button**: Creates empty linkage (no deals yet) for planned operations
+- Empty linkages can have terminal operations added via the "+" button in the linkage view
 
 ### Linking Patterns
 
@@ -150,16 +165,28 @@ Tenant
 User
   id, tenant_id, email, name, role (operator|trader|admin), created_at
 
+Linkage (NEW — every deal belongs to exactly one linkage)
+  id, tenant_id,
+  linkage_number (nullable — official number from trader's ETRM system),
+  temp_name (auto-generated, e.g. "TEMP-001"),
+  display_name (computed: linkage_number ?? temp_name),
+  status (active|completed), created_at
+
 Deal
-  id, tenant_id, external_ref, linkage_code,
-  counterparty, direction (buy|sell),
-  product, contracted_qty (with tolerance text), nominated_qty (declared exact, nullable),
+  id, tenant_id, linkage_id (FK → Linkage, required, never null),
+  external_ref, counterparty, direction (buy|sell),
+  deal_type (regular|terminal_operation, default: regular),
+  product, contracted_qty (text with tolerance), nominated_qty (decimal, nullable),
+  loaded_quantity_mt (decimal, nullable — exact loaded qty, purchase deals only),
   incoterm (FOB|CIF|CFR|DAP|FCA),
   loadport, discharge_port, laycan_start, laycan_end,
   vessel_name (nullable), vessel_imo (nullable),
   vessel_cleared (boolean), doc_instructions_received (boolean),
-  pricing_type (BL|NOR|null), pricing_formula (text, e.g. "0-0-5"),
-  pricing_estimated_date (date, nullable),
+  pricing_formula (text — stored but NOT shown in Excel view),
+  pricing_period_type (BL|NOR|Fixed|EFP|null),
+  pricing_period_value (text — e.g. "0-1-5" or "1-15 Mar"),
+  pricing_confirmed (boolean, default false — operator marks when settled),
+  estimated_bl_nor_date (date, nullable — only for BL/NOR pricing),
   status (enum), assigned_operator_id, secondary_operator_id,
   created_by, source_raw_text, version,
   created_at, updated_at
@@ -233,13 +260,25 @@ The workflow engine uses **soft dependencies, not hard blocks**:
 | NEEDS UPDATE | Previously sent but deal data changed — re-send required |
 | CANCELLED | Cancelled — cancellation email sent |
 
-### Excel Sync
+### Excel/Spreadsheet View (In-App)
 
-The operators' current Excel file ("GASOLINE VESSELS LIST") has two sheets:
-- **ONGOING**: Active deals in PURCHASE, SALE, and PURCHASE+SALE (linked) sections
-- **COMPLETED**: Operator manually marks a deal as completed. Completed deals disappear from all active views (linkage tracking, task queue, dashboard) but remain in the database for audit trail
+The in-app Excel view replaces the external Excel file. Two sections:
+- **Main table**: Regular deals (`deal_type = 'regular'`). PURCHASE, SALE, PURCHASE+SALE sections.
+- **Internal / Terminal Operations**: Linkages with only `deal_type = 'terminal_operation'` deals (own-terminal loading/discharge, no external counterparty yet).
 
-The program reads from and writes status updates to this Excel. Some columns are operator-managed (COA to Traders, Outturn, Freight invoice, INVOICE TO CP) — the program must NEVER overwrite these.
+**Editable cells (dropdown)**: Operator action columns have a dropdown with `(empty)` / `Done`. Selecting "Done" turns the cell green. Editable cells show a ▾ arrow.
+**Locked cells (read-only)**: System-populated fields (B/L Figures, Vessel, etc.) update automatically.
+
+**Color coding**:
+- **Pattern A (most columns)**: White (not done) → Green (Done)
+- **Pattern B (Pricing — BL/NOR only)**: White (not entered) → Yellow (needs monitoring) → Green (confirmed by operator)
+- **Fixed/EFP pricing**: Auto-green immediately (nothing to monitor)
+
+**Pricing column shows period, NOT formula**: e.g. "BL 0-1-5" or "NOR 3-1-3" or "Fixed 1-15 Mar" or "EFP". The formula (e.g. "Platts FOB Baltic +$5.50/MT") is stored but hidden from the operator — it's for the invoice desk.
+
+**Est. BL/NOR date**: For BL/NOR deals, a small editable date field next to the pricing period cell.
+
+**Completed linkages**: Operator marks linkage as "Completed" → moves to COMPLETED tab. System can suggest completion when all steps are Done.
 
 ### Change Detection Logic
 

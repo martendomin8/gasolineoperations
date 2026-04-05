@@ -113,6 +113,26 @@ export const parties = pgTable(
   ]
 );
 
+// --- Linkages (cargo chains) ---
+export const linkages = pgTable(
+  "linkages",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .references(() => tenants.id, { onDelete: "cascade" })
+      .notNull(),
+    linkageNumber: varchar("linkage_number", { length: 100 }),
+    tempName: varchar("temp_name", { length: 100 }).notNull(),
+    status: varchar("status", { length: 50 }).default("active").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("linkages_tenant_status_idx").on(table.tenantId, table.status),
+    index("linkages_tenant_linkage_number_idx").on(table.tenantId, table.linkageNumber),
+  ]
+);
+
 // --- Deals ---
 export const deals = pgTable(
   "deals",
@@ -123,6 +143,8 @@ export const deals = pgTable(
       .notNull(),
     externalRef: varchar("external_ref", { length: 100 }),
     linkageCode: varchar("linkage_code", { length: 100 }),
+    linkageId: uuid("linkage_id").references(() => linkages.id),
+    dealType: varchar("deal_type", { length: 50 }).default("regular").notNull(),
     counterparty: varchar("counterparty", { length: 255 }).notNull(),
     direction: dealDirectionEnum("direction").notNull(),
     product: varchar("product", { length: 255 }).notNull(),
@@ -148,7 +170,13 @@ export const deals = pgTable(
     pricingFormula: text("pricing_formula"),
     pricingType: varchar("pricing_type", { length: 20 }),
     pricingEstimatedDate: date("pricing_estimated_date"),
+    loadedQuantityMt: decimal("loaded_quantity_mt", { precision: 12, scale: 3 }),
+    pricingPeriodType: varchar("pricing_period_type", { length: 20 }),
+    pricingPeriodValue: varchar("pricing_period_value", { length: 100 }),
+    pricingConfirmed: boolean("pricing_confirmed").default(false).notNull(),
+    estimatedBlNorDate: date("estimated_bl_nor_date"),
     specialInstructions: text("special_instructions"),
+    excelStatuses: jsonb("excel_statuses").default({}).$type<Record<string, string | null>>(),
     version: integer("version").default(1).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
@@ -367,8 +395,14 @@ export const partiesRelations = relations(parties, ({ one }) => ({
   tenant: one(tenants, { fields: [parties.tenantId], references: [tenants.id] }),
 }));
 
+export const linkagesRelations = relations(linkages, ({ one, many }) => ({
+  tenant: one(tenants, { fields: [linkages.tenantId], references: [tenants.id] }),
+  deals: many(deals),
+}));
+
 export const dealsRelations = relations(deals, ({ one, many }) => ({
   tenant: one(tenants, { fields: [deals.tenantId], references: [tenants.id] }),
+  linkage: one(linkages, { fields: [deals.linkageId], references: [linkages.id] }),
   assignedOperator: one(users, { fields: [deals.assignedOperatorId], references: [users.id], relationName: "primaryOperator" }),
   secondaryOperator: one(users, { fields: [deals.secondaryOperatorId], references: [users.id], relationName: "secondaryOperator" }),
   creator: one(users, { fields: [deals.createdBy], references: [users.id], relationName: "creator" }),
@@ -440,6 +474,8 @@ export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
 export type Party = typeof parties.$inferSelect;
 export type NewParty = typeof parties.$inferInsert;
+export type Linkage = typeof linkages.$inferSelect;
+export type NewLinkage = typeof linkages.$inferInsert;
 export type Deal = typeof deals.$inferSelect;
 export type NewDeal = typeof deals.$inferInsert;
 export type DealLeg = typeof dealLegs.$inferSelect;

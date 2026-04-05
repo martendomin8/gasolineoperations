@@ -52,6 +52,8 @@ export const createDealSchema = z
   .object({
     externalRef: z.string().max(100).nullable().optional(),
     linkageCode: z.string().max(100).nullable().optional(),
+    linkageId: z.string().uuid().nullable().optional(),
+    dealType: z.enum(["regular", "terminal_operation"]).optional().default("regular"),
     counterparty: z.string().min(1, "Counterparty is required").max(255),
     direction: z.enum(directions),
     product: z.string().min(1, "Product is required").max(255),
@@ -73,6 +75,11 @@ export const createDealSchema = z
       z.string().max(20).nullable().optional()
     ),
     pricingEstimatedDate: optionalDateString,
+    loadedQuantityMt: optionalPositiveNumber,
+    pricingPeriodType: optionalString,
+    pricingPeriodValue: optionalString,
+    pricingConfirmed: z.boolean().optional(),
+    estimatedBlNorDate: optionalDateString,
     specialInstructions: optionalString,
     sourceRawText: optionalString,
   })
@@ -121,6 +128,8 @@ export const importDealSchema = z
 export const updateDealSchema = z.object({
   externalRef: z.string().max(100).nullable().optional(),
   linkageCode: z.string().max(100).nullable().optional(),
+  linkageId: z.string().uuid().nullable().optional(),
+  dealType: z.enum(["regular", "terminal_operation"]).optional(),
   counterparty: z.string().min(1).max(255).optional(),
   direction: z.enum(directions).optional(),
   product: z.string().min(1).max(255).optional(),
@@ -145,6 +154,11 @@ export const updateDealSchema = z.object({
     z.string().max(20).nullable().optional()
   ),
   pricingEstimatedDate: optionalDateString,
+  loadedQuantityMt: optionalPositiveNumber,
+  pricingPeriodType: optionalString,
+  pricingPeriodValue: optionalString,
+  pricingConfirmed: z.boolean().optional(),
+  estimatedBlNorDate: optionalDateString,
   specialInstructions: optionalString,
   version: z.number().int().positive("Version is required for optimistic locking"),
 });
