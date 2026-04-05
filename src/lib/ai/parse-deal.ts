@@ -17,6 +17,8 @@ export interface ParsedDealFields {
   vessel_name: string | null;
   vessel_imo: string | null;
   pricing_formula: string | null;
+  pricing_period_type: "BL" | "NOR" | "Fixed" | "EFP" | null;
+  pricing_period_value: string | null;
   special_instructions: string | null;
   external_ref: string | null;
 }
@@ -43,7 +45,8 @@ Be precise and conservative with confidence scores:
 
 For dates, always output YYYY-MM-DD format. If only a month/year is given (e.g. "April 5/7"), use the current year.
 For quantities, extract the number in metric tonnes (MT). Convert from BBLs if needed (1 MT ≈ 7.5 BBLs for gasoline).
-For direction: "buy" means we are purchasing, "sell" means we are selling.`;
+For direction: "buy" means we are purchasing, "sell" means we are selling.
+For pricing: extract both the pricing formula (e.g. 'Platts FOB Baltic +$5.50/MT') AND the pricing period type (BL, NOR, Fixed, or EFP) with its parameters (e.g. '0-1-5'). BL+5 is shorthand for BL 0-0-5.`;
 
 const EXTRACTION_TOOL: Anthropic.Tool = {
   name: "extract_deal",
@@ -63,6 +66,8 @@ const EXTRACTION_TOOL: Anthropic.Tool = {
       vessel_name: { type: "string", description: "Vessel name if mentioned, null otherwise" },
       vessel_imo: { type: "string", description: "Vessel IMO number if mentioned, null otherwise" },
       pricing_formula: { type: "string", description: "Pricing formula or price if mentioned (e.g. 'Platts CIF NWE +$5/MT')" },
+      pricing_period_type: { type: "string", enum: ["BL", "NOR", "Fixed", "EFP"], description: "Pricing period type. BL = Bill of Lading pricing, NOR = Notice of Readiness pricing, Fixed = fixed calendar period, EFP = Exchange for Physical" },
+      pricing_period_value: { type: "string", description: "Pricing period parameters. For BL/NOR: day window like '0-1-5' (days before, BL/NOR day counts 1=yes 0=no, days after). For Fixed: date range like '1-15 Mar'. For EFP: empty." },
       special_instructions: { type: "string", description: "Any special instructions, SCAC codes, or operational notes" },
       external_ref: { type: "string", description: "Any deal reference number or ID if mentioned" },
       confidence_scores: {
@@ -81,6 +86,8 @@ const EXTRACTION_TOOL: Anthropic.Tool = {
           vessel_name: { type: "number" },
           vessel_imo: { type: "number" },
           pricing_formula: { type: "number" },
+          pricing_period_type: { type: "number" },
+          pricing_period_value: { type: "number" },
           special_instructions: { type: "number" },
           external_ref: { type: "number" },
         },
@@ -140,6 +147,8 @@ export async function parseDealFromText(rawText: string): Promise<ParsedDealResu
     vessel_name: (input.vessel_name as string) ?? null,
     vessel_imo: (input.vessel_imo as string) ?? null,
     pricing_formula: (input.pricing_formula as string) ?? null,
+    pricing_period_type: (input.pricing_period_type as ParsedDealFields["pricing_period_type"]) ?? null,
+    pricing_period_value: (input.pricing_period_value as string) ?? null,
     special_instructions: (input.special_instructions as string) ?? null,
     external_ref: (input.external_ref as string) ?? null,
   };
@@ -426,6 +435,47 @@ export function parseDealDemo(rawText: string): ParsedDealResult {
   const pricing_formula = priceMatch ? priceMatch[0].trim() : null;
   scores.pricing_formula = pricing_formula ? 0.8 : 0;
 
+  // ── Pricing Period ──────────────────────────────────────────
+  let pricing_period_type: ParsedDealFields["pricing_period_type"] = null;
+  let pricing_period_value: string | null = null;
+
+  // "BL 0-1-5", "BL+5", "NOR 3-1-3", "Fixed 1-15 Mar", "EFP"
+  const blShorthand = rawText.match(/\bBL\s*\+\s*(\d+)\b/i);
+  const blFull = rawText.match(/\bBL\s+(\d+-\d+-\d+)\b/i);
+  const norFull = rawText.match(/\bNOR\s+(\d+-\d+-\d+)\b/i);
+  const fixedMatch = rawText.match(/\bFixed\s+([\d]+-[\d]+\s+[A-Za-z]+)\b/i);
+  const efpMatch = rawText.match(/\bEFP\b/i);
+
+  if (blShorthand) {
+    pricing_period_type = "BL";
+    pricing_period_value = `0-0-${blShorthand[1]}`;
+    scores.pricing_period_type = 0.85;
+    scores.pricing_period_value = 0.85;
+  } else if (blFull) {
+    pricing_period_type = "BL";
+    pricing_period_value = blFull[1];
+    scores.pricing_period_type = 0.9;
+    scores.pricing_period_value = 0.9;
+  } else if (norFull) {
+    pricing_period_type = "NOR";
+    pricing_period_value = norFull[1];
+    scores.pricing_period_type = 0.9;
+    scores.pricing_period_value = 0.9;
+  } else if (fixedMatch) {
+    pricing_period_type = "Fixed";
+    pricing_period_value = fixedMatch[1];
+    scores.pricing_period_type = 0.88;
+    scores.pricing_period_value = 0.88;
+  } else if (efpMatch) {
+    pricing_period_type = "EFP";
+    pricing_period_value = "";
+    scores.pricing_period_type = 0.9;
+    scores.pricing_period_value = 0.9;
+  } else {
+    scores.pricing_period_type = 0;
+    scores.pricing_period_value = 0;
+  }
+
   // ── External ref ─────────────────────────────────────────────
   const refMatch = rawText.match(/\b(?:Ref|Deal\s+ref|Recap\s+ref)\s*[:#]?\s*([A-Z0-9][-A-Z0-9]{3,20})\b/i);
   const external_ref = refMatch ? refMatch[1] : null;
@@ -439,7 +489,9 @@ export function parseDealDemo(rawText: string): ParsedDealResult {
   const fields: ParsedDealFields = {
     counterparty, direction, product, quantity_mt, incoterm,
     loadport, discharge_port, laycan_start, laycan_end,
-    vessel_name, vessel_imo, pricing_formula, special_instructions, external_ref,
+    vessel_name, vessel_imo, pricing_formula,
+    pricing_period_type, pricing_period_value,
+    special_instructions, external_ref,
   };
 
   const confidenceScores = Object.fromEntries(

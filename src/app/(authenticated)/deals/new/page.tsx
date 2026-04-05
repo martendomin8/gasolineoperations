@@ -20,10 +20,12 @@ const directionOptions = [
   { value: "sell", label: "Sell" },
 ];
 
-const pricingTypeOptions = [
+const pricingPeriodTypeOptions = [
   { value: "", label: "—" },
   { value: "BL", label: "BL" },
   { value: "NOR", label: "NOR" },
+  { value: "Fixed", label: "Fixed" },
+  { value: "EFP", label: "EFP" },
 ];
 
 const incotermOptions = [
@@ -48,6 +50,7 @@ export default function NewDealPage() {
   const [dupChoice, setDupChoice] = useState<"ai" | "manual" | "new">("ai");
   const [manualLinkageCode, setManualLinkageCode] = useState("");
   const [activeLinkageCodes, setActiveLinkageCodes] = useState<string[]>([]);
+  const [pricingPeriodType, setPricingPeriodType] = useState("");
 
   // Fetch operators for the Secondary Operator select
   useEffect(() => {
@@ -76,7 +79,9 @@ export default function NewDealPage() {
       vesselName: fd.get("vesselName") as string || null,
       vesselImo: fd.get("vesselImo") as string || null,
       pricingFormula: fd.get("pricingFormula") as string || null,
-      pricingType: fd.get("pricingType") as string || null,
+      pricingPeriodType: fd.get("pricingPeriodType") as string || null,
+      pricingPeriodValue: fd.get("pricingPeriodValue") as string || null,
+      pricingType: fd.get("pricingPeriodType") as string || null,
       pricingEstimatedDate: fd.get("pricingEstimatedDate") as string || null,
       specialInstructions: fd.get("specialInstructions") as string || null,
       secondaryOperatorId: fd.get("secondaryOperatorId") as string || null,
@@ -251,9 +256,17 @@ export default function NewDealPage() {
           </CardHeader>
           <div className="space-y-4">
             <Input label="Pricing Formula" name="pricingFormula" placeholder="e.g. Platts CIF NWE -$5/MT" />
-            <div className="grid grid-cols-2 gap-4">
-              <Select label="Pricing Type" name="pricingType" options={pricingTypeOptions} />
-              <Input label="Pricing Estimated Date" name="pricingEstimatedDate" type="date" />
+            <div className="grid grid-cols-3 gap-4">
+              <Select
+                label="Pricing Period Type"
+                name="pricingPeriodType"
+                options={pricingPeriodTypeOptions}
+                onChange={(e) => setPricingPeriodType(e.target.value)}
+              />
+              <Input label="Pricing Period Value" name="pricingPeriodValue" placeholder="e.g. 0-1-5 or 1-15 Mar" />
+              {(pricingPeriodType === "BL" || pricingPeriodType === "NOR") && (
+                <Input label="Est. BL/NOR Date" name="pricingEstimatedDate" type="date" />
+              )}
             </div>
             <Textarea label="Special Instructions" name="specialInstructions" placeholder="Any special requirements..." rows={3} />
           </div>

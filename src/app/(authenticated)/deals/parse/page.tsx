@@ -42,6 +42,8 @@ interface ParsedFields {
   vessel_name: string | null;
   vessel_imo: string | null;
   pricing_formula: string | null;
+  pricing_period_type: "BL" | "NOR" | "Fixed" | "EFP" | null;
+  pricing_period_value: string | null;
   special_instructions: string | null;
   external_ref: string | null;
 }
@@ -519,6 +521,8 @@ export default function ParseDealPage() {
     vesselName: fields.vessel_name || null,
     vesselImo: fields.vessel_imo || null,
     pricingFormula: fields.pricing_formula || null,
+    pricingPeriodType: fields.pricing_period_type || null,
+    pricingPeriodValue: fields.pricing_period_value || null,
     specialInstructions: fields.special_instructions || null,
     externalRef: fields.external_ref || null,
     sourceRawText: source,
@@ -866,6 +870,8 @@ Price: Platts CIF NWE -$5/MT`}
 
                 <p className="text-[0.6875rem] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider mt-3 mb-1">Additional</p>
                 <FieldRow label="Pricing Formula"   fieldKey="pricing_formula"     value={editedFields.pricing_formula     ?? ""} score={result.confidenceScores.pricing_formula     ?? 0} onChange={updateField} />
+                <FieldRow label="Pricing Period"    fieldKey="pricing_period_type" value={editedFields.pricing_period_type ?? ""} score={result.confidenceScores.pricing_period_type ?? 0} onChange={updateField} type="select" options={["BL", "NOR", "Fixed", "EFP"]} />
+                <FieldRow label="Period Value"      fieldKey="pricing_period_value" value={editedFields.pricing_period_value ?? ""} score={result.confidenceScores.pricing_period_value ?? 0} onChange={updateField} />
                 <FieldRow label="External Ref"      fieldKey="external_ref"        value={editedFields.external_ref        ?? ""} score={result.confidenceScores.external_ref        ?? 0} onChange={updateField} />
                 <FieldRow label="Special Instr."    fieldKey="special_instructions" value={editedFields.special_instructions ?? ""} score={result.confidenceScores.special_instructions ?? 0} onChange={updateField} />
               </div>

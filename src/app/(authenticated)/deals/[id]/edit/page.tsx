@@ -26,10 +26,12 @@ const incotermOptions = [
   { value: "FCA", label: "FCA" },
 ];
 
-const pricingTypeOptions = [
+const pricingPeriodTypeOptions = [
   { value: "", label: "—" },
   { value: "BL", label: "BL" },
   { value: "NOR", label: "NOR" },
+  { value: "Fixed", label: "Fixed" },
+  { value: "EFP", label: "EFP" },
 ];
 
 const statusOptions = [
@@ -49,11 +51,12 @@ export default function EditDealPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [operators, setOperators] = useState<Array<{ id: string; name: string }>>([]);
+  const [pricingPeriodType, setPricingPeriodType] = useState("");
 
   useEffect(() => {
     fetch(`/api/deals/${id}`)
       .then((r) => r.json())
-      .then((data) => { setDeal(data); setLoading(false); })
+      .then((data) => { setDeal(data); setPricingPeriodType(data?.pricingPeriodType || data?.pricingType || ""); setLoading(false); })
       .catch(() => setLoading(false));
     fetch("/api/users?role=operator")
       .then((r) => r.json())
@@ -87,7 +90,9 @@ export default function EditDealPage() {
       docInstructionsReceived: fd.get("docInstructionsReceived") === "on",
       status: fd.get("status"),
       pricingFormula: fd.get("pricingFormula") || null,
-      pricingType: fd.get("pricingType") || null,
+      pricingPeriodType: fd.get("pricingPeriodType") || null,
+      pricingPeriodValue: fd.get("pricingPeriodValue") || null,
+      pricingType: fd.get("pricingPeriodType") || null,
       pricingEstimatedDate: fd.get("pricingEstimatedDate") || null,
       specialInstructions: fd.get("specialInstructions") || null,
       secondaryOperatorId: fd.get("secondaryOperatorId") || null,
@@ -209,9 +214,18 @@ export default function EditDealPage() {
           <CardHeader><CardTitle>Additional</CardTitle></CardHeader>
           <div className="space-y-4">
             <Input label="Pricing Formula" name="pricingFormula" defaultValue={deal.pricingFormula || ""} />
-            <div className="grid grid-cols-2 gap-4">
-              <Select label="Pricing Type" name="pricingType" options={pricingTypeOptions} defaultValue={deal.pricingType || ""} />
-              <Input label="Pricing Estimated Date" name="pricingEstimatedDate" type="date" defaultValue={deal.pricingEstimatedDate || ""} />
+            <div className="grid grid-cols-3 gap-4">
+              <Select
+                label="Pricing Period Type"
+                name="pricingPeriodType"
+                options={pricingPeriodTypeOptions}
+                defaultValue={deal.pricingPeriodType || deal.pricingType || ""}
+                onChange={(e) => setPricingPeriodType(e.target.value)}
+              />
+              <Input label="Pricing Period Value" name="pricingPeriodValue" defaultValue={deal.pricingPeriodValue || ""} placeholder="e.g. 0-1-5 or 1-15 Mar" />
+              {(pricingPeriodType === "BL" || pricingPeriodType === "NOR") && (
+                <Input label="Est. BL/NOR Date" name="pricingEstimatedDate" type="date" defaultValue={deal.pricingEstimatedDate || ""} />
+              )}
             </div>
             <Textarea label="Special Instructions" name="specialInstructions" defaultValue={deal.specialInstructions || ""} rows={3} />
           </div>

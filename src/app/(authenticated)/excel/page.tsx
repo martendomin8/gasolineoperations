@@ -70,22 +70,8 @@ const COLUMNS = [
   { key: "invoiceToCp", label: "INVOICE TO CP", width: "110px" },
 ];
 
-// Reduced column set for Internal / Terminal Operations section
-const INTERNAL_COLUMNS = [
-  { key: "laycan", label: "P/S(LAYCAN)", width: "180px" },
-  { key: "counterparty", label: "Counterparty", width: "120px" },
-  { key: "vessel", label: "Vessel", width: "130px" },
-  { key: "linkage", label: "Linkage", width: "100px" },
-  { key: "reference", label: "Reference", width: "90px" },
-  { key: "ops", label: "OPS(name)", width: "80px" },
-  { key: "blFigures", label: "B/L FIGURES", width: "140px" },
-  { key: "voyDisOrders", label: "VOY/DIS ORDERS", width: "120px" },
-  { key: "vesselNomination", label: "TERMINAL NOMINATION", width: "130px" },
-  { key: "supervision", label: "INSPECTION NOMINATION", width: "140px" },
-  { key: "dischargeNom", label: "AGENCY NOMINATION", width: "140px" },
-  { key: "demurrage", label: "Demurrage", width: "90px" },
-  { key: "freightInvoice", label: "Freight invoice", width: "100px" },
-];
+// Columns that are grayed out (not applicable) in the Internal / Terminal Operations section
+const INTERNAL_GRAYED_KEYS = new Set(["coaToTraders", "outturn", "tax", "invoiceToCp"]);
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -385,7 +371,7 @@ function InternalSectionHeader() {
   return (
     <tr>
       <td
-        colSpan={INTERNAL_COLUMNS.length}
+        colSpan={COLUMNS.length}
         className="bg-amber-900/30 px-3 py-2 text-sm font-bold text-amber-200 uppercase tracking-wide border-t-2 border-t-amber-700 border-b border-[var(--color-border-subtle)]"
       >
         Internal / Terminal Operations
@@ -397,10 +383,14 @@ function InternalSectionHeader() {
 function InternalColumnHeaders() {
   return (
     <tr>
-      {INTERNAL_COLUMNS.map((col) => (
+      {COLUMNS.map((col) => (
         <th
           key={col.key}
-          className="bg-amber-900/15 px-2 py-1.5 text-[0.625rem] font-bold text-[var(--color-text-secondary)] uppercase tracking-wider border-b border-r border-[var(--color-border-subtle)] whitespace-nowrap"
+          className={`px-2 py-1.5 text-[0.625rem] font-bold uppercase tracking-wider border-b border-r border-[var(--color-border-subtle)] whitespace-nowrap ${
+            INTERNAL_GRAYED_KEYS.has(col.key)
+              ? "bg-[var(--color-surface-3)] text-[var(--color-text-tertiary)] opacity-40"
+              : "bg-amber-900/15 text-[var(--color-text-secondary)]"
+          }`}
           style={{ minWidth: col.width }}
         >
           {col.label}
@@ -410,9 +400,14 @@ function InternalColumnHeaders() {
   );
 }
 
+function GrayedCell() {
+  return <td className="px-2 py-1.5 text-xs border-b border-r border-[var(--color-border-subtle)] bg-[var(--color-surface-3)] opacity-30" />;
+}
+
 function InternalDealRowComponent({ deal, onUpdate }: { deal: DealRow; onUpdate: () => void }) {
   return (
     <tr className="hover:bg-[var(--color-surface-2)] transition-colors group">
+      {/* Same columns as main table — grayed out where not applicable */}
       <LockedCell className="font-mono whitespace-nowrap">
         <Link href={`/deals/${deal.id}`} className="text-[var(--color-accent-text)] hover:underline">
           {formatLaycan(deal)}
@@ -423,13 +418,19 @@ function InternalDealRowComponent({ deal, onUpdate }: { deal: DealRow; onUpdate:
       <LockedCell className="font-mono">{deal.linkageCode || "\u2014"}</LockedCell>
       <LockedCell className="font-mono">{deal.externalRef || "\u2014"}</LockedCell>
       <LockedCell>{formatOps(deal)}</LockedCell>
+      <PricingCell deal={deal} onUpdate={onUpdate} />
       <LockedCell>{formatBLFigures(deal)}</LockedCell>
+      <EditableStatusCell value={deal.docInstructions} dealId={deal.id} fieldName="docInstructions" onUpdate={onUpdate} />
       <EditableStatusCell value={deal.voyDisOrders} dealId={deal.id} fieldName="voyDisOrders" onUpdate={onUpdate} />
       <EditableStatusCell value={deal.vesselNomination} dealId={deal.id} fieldName="vesselNomination" onUpdate={onUpdate} />
       <EditableStatusCell value={deal.supervision} dealId={deal.id} fieldName="supervision" onUpdate={onUpdate} />
+      {/* Grayed out — not applicable for terminal operations */}
+      <GrayedCell />
       <EditableStatusCell value={deal.dischargeNomination} dealId={deal.id} fieldName="dischargeNomination" onUpdate={onUpdate} />
-      <EditableStatusCell value={deal.demurrage} dealId={deal.id} fieldName="demurrage" onUpdate={onUpdate} />
+      <GrayedCell />
       <EditableStatusCell value={deal.freightInvoice} dealId={deal.id} fieldName="freightInvoice" onUpdate={onUpdate} />
+      <GrayedCell />
+      <GrayedCell />
     </tr>
   );
 }
@@ -587,7 +588,7 @@ export default function ExcelPage() {
                   {internalDeals.length > 0 ? (
                     internalDeals.map((d) => <InternalDealRowComponent key={d.id} deal={d} onUpdate={refreshData} />)
                   ) : (
-                    <tr><td colSpan={INTERNAL_COLUMNS.length} className="px-3 py-4 text-xs text-center text-[var(--color-text-tertiary)]">No internal operations</td></tr>
+                    <tr><td colSpan={COLUMNS.length} className="px-3 py-4 text-xs text-center text-[var(--color-text-tertiary)]">No internal operations</td></tr>
                   )}
                 </tbody>
               </>

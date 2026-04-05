@@ -27,8 +27,8 @@ export const PUT = withAuth(
     const { stepId } = await context.params;
     const db = getDb();
 
-    const body = await req.json() as { action: StepAction };
-    const { action } = body;
+    const body = await req.json() as { action: StepAction; skippedPrerequisite?: string };
+    const { action, skippedPrerequisite } = body;
 
     if (!action || !STEP_ACTIONS[action]) {
       return NextResponse.json(
@@ -426,6 +426,22 @@ export const PUT = withAuth(
         action: `workflow.step_${to}`,
         details: { stepId: step.id, stepName: step.stepName, action },
       });
+
+      // Log when operator proceeds despite incomplete prerequisite
+      if (skippedPrerequisite) {
+        await db.insert(schema.auditLogs).values({
+          tenantId: session.user.tenantId,
+          dealId: instance.dealId,
+          userId: session.user.id,
+          action: "workflow.prerequisite_skipped",
+          details: {
+            stepId: step.id,
+            stepName: step.stepName,
+            skippedPrerequisite,
+            actionTaken: action,
+          },
+        });
+      }
 
       // Auto-complete: check if all steps in this instance are terminal
       const TERMINAL = new Set(["sent", "acknowledged", "received", "done", "cancelled", "na"]);

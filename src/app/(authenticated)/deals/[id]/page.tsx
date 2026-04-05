@@ -3,6 +3,7 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import {
   ArrowLeft,
@@ -245,15 +246,19 @@ interface Party {
   email: string | null;
 }
 
+// Terminal statuses where the prerequisite is considered "complete"
+const PREREQUISITE_TERMINAL_STATUSES = new Set(["sent", "acknowledged", "received", "done"]);
+
 interface WorkflowStepCardProps {
   step: WorkflowStepWithDraft;
+  allSteps: WorkflowStepWithDraft[];
   onAction: (stepId: string, action: string, extra?: Record<string, unknown>) => Promise<void>;
   isOperator: boolean;
   loadport: string;
   dischargePort: string | null;
 }
 
-function WorkflowStepCard({ step, onAction, isOperator, loadport, dischargePort }: WorkflowStepCardProps) {
+function WorkflowStepCard({ step, allSteps, onAction, isOperator, loadport, dischargePort }: WorkflowStepCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [loading, setLoading] = useState(false);
   const [editingDraft, setEditingDraft] = useState(false);
@@ -265,6 +270,8 @@ function WorkflowStepCard({ step, onAction, isOperator, loadport, dischargePort 
   const [restParties, setRestParties] = useState<Party[]>([]);
   const [showAllParties, setShowAllParties] = useState(false);
   const [loadingParties, setLoadingParties] = useState(false);
+  const [showPrereqWarning, setShowPrereqWarning] = useState(false);
+  const [pendingAction, setPendingAction] = useState<{ action: string; extra?: Record<string, unknown> } | null>(null);
 
   const cfg = STATUS_CONFIG[step.status] ?? STATUS_CONFIG.pending;
   const TypeIcon = STEP_TYPE_ICON[step.stepType] ?? Mail;
@@ -272,13 +279,53 @@ function WorkflowStepCard({ step, onAction, isOperator, loadport, dischargePort 
   const isDone = step.status === "acknowledged" || step.status === "done" || step.status === "na" || step.status === "cancelled" || (step.status === "sent" && !step.isExternalWait);
   const canAssignParty = isOperator && !isDone;
 
+  // Check whether the prerequisite step (if any) has been completed
+  const prereqStepName = step.recommendedAfterStepName ?? null;
+  const prereqIncomplete = (() => {
+    if (!prereqStepName) return false;
+    const prereqId = step.recommendedAfter;
+    if (!prereqId) return false;
+    const prereqStep = allSteps.find((s) => s.id === prereqId);
+    if (!prereqStep) return false;
+    return !PREREQUISITE_TERMINAL_STATUSES.has(prereqStep.status);
+  })();
+
+  // Actions that should be gated by the prerequisite warning
+  const GATED_ACTIONS = new Set(["generate_draft", "mark_sent"]);
+
   const handleAction = async (action: string, extra?: Record<string, unknown>) => {
+    // If this is a gated action and prerequisite is incomplete, show warning
+    if (GATED_ACTIONS.has(action) && prereqIncomplete) {
+      setPendingAction({ action, extra });
+      setShowPrereqWarning(true);
+      return;
+    }
+    await executeAction(action, extra);
+  };
+
+  const executeAction = async (action: string, extra?: Record<string, unknown>) => {
     setLoading(true);
     try {
       await onAction(step.id, action, extra);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleConfirmPrereqOverride = async () => {
+    setShowPrereqWarning(false);
+    if (!pendingAction) return;
+    // Execute the action with a flag indicating prerequisite was skipped
+    await executeAction(pendingAction.action, {
+      ...pendingAction.extra,
+      skippedPrerequisite: prereqStepName,
+    });
+    setPendingAction(null);
+  };
+
+  const handleCancelPrereqWarning = () => {
+    setShowPrereqWarning(false);
+    setPendingAction(null);
   };
 
   const loadParties = async () => {
@@ -657,6 +704,25 @@ function WorkflowStepCard({ step, onAction, isOperator, loadport, dischargePort 
           )}
         </div>
       )}
+
+      {/* Prerequisite warning dialog */}
+      <Dialog
+        open={showPrereqWarning}
+        onClose={handleCancelPrereqWarning}
+        title="Prerequisite Not Complete"
+      >
+        <p className="text-sm text-[var(--color-text-secondary)] mb-5">
+          Warning: <strong>{prereqStepName}</strong> has not been completed yet. Proceed anyway?
+        </p>
+        <div className="flex items-center justify-end gap-2">
+          <Button variant="secondary" size="sm" onClick={handleCancelPrereqWarning}>
+            Cancel
+          </Button>
+          <Button variant="primary" size="sm" onClick={handleConfirmPrereqOverride}>
+            Send Anyway
+          </Button>
+        </div>
+      </Dialog>
     </div>
   );
 }
@@ -848,6 +914,7 @@ function WorkflowSection({ dealId, dealStatus, isOperator, loadport, dischargePo
             <div className="flex-1 pb-2">
               <WorkflowStepCard
                 step={step}
+                allSteps={workflow.steps}
                 onAction={(sid, action, extra) => handleStepAction(sid, action, extra)}
                 isOperator={isOperator}
                 loadport={loadport}
@@ -888,6 +955,8 @@ interface LinkedDeal {
   pricingEstimatedDate: string | null;
   assignedOperatorId: string | null;
   secondaryOperatorId: string | null;
+  loadedQuantityMt: string | null;
+  version: number;
   createdAt: string;
 }
 
@@ -1017,9 +1086,10 @@ interface LinkedDealCardProps {
   side: "buy" | "sell";
   isCurrent: boolean;
   isOperator: boolean;
+  fetchDeal: () => void;
 }
 
-function LinkedDealCard({ deal, side, isCurrent, isOperator }: LinkedDealCardProps) {
+function LinkedDealCard({ deal, side, isCurrent, isOperator, fetchDeal }: LinkedDealCardProps) {
   const ownTerminal = isOwnTerminalDeal(deal.counterparty);
   const borderColor = ownTerminal
     ? "border-l-teal-500/60"
@@ -1090,6 +1160,28 @@ function LinkedDealCard({ deal, side, isCurrent, isOperator }: LinkedDealCardPro
           />
           <Field label="Status" value={deal.status.charAt(0).toUpperCase() + deal.status.slice(1)} />
         </dl>
+        {deal.direction === "buy" && (
+          <div className="flex items-center gap-2 mt-2 pt-2 border-t border-[var(--color-border-subtle)]">
+            <span className="text-xs text-[var(--color-text-tertiary)]">Loaded Qty:</span>
+            <input
+              type="number"
+              step="0.001"
+              placeholder={deal.quantityMt}
+              defaultValue={deal.loadedQuantityMt ?? ""}
+              className="w-32 text-xs h-6 px-2 rounded border border-[var(--color-border-subtle)] bg-[var(--color-surface-1)] text-[var(--color-text-primary)]"
+              onBlur={(e) => {
+                if (e.target.value) {
+                  fetch(`/api/deals/${deal.id}`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ loadedQuantityMt: parseFloat(e.target.value), version: deal.version }),
+                  }).then(() => fetchDeal());
+                }
+              }}
+            />
+            <span className="text-[0.6rem] text-[var(--color-text-tertiary)]">MT</span>
+          </div>
+        )}
       </div>
 
       {/* Workflow for this deal */}
@@ -1414,6 +1506,7 @@ function LinkageView({ deal, linkedDeals, isOperator, fetchDeal }: LinkageViewPr
                 side="buy"
                 isCurrent={d.id === deal.id}
                 isOperator={isOperator}
+                fetchDeal={fetchDeal}
               />
             ))
           )}
@@ -1435,6 +1528,7 @@ function LinkageView({ deal, linkedDeals, isOperator, fetchDeal }: LinkageViewPr
               side="sell"
               isCurrent={d.id === deal.id}
               isOperator={isOperator}
+              fetchDeal={fetchDeal}
             />
           ))}
           {/* Always show "Add Sale / Discharge" menu */}

@@ -109,6 +109,8 @@ export const GET = withAuth(async (req, _ctx, session) => {
           estimatedBlNorDate: deals.estimatedBlNorDate,
           assignedOperatorId: deals.assignedOperatorId,
           secondaryOperatorId: deals.secondaryOperatorId,
+          loadedQuantityMt: deals.loadedQuantityMt,
+          version: deals.version,
           excelStatuses: deals.excelStatuses,
           operatorName: primaryOp.name,
           secondaryOperatorName: secondaryOp.name,
