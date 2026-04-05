@@ -104,7 +104,7 @@ export async function parseDealFromText(rawText: string): Promise<ParsedDealResu
   const client = new Anthropic({ apiKey });
 
   const response = await client.messages.create({
-    model: "claude-sonnet-4-6",
+    model: "claude-haiku-4-5",
     max_tokens: 1024,
     system: SYSTEM_PROMPT,
     tools: [EXTRACTION_TOOL],
