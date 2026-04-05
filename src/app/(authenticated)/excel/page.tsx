@@ -35,7 +35,8 @@ interface DealRow {
   secondaryOperatorName: string | null;
   // Workflow step statuses (program-managed)
   docInstructions: string | null;
-  voyDisOrders: string | null;
+  voyOrders: string | null;
+  disOrders: string | null;
   vesselNomination: string | null;
   supervision: string | null;
   dischargeNomination: string | null;
@@ -59,7 +60,8 @@ const COLUMNS = [
   { key: "pricing", label: "PRICING", width: "130px" },
   { key: "blFigures", label: "B/L FIGURES", width: "140px" },
   { key: "docInstructions", label: "DOC INSTRUCTIONS", width: "130px" },
-  { key: "voyDisOrders", label: "VOY/DIS ORDERS", width: "120px" },
+  { key: "voyOrders", label: "VOY ORDERS", width: "100px" },
+  { key: "disOrders", label: "DIS ORDERS", width: "100px" },
   { key: "vesselNomination", label: "VESSEL NOMINATION", width: "130px" },
   { key: "supervision", label: "SUPERVISION (LP/DP)", width: "140px" },
   { key: "coaToTraders", label: "COA to Traders", width: "110px" },
@@ -344,7 +346,8 @@ function DealRowComponent({ deal, onUpdate }: { deal: DealRow; onUpdate: () => v
 
       {/* Editable workflow step cells */}
       <EditableStatusCell value={deal.docInstructions} dealId={deal.id} fieldName="docInstructions" onUpdate={onUpdate} />
-      <EditableStatusCell value={deal.voyDisOrders} dealId={deal.id} fieldName="voyDisOrders" onUpdate={onUpdate} />
+      <EditableStatusCell value={deal.voyOrders} dealId={deal.id} fieldName="voyOrders" onUpdate={onUpdate} />
+      <EditableStatusCell value={deal.disOrders} dealId={deal.id} fieldName="disOrders" onUpdate={onUpdate} />
       <EditableStatusCell value={deal.vesselNomination} dealId={deal.id} fieldName="vesselNomination" onUpdate={onUpdate} />
       <EditableStatusCell value={deal.supervision} dealId={deal.id} fieldName="supervision" onUpdate={onUpdate} />
 
@@ -421,7 +424,8 @@ function InternalDealRowComponent({ deal, onUpdate }: { deal: DealRow; onUpdate:
       <PricingCell deal={deal} onUpdate={onUpdate} />
       <LockedCell>{formatBLFigures(deal)}</LockedCell>
       <EditableStatusCell value={deal.docInstructions} dealId={deal.id} fieldName="docInstructions" onUpdate={onUpdate} />
-      <EditableStatusCell value={deal.voyDisOrders} dealId={deal.id} fieldName="voyDisOrders" onUpdate={onUpdate} />
+      <EditableStatusCell value={deal.voyOrders} dealId={deal.id} fieldName="voyOrders" onUpdate={onUpdate} />
+      <EditableStatusCell value={deal.disOrders} dealId={deal.id} fieldName="disOrders" onUpdate={onUpdate} />
       <EditableStatusCell value={deal.vesselNomination} dealId={deal.id} fieldName="vesselNomination" onUpdate={onUpdate} />
       <EditableStatusCell value={deal.supervision} dealId={deal.id} fieldName="supervision" onUpdate={onUpdate} />
       {/* Grayed out — not applicable for terminal operations */}

@@ -178,6 +178,50 @@ function buildLinkageCards(linkageRows: LinkageRow[], allDeals: DealItem[]): Lin
     });
   }
 
+  // Orphan deals (no linkageId or linkageCode) — create virtual cards for each
+  for (const d of orphanDeals) {
+    const category = d.direction === "buy" ? "buy_only" as const : "sell_only" as const;
+    cards.push({
+      id: `orphan-${d.id}`,
+      displayName: d.externalRef || d.counterparty,
+      status: "active",
+      vessel: d.vesselName,
+      product: d.product,
+      buys: d.direction === "buy" ? [d] : [],
+      sells: d.direction === "sell" ? [d] : [],
+      earliestLaycan: d.laycanStart,
+      firstDealId: d.id,
+      category,
+    });
+  }
+
+  // Also create cards for deals grouped by linkageCode that don't have a linkage row
+  for (const [code, codeDeals] of dealsByLinkageCode) {
+    // Skip if already matched to a linkage row
+    if (cards.some((c) => c.displayName === code)) continue;
+    const buys = codeDeals.filter((d) => d.direction === "buy");
+    const sells = codeDeals.filter((d) => d.direction === "sell");
+    const vessel = codeDeals.find((d) => d.vesselName)?.vesselName ?? null;
+    const laycans = codeDeals.map((d) => d.laycanStart).filter(Boolean).sort();
+    let category: LinkageCard["category"];
+    if (buys.length > 0 && sells.length > 0) category = "purchase_sell";
+    else if (buys.length > 0) category = "buy_only";
+    else category = "sell_only";
+
+    cards.push({
+      id: `code-${code}`,
+      displayName: code,
+      status: "active",
+      vessel,
+      product: codeDeals[0]?.product ?? null,
+      buys,
+      sells,
+      earliestLaycan: laycans[0] ?? null,
+      firstDealId: codeDeals[0]?.id ?? null,
+      category,
+    });
+  }
+
   // Sort by earliest laycan (nulls last)
   cards.sort((a, b) => {
     if (!a.earliestLaycan && !b.earliestLaycan) return 0;

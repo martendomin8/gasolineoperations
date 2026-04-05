@@ -161,7 +161,8 @@ export const GET = withAuth(async (req, _ctx, session) => {
           if (!stepStatusMap.has(dealId)) {
             stepStatusMap.set(dealId, {
               docInstructions: null,
-              voyDisOrders: null,
+              voyOrders: null,
+              disOrders: null,
               vesselNomination: null,
               supervision: null,
               dischargeNomination: null,
@@ -178,8 +179,10 @@ export const GET = withAuth(async (req, _ctx, session) => {
 
           if (step.stepType === "instruction" || nameLower.includes("doc")) {
             statuses.docInstructions = displayStatus;
-          } else if (step.stepType === "order" || nameLower.includes("order")) {
-            statuses.voyDisOrders = displayStatus;
+          } else if (nameLower.includes("voyage") || (step.stepType === "order" && !nameLower.includes("discharge"))) {
+            statuses.voyOrders = displayStatus;
+          } else if (nameLower.includes("discharge") && nameLower.includes("order")) {
+            statuses.disOrders = displayStatus;
           } else if (step.stepType === "nomination" && nameLower.includes("discharge")) {
             statuses.dischargeNomination = displayStatus;
           } else if (step.stepType === "nomination") {
@@ -199,7 +202,8 @@ export const GET = withAuth(async (req, _ctx, session) => {
       return {
         ...d,
         docInstructions: stepStatuses.docInstructions ?? excelOverrides.docInstructions ?? null,
-        voyDisOrders: stepStatuses.voyDisOrders ?? excelOverrides.voyDisOrders ?? null,
+        voyOrders: stepStatuses.voyOrders ?? excelOverrides.voyOrders ?? null,
+        disOrders: stepStatuses.disOrders ?? excelOverrides.disOrders ?? null,
         vesselNomination: stepStatuses.vesselNomination ?? excelOverrides.vesselNomination ?? null,
         supervision: stepStatuses.supervision ?? excelOverrides.supervision ?? null,
         dischargeNomination: stepStatuses.dischargeNomination ?? excelOverrides.dischargeNomination ?? null,

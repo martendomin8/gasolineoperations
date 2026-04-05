@@ -21,7 +21,8 @@ const FIELD_TO_STEP_MATCH: Record<
   { stepType?: string; nameIncludes?: string; excludeNameIncludes?: string }
 > = {
   docInstructions: { stepType: "instruction" },
-  voyDisOrders: { stepType: "order" },
+  voyOrders: { stepType: "order", nameIncludes: "voyage" },
+  disOrders: { stepType: "order", nameIncludes: "discharge" },
   vesselNomination: { stepType: "nomination", excludeNameIncludes: "discharge" },
   supervision: { stepType: "appointment" },
   dischargeNomination: { stepType: "nomination", nameIncludes: "discharge" },
