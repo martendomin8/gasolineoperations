@@ -93,7 +93,7 @@ export default function SignInPage() {
             NEFGO<span className="text-[var(--color-accent)]">.</span>
           </h1>
           <p className="text-xs text-[var(--color-text-tertiary)] uppercase tracking-[0.15em] mt-2">
-            Nomination Engine for Gasoline Operations
+            Nomination Engine for General Operations
           </p>
         </div>
 

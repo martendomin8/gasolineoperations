@@ -17,7 +17,7 @@ const jetbrainsMono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: "NEFGO",
-  description: "Nomination Engine for Gasoline Operations",
+  description: "Nomination Engine for General Operations",
 };
 
 export default function RootLayout({
