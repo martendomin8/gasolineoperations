@@ -33,7 +33,7 @@ export function Sidebar({ userRole }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
 
   const isActive = (href: string) =>
-    pathname === href || (href !== "/dashboard" && pathname.startsWith(href));
+    pathname === href || (href !== "/dashboard" && href !== "/settings" && pathname.startsWith(href));
 
   return (
     <aside
