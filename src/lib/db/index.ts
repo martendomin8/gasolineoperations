@@ -83,8 +83,11 @@ export async function withTenantDb<T>(
   const database = getDb();
   try {
     return await database.transaction(async (tx) => {
-      // Parameterized — prevents SQL injection via tenantId
-      await tx.execute(sql`SET LOCAL app.current_tenant_id = ${tenantId}`);
+      // SET LOCAL doesn't support parameterized queries ($1) in Postgres.
+      // Tenant ID comes from authenticated session (not user input), so
+      // string interpolation is safe here. Validate UUID format as defense.
+      if (!/^[0-9a-f-]{36}$/i.test(tenantId)) throw new Error("Invalid tenant ID format");
+      await tx.execute(`SET LOCAL app.current_tenant_id = '${tenantId}'`);
       return await operation(tx as unknown as ReturnType<typeof getDb>);
     });
   } catch (error) {
