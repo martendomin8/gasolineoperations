@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { auth } from "@/lib/auth";
 import type { Session } from "next-auth";
 import type { UserRole } from "@/lib/db/schema";
+import { ZodError } from "zod";
 
 type RouteContext = { params: Promise<Record<string, string>> };
 
@@ -42,7 +43,14 @@ export function withAuth(handler: AuthenticatedHandler, options?: WithAuthOption
         const statusCode = (error as any).statusCode || 401;
         return NextResponse.json({ error: error.message }, { status: statusCode });
       }
-      console.error("API Error:", error);
+      if (error instanceof ZodError) {
+        console.error(`API Error [${req.method} ${req.url}]:`, error);
+        return NextResponse.json(
+          { error: "Validation failed", issues: error.issues },
+          { status: 400 }
+        );
+      }
+      console.error(`API Error [${req.method} ${req.url}]:`, error);
       return NextResponse.json({ error: "Internal server error" }, { status: 500 });
     }
   };

@@ -8,11 +8,19 @@ import { eq, and, ilike, isNull, or, sql } from "drizzle-orm";
 // GET /api/parties — List parties for tenant
 export const GET = withAuth(async (req, _ctx, session) => {
   const url = new URL(req.url);
-  const filters = partyFilterSchema.parse({
+  const parseResult = partyFilterSchema.safeParse({
     type: url.searchParams.get("type") || undefined,
     port: url.searchParams.get("port") || undefined,
     search: url.searchParams.get("search") || undefined,
   });
+  if (!parseResult.success) {
+    const first = parseResult.error.issues[0];
+    return NextResponse.json(
+      { error: first?.message ?? "Validation failed", issues: parseResult.error.issues },
+      { status: 400 }
+    );
+  }
+  const filters = parseResult.data;
 
   const result = await withTenantDb(session.user.tenantId, async (db) => {
     const conditions = [
@@ -79,7 +87,15 @@ export const GET = withAuth(async (req, _ctx, session) => {
 export const POST = withAuth(
   async (req, _ctx, session) => {
     const body = await req.json();
-    const validated = createPartySchema.parse(body);
+    const parseResult = createPartySchema.safeParse(body);
+    if (!parseResult.success) {
+      const first = parseResult.error.issues[0];
+      return NextResponse.json(
+        { error: first?.message ?? "Validation failed", issues: parseResult.error.issues },
+        { status: 400 }
+      );
+    }
+    const validated = parseResult.data;
 
     const result = await withTenantDb(session.user.tenantId, async (db) => {
       const [party] = await db

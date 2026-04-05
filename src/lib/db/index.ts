@@ -1,6 +1,8 @@
 import { drizzle } from "drizzle-orm/postgres-js";
+import { sql } from "drizzle-orm";
 import postgres from "postgres";
 import * as schema from "./schema";
+import { validateEnv } from "../env";
 
 // Lazy initialization — connections created on first use, not at import time.
 // This lets the app start and render static/auth pages even without DATABASE_URL.
@@ -24,6 +26,7 @@ const requiresSsl = isServerless || (process.env.DATABASE_URL?.includes("neon.te
 
 export function getDb() {
   if (!_db) {
+    validateEnv();
     const queryClient = postgres(getConnectionString(), {
       // Serverless (Vercel/Neon): keep pool tiny — each function invocation is short-lived
       max: isServerless ? 3 : 10,
@@ -78,12 +81,17 @@ export async function withTenantDb<T>(
   operation: (tx: ReturnType<typeof getDb>) => Promise<T>
 ): Promise<T> {
   const database = getDb();
-  return await database.transaction(async (tx) => {
-    await tx.execute(
-      `SET LOCAL app.current_tenant_id = '${tenantId}'`
-    );
-    return await operation(tx as unknown as ReturnType<typeof getDb>);
-  });
+  try {
+    return await database.transaction(async (tx) => {
+      // Parameterized — prevents SQL injection via tenantId
+      await tx.execute(sql`SET LOCAL app.current_tenant_id = ${tenantId}`);
+      return await operation(tx as unknown as ReturnType<typeof getDb>);
+    });
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error(`[withTenantDb] Tenant ${tenantId} — ${msg}`);
+    throw error;
+  }
 }
 
 export type Database = ReturnType<typeof getDb>;

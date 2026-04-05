@@ -5,21 +5,54 @@ import bcrypt from "bcryptjs";
 import * as schema from "./schema";
 
 const connectionString = process.env.DATABASE_URL || "postgresql://nomengine:nomengine123@localhost:5432/nominationengine";
+const structuralOnly = process.argv.includes("--structural-only");
 
 async function seed() {
+  // === PRODUCTION SAFETY GUARD ===
+  if (process.env.SEED_CONFIRM !== "yes" && !structuralOnly) {
+    console.error("⛔ SEED REFUSED — set SEED_CONFIRM=yes to confirm full data reset.");
+    console.error("   This will DELETE ALL deals, parties, templates, and workflows.");
+    console.error("   Use --structural-only to seed parties/templates without deleting deals.");
+    console.error("");
+    console.error("   Examples:");
+    console.error("     SEED_CONFIRM=yes npm run db:seed          # Full reset");
+    console.error("     npm run db:seed -- --structural-only      # Safe: parties + templates only");
+    process.exit(1);
+  }
+
   const sql = postgres(connectionString, { max: 1 });
   const db = drizzle(sql, { schema });
 
-  console.log("Seeding database...\n");
+  if (structuralOnly) {
+    console.log("Seeding structural data only (parties, templates, workflows)...");
+    console.log("Existing deals will NOT be deleted.\n");
 
-  // --- Truncate all tables (cascade) ---
-  console.log("Truncating existing data...");
-  await sql`TRUNCATE TABLE
-    documents, audit_logs, deal_change_logs, email_drafts, workflow_steps,
-    workflow_instances, workflow_templates, email_templates,
-    deal_legs, deals, parties, users, tenants
-    RESTART IDENTITY CASCADE`;
-  console.log("  Done.\n");
+    // Delete only structural data that gets re-created
+    await sql`DELETE FROM workflow_steps WHERE workflow_instance_id IN (SELECT id FROM workflow_instances)`;
+    await sql`DELETE FROM workflow_instances`;
+    await sql`DELETE FROM workflow_templates WHERE tenant_id IS NOT NULL`;
+    await sql`DELETE FROM email_templates WHERE tenant_id IS NOT NULL`;
+    await sql`DELETE FROM email_drafts`;
+    await sql`DELETE FROM parties WHERE tenant_id IS NOT NULL`;
+    console.log("  Cleared structural data (parties, templates, workflows).\n");
+  } else {
+    console.log("Seeding database (FULL RESET)...\n");
+
+    // Check for real data before truncating
+    const [{ count }] = await sql`SELECT COUNT(*) as count FROM deals`;
+    if (Number(count) > 0) {
+      console.log(`⚠️  WARNING: ${count} deals exist in database and WILL be deleted.`);
+    }
+
+    // --- Truncate all tables (cascade) ---
+    console.log("Truncating existing data...");
+    await sql`TRUNCATE TABLE
+      documents, audit_logs, deal_change_logs, email_drafts, workflow_steps,
+      workflow_instances, workflow_templates, email_templates,
+      deal_legs, deals, parties, users, tenants
+      RESTART IDENTITY CASCADE`;
+    console.log("  Done.\n");
+  }
 
   // --- Tenant ---
   // Fixed UUIDs so JWT sessions survive re-seeds
@@ -31,44 +64,54 @@ async function seed() {
     trader:    "00000000-0000-4000-8000-000000000013",
   };
 
-  const [tenant] = await db
-    .insert(schema.tenants)
-    .values({
-      id: FIXED_TENANT_ID,
-      name: "EuroGas Trading BV",
-      settings: { defaultTimezone: "Europe/Amsterdam", currency: "USD" },
-    })
-    .returning();
-  console.log(`Tenant: ${tenant.name} (${tenant.id})`);
+  let tenantId = FIXED_TENANT_ID;
+  let adminId = FIXED_USER_IDS.admin;
+  let op1Id = FIXED_USER_IDS.operator1;
+  let op2Id = FIXED_USER_IDS.operator2;
 
-  // --- Users ---
-  const passwordHash = await bcrypt.hash("password123", 10);
-
-  const usersData = [
-    { id: FIXED_USER_IDS.admin, email: "admin@eurogas.com", name: "Pieter van Dijk", role: "admin" as const },
-    { id: FIXED_USER_IDS.operator1, email: "operator@eurogas.com", name: "Marta Kask", role: "operator" as const },
-    { id: FIXED_USER_IDS.operator2, email: "operator2@eurogas.com", name: "Jan Hendriks", role: "operator" as const },
-    { id: FIXED_USER_IDS.trader, email: "trader@eurogas.com", name: "Thomas Berg", role: "trader" as const },
-  ];
-
-  const createdUsers = [];
-  for (const u of usersData) {
-    const [user] = await db
-      .insert(schema.users)
+  if (!structuralOnly) {
+    const [tenant] = await db
+      .insert(schema.tenants)
       .values({
-        id: u.id,
-        tenantId: tenant.id,
-        email: u.email,
-        name: u.name,
-        passwordHash,
-        role: u.role,
+        id: FIXED_TENANT_ID,
+        name: "EuroGas Trading BV",
+        settings: { defaultTimezone: "Europe/Amsterdam", currency: "USD" },
       })
       .returning();
-    createdUsers.push(user);
-    console.log(`  User: ${user.name} (${user.email}) [${user.role}]`);
+    console.log(`Tenant: ${tenant.name} (${tenantId})`);
+
+    // --- Users ---
+    const passwordHash = await bcrypt.hash("password123", 10);
+
+    const usersData = [
+      { id: FIXED_USER_IDS.admin, email: "admin@eurogas.com", name: "Pieter van Dijk", role: "admin" as const },
+      { id: FIXED_USER_IDS.operator1, email: "operator@eurogas.com", name: "Marta Kask", role: "operator" as const },
+      { id: FIXED_USER_IDS.operator2, email: "operator2@eurogas.com", name: "Jan Hendriks", role: "operator" as const },
+      { id: FIXED_USER_IDS.trader, email: "trader@eurogas.com", name: "Thomas Berg", role: "trader" as const },
+    ];
+
+    for (const u of usersData) {
+      const [user] = await db
+        .insert(schema.users)
+        .values({
+          id: u.id,
+          tenantId: tenantId,
+          email: u.email,
+          name: u.name,
+          passwordHash,
+          role: u.role,
+        })
+        .returning();
+      console.log(`  User: ${user.name} (${user.email}) [${user.role}]`);
+    }
+  } else {
+    console.log(`Using existing tenant ${FIXED_TENANT_ID}`);
   }
 
-  const [admin, operator1, operator2, trader] = createdUsers;
+  const operator1 = { id: op1Id };
+  const operator2 = { id: op2Id };
+  const admin = { id: adminId };
+  const trader = { id: FIXED_USER_IDS.trader };
 
   // --- Parties ---
   const partiesData = [
@@ -90,11 +133,18 @@ async function seed() {
   ];
 
   for (const p of partiesData) {
-    await db.insert(schema.parties).values({ ...p, tenantId: tenant.id });
+    await db.insert(schema.parties).values({ ...p, tenantId: tenantId });
   }
   console.log(`\n  Parties: ${partiesData.length} created (3 terminals, 3 agents, 3 inspectors, 2 brokers)`);
 
-  // --- Deals ---
+  // --- Deals (skip in structural-only mode) ---
+  if (structuralOnly) {
+    console.log("\n  Skipping deals (structural-only mode).");
+    console.log("\n=== Structural seed complete! ===");
+    await sql.end();
+    return;
+  }
+
   const dealsData = [
     // ── ACTIVE (deal entered system, workflow starting) ──────────────────────
     {
@@ -499,14 +549,14 @@ async function seed() {
       .insert(schema.deals)
       .values({
         ...d,
-        tenantId: tenant.id,
+        tenantId: tenantId,
         createdBy: trader.id,
       })
       .returning();
 
     // Add audit log for creation
     await db.insert(schema.auditLogs).values({
-      tenantId: tenant.id,
+      tenantId: tenantId,
       dealId: deal.id,
       userId: trader.id,
       action: "deal.created",
@@ -522,13 +572,13 @@ async function seed() {
   const totalDeal = allDeals.find((d) => d.counterparty === "TotalEnergies Trading" && d.status === "sailing");
   if (totalDeal) {
     await db.insert(schema.dealChangeLogs).values([
-      { tenantId: tenant.id, dealId: totalDeal.id, fieldChanged: "vesselName", oldValue: "MT Lagos Spirit", newValue: "MT West Africa Star", changedBy: operator1.id },
-      { tenantId: tenant.id, dealId: totalDeal.id, fieldChanged: "laycanStart", oldValue: "2026-03-18", newValue: "2026-03-20", changedBy: operator1.id },
+      { tenantId: tenantId, dealId: totalDeal.id, fieldChanged: "vesselName", oldValue: "MT Lagos Spirit", newValue: "MT West Africa Star", changedBy: operator1.id },
+      { tenantId: tenantId, dealId: totalDeal.id, fieldChanged: "laycanStart", oldValue: "2026-03-18", newValue: "2026-03-20", changedBy: operator1.id },
     ]);
     await db.insert(schema.auditLogs).values([
-      { tenantId: tenant.id, dealId: totalDeal.id, userId: operator1.id, action: "deal.updated", details: { changes: { vesselName: { from: "MT Lagos Spirit", to: "MT West Africa Star" } } } },
-      { tenantId: tenant.id, dealId: totalDeal.id, userId: operator1.id, action: "deal.status_changed", details: { from: "active", to: "loading" } },
-      { tenantId: tenant.id, dealId: totalDeal.id, userId: operator1.id, action: "deal.status_changed", details: { from: "loading", to: "sailing" } },
+      { tenantId: tenantId, dealId: totalDeal.id, userId: operator1.id, action: "deal.updated", details: { changes: { vesselName: { from: "MT Lagos Spirit", to: "MT West Africa Star" } } } },
+      { tenantId: tenantId, dealId: totalDeal.id, userId: operator1.id, action: "deal.status_changed", details: { from: "active", to: "loading" } },
+      { tenantId: tenantId, dealId: totalDeal.id, userId: operator1.id, action: "deal.status_changed", details: { from: "loading", to: "sailing" } },
     ]);
   }
 
@@ -536,8 +586,8 @@ async function seed() {
   const bpDeal = allDeals.find((d) => d.counterparty === "BP Oil International" && d.status === "loading");
   if (bpDeal) {
     await db.insert(schema.auditLogs).values([
-      { tenantId: tenant.id, dealId: bpDeal.id, userId: operator2.id, action: "deal.status_changed", details: { from: "active", to: "loading" } },
-      { tenantId: tenant.id, dealId: bpDeal.id, userId: operator2.id, action: "workflow.draft_generated", details: { stepName: "Loading Instructions to Terminal" } },
+      { tenantId: tenantId, dealId: bpDeal.id, userId: operator2.id, action: "deal.status_changed", details: { from: "active", to: "loading" } },
+      { tenantId: tenantId, dealId: bpDeal.id, userId: operator2.id, action: "workflow.draft_generated", details: { stepName: "Loading Instructions to Terminal" } },
     ]);
   }
 
@@ -545,11 +595,11 @@ async function seed() {
   const mercuriaDeal = allDeals.find((d) => d.counterparty === "Mercuria Energy" && d.status === "discharging");
   if (mercuriaDeal) {
     await db.insert(schema.dealChangeLogs).values([
-      { tenantId: tenant.id, dealId: mercuriaDeal.id, fieldChanged: "quantityMt", oldValue: "32000", newValue: "31850", changedBy: operator1.id },
+      { tenantId: tenantId, dealId: mercuriaDeal.id, fieldChanged: "quantityMt", oldValue: "32000", newValue: "31850", changedBy: operator1.id },
     ]);
     await db.insert(schema.auditLogs).values([
-      { tenantId: tenant.id, dealId: mercuriaDeal.id, userId: operator1.id, action: "deal.updated", details: { changes: { quantityMt: { from: "32000", to: "31850" } } } },
-      { tenantId: tenant.id, dealId: mercuriaDeal.id, userId: operator1.id, action: "deal.status_changed", details: { from: "sailing", to: "discharging" } },
+      { tenantId: tenantId, dealId: mercuriaDeal.id, userId: operator1.id, action: "deal.updated", details: { changes: { quantityMt: { from: "32000", to: "31850" } } } },
+      { tenantId: tenantId, dealId: mercuriaDeal.id, userId: operator1.id, action: "deal.status_changed", details: { from: "sailing", to: "discharging" } },
     ]);
   }
 
@@ -557,8 +607,8 @@ async function seed() {
   const freepointDeal = allDeals.find((d) => d.counterparty === "Freepoint Commodities");
   if (freepointDeal) {
     await db.insert(schema.auditLogs).values([
-      { tenantId: tenant.id, dealId: freepointDeal.id, userId: operator2.id, action: "deal.status_changed", details: { from: "active", to: "loading" } },
-      { tenantId: tenant.id, dealId: freepointDeal.id, userId: operator2.id, action: "deal.status_changed", details: { from: "loading", to: "sailing" } },
+      { tenantId: tenantId, dealId: freepointDeal.id, userId: operator2.id, action: "deal.status_changed", details: { from: "active", to: "loading" } },
+      { tenantId: tenantId, dealId: freepointDeal.id, userId: operator2.id, action: "deal.status_changed", details: { from: "loading", to: "sailing" } },
     ]);
   }
 
@@ -784,7 +834,7 @@ EuroGas Trading BV — Operations`,
     const [tmpl] = await db
       .insert(schema.emailTemplates)
       .values({
-        tenantId: tenant.id,
+        tenantId: tenantId,
         name: et.name,
         partyType: et.partyType,
         incoterm: et.incoterm ?? undefined,
@@ -1039,7 +1089,7 @@ EuroGas Trading BV — Operations`,
 
   for (const wt of workflowTemplatesData) {
     await db.insert(schema.workflowTemplates).values({
-      tenantId: tenant.id,
+      tenantId: tenantId,
       name: wt.name,
       incoterm: wt.incoterm ?? undefined,
       direction: wt.direction ?? undefined,
@@ -1067,7 +1117,7 @@ EuroGas Trading BV — Operations`,
   console.log(`  Workflows: ${workflowsCreated} instantiated for active deals`);
 
   // ── Pull party IDs for realistic assignment ────────────────────────────────
-  const allParties = await db.select().from(schema.parties).where(eq(schema.parties.tenantId, tenant.id));
+  const allParties = await db.select().from(schema.parties).where(eq(schema.parties.tenantId, tenantId));
   const partyByName = Object.fromEntries(allParties.map((p) => [p.name, p.id]));
 
   // ── DEMO STATE: Shell CIF deal ─────────────────────────────────────────────
@@ -1109,8 +1159,8 @@ EuroGas Trading BV — Operations`,
         await advanceStep(step1.id, "acknowledged", db as any);
 
         await db.insert(schema.auditLogs).values([
-          { tenantId: tenant.id, dealId: shellDeal.id, userId: operator1.id, action: "workflow.step_sent", details: { stepId: step1.id, stepName: step1.stepName } },
-          { tenantId: tenant.id, dealId: shellDeal.id, userId: operator1.id, action: "workflow.step_acknowledged", details: { stepId: step1.id, stepName: step1.stepName, note: "Shell confirmed vessel clearance + doc instructions received" } },
+          { tenantId: tenantId, dealId: shellDeal.id, userId: operator1.id, action: "workflow.step_sent", details: { stepId: step1.id, stepName: step1.stepName } },
+          { tenantId: tenantId, dealId: shellDeal.id, userId: operator1.id, action: "workflow.step_acknowledged", details: { stepId: step1.id, stepName: step1.stepName, note: "Shell confirmed vessel clearance + doc instructions received" } },
         ]);
       }
 
@@ -1178,7 +1228,7 @@ EuroGas Trading BV — Operations`,
 
         // Log the vessel change
         await db.insert(schema.dealChangeLogs).values({
-          tenantId: tenant.id,
+          tenantId: tenantId,
           dealId: vitolDeal.id,
           fieldChanged: "vesselName",
           oldValue: "MT Nordic Hawk",
@@ -1188,7 +1238,7 @@ EuroGas Trading BV — Operations`,
         });
 
         await db.insert(schema.auditLogs).values({
-          tenantId: tenant.id,
+          tenantId: tenantId,
           dealId: vitolDeal.id,
           userId: operator1.id,
           action: "deal.updated",

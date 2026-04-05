@@ -73,7 +73,15 @@ export const PUT = withAuth(
   async (req, ctx, session) => {
     const { id } = await (ctx as RouteContext).params;
     const body = await req.json();
-    const validated = updateDealSchema.parse(body);
+    const parseResult = updateDealSchema.safeParse(body);
+    if (!parseResult.success) {
+      const first = parseResult.error.issues[0];
+      return NextResponse.json(
+        { error: first?.message ?? "Validation failed", issues: parseResult.error.issues },
+        { status: 400 }
+      );
+    }
+    const validated = parseResult.data;
     const { version, status: newStatus, ...updates } = validated;
 
     const result = await withTenantDb(session.user.tenantId, async (db) => {

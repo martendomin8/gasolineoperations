@@ -9,6 +9,7 @@ import {
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
+import { toast } from "sonner";
 
 interface DealItem {
   id: string;
@@ -281,12 +282,26 @@ export default function DashboardPage() {
 
   useEffect(() => {
     fetch("/api/deals?perPage=100")
-      .then((r) => r.json())
-      .then((data) => {
-        setDeals(data.items ?? []);
-        setLoading(false);
+      .then((r) => {
+        if (!r.ok) {
+          return r.json().catch(() => ({})).then((err) => {
+            toast.error(err.error || "Failed to load deals");
+            setLoading(false);
+            return null;
+          });
+        }
+        return r.json();
       })
-      .catch(() => setLoading(false));
+      .then((data) => {
+        if (data) {
+          setDeals(data.items ?? []);
+          setLoading(false);
+        }
+      })
+      .catch(() => {
+        toast.error("Failed to load deals");
+        setLoading(false);
+      });
   }, []);
 
   const active = deals.filter((d) => d.status !== "completed" && d.status !== "cancelled");

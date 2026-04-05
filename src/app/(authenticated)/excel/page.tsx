@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 
@@ -178,12 +179,27 @@ export default function ExcelPage() {
 
   useEffect(() => {
     fetch("/api/deals?perPage=100")
-      .then((r) => r.json())
-      .then((data) => {
-        setDeals(data.items ?? []);
-        setLoading(false);
+      .then((r) => {
+        if (!r.ok) {
+          return r.json().catch(() => ({})).then((err) => {
+            toast.error(err.error || "Failed to load deals");
+            setLoading(false);
+            return null;
+          });
+        }
+        return r.json();
       })
-      .catch((err) => { console.error("Excel page fetch failed:", err); setLoading(false); });
+      .then((data) => {
+        if (data) {
+          setDeals(data.items ?? []);
+          setLoading(false);
+        }
+      })
+      .catch((err) => {
+        console.error("Excel page fetch failed:", err);
+        toast.error("Failed to load deals");
+        setLoading(false);
+      });
   }, []);
 
   const ongoing = deals.filter((d) => d.status !== "completed" && d.status !== "cancelled");

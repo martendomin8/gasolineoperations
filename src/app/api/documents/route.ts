@@ -3,6 +3,15 @@ import { withAuth } from "@/lib/middleware/with-auth";
 import { getDb } from "@/lib/db";
 import * as schema from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
+import { z } from "zod";
+
+const createDocumentSchema = z.object({
+  dealId: z.string().uuid("dealId must be a valid UUID"),
+  filename: z.string().min(1, "filename is required"),
+  fileType: z.enum(["q88", "cp_recap", "bl", "coa", "other"], {
+    error: "fileType must be one of: q88, cp_recap, bl, coa, other",
+  }),
+});
 
 // GET /api/documents?dealId=XXX — list documents for a deal
 export const GET = withAuth(async (req: NextRequest, _ctx, session) => {
@@ -44,26 +53,15 @@ export const POST = withAuth(async (req: NextRequest, _ctx, session) => {
   // Accept JSON body with document metadata
   // In V1, we track metadata only — actual file storage is a V2 concern
   const body = await req.json();
-  const { dealId, filename, fileType } = body as {
-    dealId?: string;
-    filename?: string;
-    fileType?: string;
-  };
-
-  if (!dealId || !filename || !fileType) {
+  const parseResult = createDocumentSchema.safeParse(body);
+  if (!parseResult.success) {
+    const first = parseResult.error.issues[0];
     return NextResponse.json(
-      { error: "dealId, filename, and fileType are required" },
+      { error: first?.message ?? "Validation failed", issues: parseResult.error.issues },
       { status: 400 }
     );
   }
-
-  const validTypes = ["q88", "cp_recap", "bl", "coa", "other"];
-  if (!validTypes.includes(fileType)) {
-    return NextResponse.json(
-      { error: `fileType must be one of: ${validTypes.join(", ")}` },
-      { status: 400 }
-    );
-  }
+  const { dealId, filename, fileType } = parseResult.data;
 
   // Verify the deal belongs to this tenant
   const [deal] = await db

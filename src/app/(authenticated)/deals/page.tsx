@@ -8,6 +8,7 @@ import { Plus, Search, ChevronLeft, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
+import { toast } from "sonner";
 import type { DealStatus, DealDirection, DealIncoterm } from "@/lib/types";
 
 interface DealListItem {
@@ -89,12 +90,20 @@ export default function DealsPage() {
     if (directionFilter) params.set("direction", directionFilter);
     if (incotermFilter) params.set("incoterm", incotermFilter);
 
-    const res = await fetch(`/api/deals?${params}`);
-    if (res.ok) {
+    try {
+      const res = await fetch(`/api/deals?${params}`);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.error || "Failed to load deals");
+        setLoading(false);
+        return;
+      }
       const data = await res.json();
       setDeals(data.items);
       setTotal(data.total);
       setTotalPages(data.totalPages);
+    } catch {
+      toast.error("Failed to load deals");
     }
     setLoading(false);
   }
