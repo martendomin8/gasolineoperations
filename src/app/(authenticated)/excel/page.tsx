@@ -163,10 +163,10 @@ function EditableStatusCell({
   return (
     <td className={`${EDITABLE_CELL_IDLE} ${bgColor}`}>
       <select
-        value={value || ""}
+        value={isDone ? "Done" : ""}
         onChange={(e) => handleChange(e.target.value)}
         disabled={saving}
-        className="bg-transparent text-xs cursor-pointer w-full outline-none appearance-none"
+        className={`bg-transparent text-xs cursor-pointer w-full outline-none appearance-none ${isDone ? "text-[var(--color-success)] font-medium" : ""}`}
       >
         <option value="">{"\u2014"}</option>
         <option value="Done">Done</option>
