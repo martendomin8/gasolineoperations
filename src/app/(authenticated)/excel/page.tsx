@@ -8,6 +8,7 @@ interface DealRow {
   id: string;
   externalRef: string | null;
   linkageCode: string | null;
+  dealType: string;
   counterparty: string;
   direction: string;
   product: string;
@@ -42,6 +43,7 @@ interface DealRow {
   coaToTraders: string | null;
   outturn: string | null;
   freightInvoice: string | null;
+  demurrage: string | null;
   tax: string | null;
   invoiceToCp: string | null;
 }
@@ -66,6 +68,23 @@ const COLUMNS = [
   { key: "freightInvoice", label: "Freight invoice", width: "100px" },
   { key: "tax", label: "TAX", width: "60px" },
   { key: "invoiceToCp", label: "INVOICE TO CP", width: "110px" },
+];
+
+// Reduced column set for Internal / Terminal Operations section
+const INTERNAL_COLUMNS = [
+  { key: "laycan", label: "P/S(LAYCAN)", width: "180px" },
+  { key: "counterparty", label: "Counterparty", width: "120px" },
+  { key: "vessel", label: "Vessel", width: "130px" },
+  { key: "linkage", label: "Linkage", width: "100px" },
+  { key: "reference", label: "Reference", width: "90px" },
+  { key: "ops", label: "OPS(name)", width: "80px" },
+  { key: "blFigures", label: "B/L FIGURES", width: "140px" },
+  { key: "voyDisOrders", label: "VOY/DIS ORDERS", width: "120px" },
+  { key: "vesselNomination", label: "TERMINAL NOMINATION", width: "130px" },
+  { key: "supervision", label: "INSPECTION NOMINATION", width: "140px" },
+  { key: "dischargeNom", label: "AGENCY NOMINATION", width: "140px" },
+  { key: "demurrage", label: "Demurrage", width: "90px" },
+  { key: "freightInvoice", label: "Freight invoice", width: "100px" },
 ];
 
 // ---------------------------------------------------------------------------
@@ -359,6 +378,63 @@ function DealRowComponent({ deal, onUpdate }: { deal: DealRow; onUpdate: () => v
 }
 
 // ---------------------------------------------------------------------------
+// Internal / Terminal Operations section components
+// ---------------------------------------------------------------------------
+
+function InternalSectionHeader() {
+  return (
+    <tr>
+      <td
+        colSpan={INTERNAL_COLUMNS.length}
+        className="bg-amber-900/30 px-3 py-2 text-sm font-bold text-amber-200 uppercase tracking-wide border-t-2 border-t-amber-700 border-b border-[var(--color-border-subtle)]"
+      >
+        Internal / Terminal Operations
+      </td>
+    </tr>
+  );
+}
+
+function InternalColumnHeaders() {
+  return (
+    <tr>
+      {INTERNAL_COLUMNS.map((col) => (
+        <th
+          key={col.key}
+          className="bg-amber-900/15 px-2 py-1.5 text-[0.625rem] font-bold text-[var(--color-text-secondary)] uppercase tracking-wider border-b border-r border-[var(--color-border-subtle)] whitespace-nowrap"
+          style={{ minWidth: col.width }}
+        >
+          {col.label}
+        </th>
+      ))}
+    </tr>
+  );
+}
+
+function InternalDealRowComponent({ deal, onUpdate }: { deal: DealRow; onUpdate: () => void }) {
+  return (
+    <tr className="hover:bg-[var(--color-surface-2)] transition-colors group">
+      <LockedCell className="font-mono whitespace-nowrap">
+        <Link href={`/deals/${deal.id}`} className="text-[var(--color-accent-text)] hover:underline">
+          {formatLaycan(deal)}
+        </Link>
+      </LockedCell>
+      <LockedCell>{deal.counterparty}</LockedCell>
+      <LockedCell className="font-mono">{deal.vesselName || "\u2014"}</LockedCell>
+      <LockedCell className="font-mono">{deal.linkageCode || "\u2014"}</LockedCell>
+      <LockedCell className="font-mono">{deal.externalRef || "\u2014"}</LockedCell>
+      <LockedCell>{formatOps(deal)}</LockedCell>
+      <LockedCell>{formatBLFigures(deal)}</LockedCell>
+      <EditableStatusCell value={deal.voyDisOrders} dealId={deal.id} fieldName="voyDisOrders" onUpdate={onUpdate} />
+      <EditableStatusCell value={deal.vesselNomination} dealId={deal.id} fieldName="vesselNomination" onUpdate={onUpdate} />
+      <EditableStatusCell value={deal.supervision} dealId={deal.id} fieldName="supervision" onUpdate={onUpdate} />
+      <EditableStatusCell value={deal.dischargeNomination} dealId={deal.id} fieldName="dischargeNomination" onUpdate={onUpdate} />
+      <EditableStatusCell value={deal.demurrage} dealId={deal.id} fieldName="demurrage" onUpdate={onUpdate} />
+      <EditableStatusCell value={deal.freightInvoice} dealId={deal.id} fieldName="freightInvoice" onUpdate={onUpdate} />
+    </tr>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Page component
 // ---------------------------------------------------------------------------
 
@@ -403,22 +479,37 @@ export default function ExcelPage() {
   const ongoing = deals.filter((d) => d.status !== "completed" && d.status !== "cancelled");
   const completed = deals.filter((d) => d.status === "completed");
 
-  // Group ongoing into sections
-  const purchases = ongoing.filter((d) => d.direction === "buy" && !ongoing.some((s) => s.direction === "sell" && s.linkageCode && s.linkageCode === d.linkageCode));
-  const sales = ongoing.filter((d) => d.direction === "sell" && !ongoing.some((p) => p.direction === "buy" && p.linkageCode && p.linkageCode === d.linkageCode));
+  // Separate regular deals from terminal operation deals
+  const mainDeals = ongoing.filter((d) => d.dealType !== "terminal_operation");
+  const terminalDeals = ongoing.filter((d) => d.dealType === "terminal_operation");
+
+  // Find linkage codes that have at least one regular deal
+  const linkagesWithRegular = new Set<string>();
+  mainDeals.forEach((d) => {
+    if (d.linkageCode) linkagesWithRegular.add(d.linkageCode);
+  });
+
+  // Internal section: terminal deals whose linkage has NO regular deals
+  const internalDeals = terminalDeals.filter(
+    (d) => !d.linkageCode || !linkagesWithRegular.has(d.linkageCode)
+  );
+
+  // Group main ongoing into sections (same logic, but only mainDeals)
+  const purchases = mainDeals.filter((d) => d.direction === "buy" && !mainDeals.some((s) => s.direction === "sell" && s.linkageCode && s.linkageCode === d.linkageCode));
+  const sales = mainDeals.filter((d) => d.direction === "sell" && !mainDeals.some((p) => p.direction === "buy" && p.linkageCode && p.linkageCode === d.linkageCode));
 
   // Linked: find linkage codes that have both buy and sell
   const linkedCodes = new Set<string>();
-  ongoing.forEach((d) => {
+  mainDeals.forEach((d) => {
     if (d.linkageCode) {
-      const hasBuy = ongoing.some((x) => x.linkageCode === d.linkageCode && x.direction === "buy");
-      const hasSell = ongoing.some((x) => x.linkageCode === d.linkageCode && x.direction === "sell");
+      const hasBuy = mainDeals.some((x) => x.linkageCode === d.linkageCode && x.direction === "buy");
+      const hasSell = mainDeals.some((x) => x.linkageCode === d.linkageCode && x.direction === "sell");
       if (hasBuy && hasSell) linkedCodes.add(d.linkageCode);
     }
   });
   const linked = Array.from(linkedCodes).map((code) => ({
     code,
-    deals: ongoing.filter((d) => d.linkageCode === code).sort((a, b) => (a.direction === "buy" ? -1 : 1)),
+    deals: mainDeals.filter((d) => d.linkageCode === code).sort((a, b) => (a.direction === "buy" ? -1 : 1)),
   }));
 
   return (
@@ -457,36 +548,49 @@ export default function ExcelPage() {
         <div className="overflow-x-auto border border-[var(--color-border-subtle)] rounded-[var(--radius-md)]">
           <table className="w-full border-collapse">
             {activeTab === "ongoing" ? (
-              <tbody>
-                {/* PURCHASE section */}
-                <SectionHeader title="PURCHASE" />
-                <ColumnHeaders />
-                {purchases.length > 0 ? (
-                  purchases.map((d) => <DealRowComponent key={d.id} deal={d} onUpdate={refreshData} />)
-                ) : (
-                  <tr><td colSpan={COLUMNS.length} className="px-3 py-4 text-xs text-center text-[var(--color-text-tertiary)] border-b border-[var(--color-border-subtle)]">No standalone purchases</td></tr>
-                )}
+              <>
+                <tbody>
+                  {/* PURCHASE section */}
+                  <SectionHeader title="PURCHASE" />
+                  <ColumnHeaders />
+                  {purchases.length > 0 ? (
+                    purchases.map((d) => <DealRowComponent key={d.id} deal={d} onUpdate={refreshData} />)
+                  ) : (
+                    <tr><td colSpan={COLUMNS.length} className="px-3 py-4 text-xs text-center text-[var(--color-text-tertiary)] border-b border-[var(--color-border-subtle)]">No standalone purchases</td></tr>
+                  )}
 
-                {/* SALE section */}
-                <SectionHeader title="SALE" />
-                <ColumnHeaders />
-                {sales.length > 0 ? (
-                  sales.map((d) => <DealRowComponent key={d.id} deal={d} onUpdate={refreshData} />)
-                ) : (
-                  <tr><td colSpan={COLUMNS.length} className="px-3 py-4 text-xs text-center text-[var(--color-text-tertiary)] border-b border-[var(--color-border-subtle)]">No standalone sales</td></tr>
-                )}
+                  {/* SALE section */}
+                  <SectionHeader title="SALE" />
+                  <ColumnHeaders />
+                  {sales.length > 0 ? (
+                    sales.map((d) => <DealRowComponent key={d.id} deal={d} onUpdate={refreshData} />)
+                  ) : (
+                    <tr><td colSpan={COLUMNS.length} className="px-3 py-4 text-xs text-center text-[var(--color-text-tertiary)] border-b border-[var(--color-border-subtle)]">No standalone sales</td></tr>
+                  )}
 
-                {/* PURCHASE + SALE section */}
-                <SectionHeader title="PURCHASE + SALE" />
-                <ColumnHeaders />
-                {linked.length > 0 ? (
-                  linked.map((group) => (
-                    group.deals.map((d) => <DealRowComponent key={d.id} deal={d} onUpdate={refreshData} />)
-                  ))
-                ) : (
-                  <tr><td colSpan={COLUMNS.length} className="px-3 py-4 text-xs text-center text-[var(--color-text-tertiary)]">No linked deals</td></tr>
-                )}
-              </tbody>
+                  {/* PURCHASE + SALE section */}
+                  <SectionHeader title="PURCHASE + SALE" />
+                  <ColumnHeaders />
+                  {linked.length > 0 ? (
+                    linked.map((group) => (
+                      group.deals.map((d) => <DealRowComponent key={d.id} deal={d} onUpdate={refreshData} />)
+                    ))
+                  ) : (
+                    <tr><td colSpan={COLUMNS.length} className="px-3 py-4 text-xs text-center text-[var(--color-text-tertiary)]">No linked deals</td></tr>
+                  )}
+                </tbody>
+
+                {/* INTERNAL / TERMINAL OPERATIONS — separate table body for different column count */}
+                <tbody>
+                  <InternalSectionHeader />
+                  <InternalColumnHeaders />
+                  {internalDeals.length > 0 ? (
+                    internalDeals.map((d) => <InternalDealRowComponent key={d.id} deal={d} onUpdate={refreshData} />)
+                  ) : (
+                    <tr><td colSpan={INTERNAL_COLUMNS.length} className="px-3 py-4 text-xs text-center text-[var(--color-text-tertiary)]">No internal operations</td></tr>
+                  )}
+                </tbody>
+              </>
             ) : (
               <tbody>
                 <ColumnHeaders />

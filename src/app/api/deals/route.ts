@@ -84,6 +84,8 @@ export const GET = withAuth(async (req, _ctx, session) => {
           id: deals.id,
           externalRef: deals.externalRef,
           linkageCode: deals.linkageCode,
+          linkageId: deals.linkageId,
+          dealType: deals.dealType,
           counterparty: deals.counterparty,
           direction: deals.direction,
           product: deals.product,
@@ -202,6 +204,7 @@ export const GET = withAuth(async (req, _ctx, session) => {
         coaToTraders: excelOverrides.coaToTraders ?? null,
         outturn: excelOverrides.outturn ?? null,
         freightInvoice: excelOverrides.freightInvoice ?? null,
+        demurrage: excelOverrides.demurrage ?? null,
         tax: excelOverrides.tax ?? null,
         invoiceToCp: excelOverrides.invoiceToCp ?? null,
       };

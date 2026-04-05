@@ -34,6 +34,7 @@ const OPERATOR_MANAGED_FIELDS = new Set([
   "freightInvoice",
   "tax",
   "invoiceToCp",
+  "demurrage",
 ]);
 
 // Pricing-specific fields that update deal columns directly
