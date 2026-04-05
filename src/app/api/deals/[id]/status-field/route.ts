@@ -178,7 +178,25 @@ export const PUT = withAuth(
       });
 
       if (!matchingStep) {
-        return { error: "no_matching_step" as const, message: `No workflow step matches field: ${field}` };
+        // No matching step found — fall back to excelStatuses JSONB storage
+        const currentStatuses =
+          ((deal as Record<string, unknown>).excelStatuses as Record<string, string> | null) ?? {};
+        const updatedStatuses = { ...currentStatuses, [field]: value || null };
+
+        await db
+          .update(deals)
+          .set({ excelStatuses: updatedStatuses, updatedAt: new Date() } as Record<string, unknown>)
+          .where(and(eq(deals.id, id), eq(deals.tenantId, session.user.tenantId)));
+
+        await db.insert(auditLogs).values({
+          tenantId: session.user.tenantId,
+          dealId: id,
+          userId: session.user.id,
+          action: "deal.excel_status_updated",
+          details: { field, value, fallback: "no_matching_step" },
+        });
+
+        return { ok: true, field, value };
       }
 
       // Map display value to step status
