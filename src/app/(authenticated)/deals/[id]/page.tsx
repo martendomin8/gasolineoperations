@@ -45,7 +45,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useSession } from "next-auth/react";
 import type { DealStatus, WorkflowStepStatus } from "@/lib/db/schema";
 import type { WorkflowInstanceDetail, WorkflowStepWithDraft } from "@/lib/workflow-engine";
@@ -210,6 +210,60 @@ function Field({ label, value, mono }: { label: string; value: string | null; mo
       <dd className={`text-sm text-[var(--color-text-primary)] mt-0.5 ${mono ? "font-mono" : ""}`}>
         {value || "—"}
       </dd>
+    </div>
+  );
+}
+
+// ============================================================
+// DEAL EXPORT DROPDOWN
+// ============================================================
+
+function DealExportDropdown({ dealId }: { dealId: string }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  function handleExport(format: string) {
+    setOpen(false);
+    const url = `/api/deals/export?format=${format}&search=${dealId}&perPage=1`;
+    if (format === "pdf") {
+      window.open(url, "_blank");
+    } else {
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+  }
+
+  return (
+    <div ref={ref} className="relative">
+      <Button variant="ghost" size="sm" onClick={() => setOpen(!open)}>
+        <ArrowRightLeft className="h-3.5 w-3.5" />
+        Export
+      </Button>
+      {open && (
+        <div className="absolute right-0 top-full mt-1 z-50 bg-[var(--color-surface-1)] border border-[var(--color-border-default)] rounded-[var(--radius-md)] shadow-lg py-1 min-w-[140px]">
+          {(["csv", "xlsx", "pdf", "docx"] as const).map((fmt) => (
+            <button
+              key={fmt}
+              onClick={() => handleExport(fmt)}
+              className="w-full text-left px-3 py-1.5 text-xs text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-3)] hover:text-[var(--color-text-primary)] transition-colors cursor-pointer"
+            >
+              {fmt === "csv" ? "CSV" : fmt === "xlsx" ? "Excel (.xlsx)" : fmt === "pdf" ? "PDF" : "Word (.docx)"}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -1581,6 +1635,7 @@ function LinkageView({ deal, linkedDeals, isOperator, fetchDeal }: LinkageViewPr
               </Button>
             </Link>
           )}
+          <DealExportDropdown dealId={deal.id} />
         </div>
       </div>
 
