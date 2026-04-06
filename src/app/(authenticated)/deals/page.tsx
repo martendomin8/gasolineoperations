@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Select } from "@/components/ui/select";
 import { Plus, Search, ChevronLeft, ChevronRight } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { toast } from "sonner";
 import type { DealStatus, DealDirection, DealIncoterm } from "@/lib/types";
@@ -66,6 +66,87 @@ function formatQty(qty: string) {
   return `${Number(qty).toLocaleString("en", { maximumFractionDigits: 0 })} MT`;
 }
 
+// ---------------------------------------------------------------------------
+// ExportDropdown — triggers file download for CSV, Excel, PDF, Word
+// ---------------------------------------------------------------------------
+
+function ExportDropdown({ buildParams }: { buildParams: () => URLSearchParams }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  function handleExport(format: "csv" | "xlsx" | "pdf" | "docx") {
+    setOpen(false);
+    const params = buildParams();
+    params.set("format", format);
+    const url = `/api/deals/export?${params.toString()}`;
+    if (format === "pdf") {
+      window.open(url, "_blank");
+    } else {
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+  }
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen(!open)}
+        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-[var(--radius-md)] bg-[var(--color-surface-2)] border border-[var(--color-border-default)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-border-strong)] transition-colors cursor-pointer"
+      >
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+          <polyline points="7 10 12 15 17 10" />
+          <line x1="12" y1="15" x2="12" y2="3" />
+        </svg>
+        Export
+        <span className="text-[0.5rem]">{"\u25BE"}</span>
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full mt-1 z-50 bg-[var(--color-surface-1)] border border-[var(--color-border-default)] rounded-[var(--radius-md)] shadow-lg py-1 min-w-[140px]">
+          <button
+            onClick={() => handleExport("csv")}
+            className="w-full text-left px-3 py-1.5 text-xs text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-3)] hover:text-[var(--color-text-primary)] transition-colors cursor-pointer"
+          >
+            CSV
+          </button>
+          <button
+            onClick={() => handleExport("xlsx")}
+            className="w-full text-left px-3 py-1.5 text-xs text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-3)] hover:text-[var(--color-text-primary)] transition-colors cursor-pointer"
+          >
+            Excel (.xlsx)
+          </button>
+          <button
+            onClick={() => handleExport("pdf")}
+            className="w-full text-left px-3 py-1.5 text-xs text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-3)] hover:text-[var(--color-text-primary)] transition-colors cursor-pointer"
+          >
+            PDF
+          </button>
+          <button
+            onClick={() => handleExport("docx")}
+            className="w-full text-left px-3 py-1.5 text-xs text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-3)] hover:text-[var(--color-text-primary)] transition-colors cursor-pointer"
+          >
+            Word (.docx)
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function DealsPage() {
   const { data: session } = useSession();
   const [deals, setDeals] = useState<DealListItem[]>([]);
@@ -120,14 +201,26 @@ export default function DealsPage() {
             {total} deal{total !== 1 ? "s" : ""} total
           </p>
         </div>
-        {canCreate && (
-          <Link href="/deals/new">
-            <Button size="md">
-              <Plus className="h-4 w-4" />
-              New Deal
-            </Button>
-          </Link>
-        )}
+        <div className="flex items-center gap-3">
+          <ExportDropdown
+            buildParams={() => {
+              const params = new URLSearchParams();
+              if (search) params.set("search", search);
+              if (statusFilter) params.set("status", statusFilter);
+              if (directionFilter) params.set("direction", directionFilter);
+              if (incotermFilter) params.set("incoterm", incotermFilter);
+              return params;
+            }}
+          />
+          {canCreate && (
+            <Link href="/deals/new">
+              <Button size="md">
+                <Plus className="h-4 w-4" />
+                New Deal
+              </Button>
+            </Link>
+          )}
+        </div>
       </div>
 
       {/* Filters */}

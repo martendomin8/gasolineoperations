@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import Link from "next/link";
 
@@ -440,6 +440,87 @@ function InternalDealRowComponent({ deal, onUpdate }: { deal: DealRow; onUpdate:
 }
 
 // ---------------------------------------------------------------------------
+// ExportDropdown — triggers file download for CSV, Excel, PDF, Word
+// ---------------------------------------------------------------------------
+
+function ExportDropdown() {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  function handleExport(format: "csv" | "xlsx" | "pdf" | "docx") {
+    setOpen(false);
+    const url = `/api/deals/export?format=${format}&perPage=100`;
+    if (format === "pdf") {
+      // PDF opens in a new tab for print dialog
+      window.open(url, "_blank");
+    } else {
+      // Other formats trigger download via hidden link
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+  }
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen(!open)}
+        className="flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-[var(--radius-md)] bg-[var(--color-surface-2)] border border-[var(--color-border-default)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-border-strong)] transition-colors cursor-pointer"
+      >
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+          <polyline points="7 10 12 15 17 10" />
+          <line x1="12" y1="15" x2="12" y2="3" />
+        </svg>
+        Export
+        <span className="text-[0.5rem]">{"\u25BE"}</span>
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full mt-1 z-50 bg-[var(--color-surface-1)] border border-[var(--color-border-default)] rounded-[var(--radius-md)] shadow-lg py-1 min-w-[140px]">
+          <button
+            onClick={() => handleExport("csv")}
+            className="w-full text-left px-3 py-1.5 text-xs text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-3)] hover:text-[var(--color-text-primary)] transition-colors cursor-pointer"
+          >
+            CSV
+          </button>
+          <button
+            onClick={() => handleExport("xlsx")}
+            className="w-full text-left px-3 py-1.5 text-xs text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-3)] hover:text-[var(--color-text-primary)] transition-colors cursor-pointer"
+          >
+            Excel (.xlsx)
+          </button>
+          <button
+            onClick={() => handleExport("pdf")}
+            className="w-full text-left px-3 py-1.5 text-xs text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-3)] hover:text-[var(--color-text-primary)] transition-colors cursor-pointer"
+          >
+            PDF
+          </button>
+          <button
+            onClick={() => handleExport("docx")}
+            className="w-full text-left px-3 py-1.5 text-xs text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-3)] hover:text-[var(--color-text-primary)] transition-colors cursor-pointer"
+          >
+            Word (.docx)
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Page component
 // ---------------------------------------------------------------------------
 
@@ -522,6 +603,8 @@ export default function ExcelPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold text-[var(--color-text-primary)]">Gasoline Vessels List</h1>
+        <div className="flex items-center gap-3">
+        <ExportDropdown />
         <div className="flex gap-1 bg-[var(--color-surface-2)] rounded-[var(--radius-md)] p-0.5">
           <button
             onClick={() => setActiveTab("ongoing")}
@@ -543,6 +626,7 @@ export default function ExcelPage() {
           >
             COMPLETED
           </button>
+        </div>
         </div>
       </div>
 
