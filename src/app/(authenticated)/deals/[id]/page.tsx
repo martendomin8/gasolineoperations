@@ -1884,14 +1884,17 @@ function SingleDealView({ deal, canEdit, isOperator, fetchDeal }: SingleDealView
               </p>
             </div>
           </div>
-          {canEdit && (
-            <Link href={`/deals/${deal.id}/edit`}>
-              <Button variant="secondary" size="md">
-                <Pencil className="h-3.5 w-3.5" />
-                Edit
-              </Button>
-            </Link>
-          )}
+          <div className="flex items-center gap-2">
+            {canEdit && (
+              <Link href={`/deals/${deal.id}/edit`}>
+                <Button variant="secondary" size="md">
+                  <Pencil className="h-3.5 w-3.5" />
+                  Edit
+                </Button>
+              </Link>
+            )}
+            <DealExportDropdown dealId={deal.id} />
+          </div>
         </div>
 
         {/* Status progression bar */}
