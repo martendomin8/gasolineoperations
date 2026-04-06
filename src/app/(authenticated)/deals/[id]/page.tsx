@@ -40,6 +40,8 @@ import {
   Users,
   FileText,
   Upload,
+  Merge,
+  Scissors,
 } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
@@ -48,10 +50,19 @@ import { useSession } from "next-auth/react";
 import type { DealStatus, WorkflowStepStatus } from "@/lib/db/schema";
 import type { WorkflowInstanceDetail, WorkflowStepWithDraft } from "@/lib/workflow-engine";
 
+interface LinkageSummary {
+  id: string;
+  linkageNumber: string | null;
+  tempName: string;
+  status: string;
+  dealCount: number;
+}
+
 interface DealDetail {
   id: string;
   externalRef: string | null;
   linkageCode: string | null;
+  linkageId: string | null;
   counterparty: string;
   direction: string;
   product: string;
@@ -1430,8 +1441,100 @@ interface LinkageViewProps {
 }
 
 function LinkageView({ deal, linkedDeals, isOperator, fetchDeal }: LinkageViewProps) {
+  const router = useRouter();
   const buyDeals = linkedDeals.filter((d) => d.direction === "buy");
   const sellDeals = linkedDeals.filter((d) => d.direction === "sell");
+
+  // Merge dialog state
+  const [mergeOpen, setMergeOpen] = useState(false);
+  const [mergeLinkages, setMergeLinkages] = useState<LinkageSummary[]>([]);
+  const [mergeSourceId, setMergeSourceId] = useState("");
+  const [mergeKeepNumber, setMergeKeepNumber] = useState<"target" | "source">("target");
+  const [mergeLoading, setMergeLoading] = useState(false);
+
+  // Split dialog state
+  const [splitOpen, setSplitOpen] = useState(false);
+  const [splitDealIds, setSplitDealIds] = useState<Set<string>>(new Set());
+  const [splitLoading, setSplitLoading] = useState(false);
+
+  const openMergeDialog = async () => {
+    setMergeOpen(true);
+    setMergeSourceId("");
+    setMergeKeepNumber("target");
+    try {
+      const res = await fetch("/api/linkages?status=active");
+      const data: LinkageSummary[] = await res.json();
+      // Exclude the current linkage
+      setMergeLinkages(data.filter((l) => l.id !== deal.linkageId));
+    } catch {
+      setMergeLinkages([]);
+    }
+  };
+
+  const handleMerge = async () => {
+    if (!mergeSourceId || !deal.linkageId) return;
+    setMergeLoading(true);
+    try {
+      const res = await fetch(`/api/linkages/${deal.linkageId}/merge`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sourceLinkageId: mergeSourceId, keepNumber: mergeKeepNumber }),
+      });
+      if (res.ok) {
+        toast.success("Linkages merged successfully");
+        setMergeOpen(false);
+        fetchDeal();
+      } else {
+        const err = await res.json();
+        toast.error(err.error || "Failed to merge linkages");
+      }
+    } catch {
+      toast.error("Failed to merge linkages");
+    } finally {
+      setMergeLoading(false);
+    }
+  };
+
+  const openSplitDialog = () => {
+    setSplitOpen(true);
+    setSplitDealIds(new Set());
+  };
+
+  const toggleSplitDeal = (dealId: string) => {
+    setSplitDealIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(dealId)) {
+        next.delete(dealId);
+      } else {
+        next.add(dealId);
+      }
+      return next;
+    });
+  };
+
+  const handleSplit = async () => {
+    if (splitDealIds.size === 0 || !deal.linkageId) return;
+    setSplitLoading(true);
+    try {
+      const res = await fetch(`/api/linkages/${deal.linkageId}/split`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dealIds: Array.from(splitDealIds) }),
+      });
+      if (res.ok) {
+        toast.success("Deals split into a new linkage");
+        setSplitOpen(false);
+        fetchDeal();
+      } else {
+        const err = await res.json();
+        toast.error(err.error || "Failed to split deals");
+      }
+    } catch {
+      toast.error("Failed to split deals");
+    } finally {
+      setSplitLoading(false);
+    }
+  };
 
   // Gather shared voyage info from whichever deal has it
   const voyageSource = linkedDeals.find((d) => d.vesselName) ?? linkedDeals[0];
@@ -1457,15 +1560,157 @@ function LinkageView({ deal, linkedDeals, isOperator, fetchDeal }: LinkageViewPr
             </p>
           </div>
         </div>
-        {isOperator && (
-          <Link href={`/deals/${deal.id}/edit`}>
-            <Button variant="secondary" size="md">
-              <Pencil className="h-3.5 w-3.5" />
-              Edit Current
-            </Button>
-          </Link>
-        )}
+        <div className="flex items-center gap-2">
+          {isOperator && deal.linkageId && (
+            <>
+              <Button variant="ghost" size="sm" onClick={openMergeDialog}>
+                <Merge className="h-3.5 w-3.5" />
+                Merge
+              </Button>
+              <Button variant="ghost" size="sm" onClick={openSplitDialog} disabled={linkedDeals.length < 2}>
+                <Scissors className="h-3.5 w-3.5" />
+                Split
+              </Button>
+            </>
+          )}
+          {isOperator && (
+            <Link href={`/deals/${deal.id}/edit`}>
+              <Button variant="secondary" size="md">
+                <Pencil className="h-3.5 w-3.5" />
+                Edit Current
+              </Button>
+            </Link>
+          )}
+        </div>
       </div>
+
+      {/* Merge Dialog */}
+      <Dialog
+        open={mergeOpen}
+        onClose={() => setMergeOpen(false)}
+        title="Merge Linkages"
+        description="Merge another linkage into this one. All deals from the selected linkage will be moved here."
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">
+              Select linkage to merge into this one
+            </label>
+            <select
+              value={mergeSourceId}
+              onChange={(e) => setMergeSourceId(e.target.value)}
+              className="w-full rounded-[var(--radius-md)] border border-[var(--color-border-default)] bg-[var(--color-surface-1)] px-3 py-2 text-sm text-[var(--color-text-primary)]"
+            >
+              <option value="">Select a linkage...</option>
+              {mergeLinkages.map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.linkageNumber ?? l.tempName} ({l.dealCount} deal{l.dealCount !== 1 ? "s" : ""})
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">
+              Which linkage number to keep?
+            </label>
+            <div className="flex gap-3">
+              <label className="flex items-center gap-2 text-sm text-[var(--color-text-primary)] cursor-pointer">
+                <input
+                  type="radio"
+                  name="keepNumber"
+                  checked={mergeKeepNumber === "target"}
+                  onChange={() => setMergeKeepNumber("target")}
+                  className="accent-[var(--color-accent)]"
+                />
+                This linkage ({deal.linkageCode ?? "—"})
+              </label>
+              <label className="flex items-center gap-2 text-sm text-[var(--color-text-primary)] cursor-pointer">
+                <input
+                  type="radio"
+                  name="keepNumber"
+                  checked={mergeKeepNumber === "source"}
+                  onChange={() => setMergeKeepNumber("source")}
+                  className="accent-[var(--color-accent)]"
+                />
+                Source linkage
+              </label>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="ghost" size="sm" onClick={() => setMergeOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleMerge}
+              disabled={!mergeSourceId}
+              loading={mergeLoading}
+            >
+              Merge
+            </Button>
+          </div>
+        </div>
+      </Dialog>
+
+      {/* Split Dialog */}
+      <Dialog
+        open={splitOpen}
+        onClose={() => setSplitOpen(false)}
+        title="Split Linkage"
+        description="Select deals to split into a new linkage. At least one deal must remain in the current linkage."
+      >
+        <div className="space-y-4">
+          <div className="space-y-2 max-h-64 overflow-y-auto">
+            {linkedDeals.map((d) => (
+              <label
+                key={d.id}
+                className="flex items-center gap-3 p-2.5 rounded-[var(--radius-md)] border border-[var(--color-border-default)] hover:bg-[var(--color-surface-3)] cursor-pointer transition-colors"
+              >
+                <input
+                  type="checkbox"
+                  checked={splitDealIds.has(d.id)}
+                  onChange={() => toggleSplitDeal(d.id)}
+                  disabled={splitDealIds.size === linkedDeals.length - 1 && !splitDealIds.has(d.id)}
+                  className="accent-[var(--color-accent)]"
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className={`text-xs font-medium uppercase ${d.direction === "buy" ? "text-blue-400" : "text-amber-400"}`}>
+                      {d.direction}
+                    </span>
+                    <span className="text-sm font-medium text-[var(--color-text-primary)] truncate">
+                      {d.counterparty}
+                    </span>
+                  </div>
+                  <span className="text-xs text-[var(--color-text-tertiary)]">
+                    {d.quantityMt} MT {d.product} — {d.incoterm}
+                  </span>
+                </div>
+              </label>
+            ))}
+          </div>
+          {splitDealIds.size === linkedDeals.length - 1 && (
+            <p className="text-xs text-[var(--color-text-tertiary)]">
+              At least one deal must remain in the current linkage.
+            </p>
+          )}
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="ghost" size="sm" onClick={() => setSplitOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleSplit}
+              disabled={splitDealIds.size === 0}
+              loading={splitLoading}
+            >
+              Split {splitDealIds.size > 0 ? `(${splitDealIds.size} deal${splitDealIds.size !== 1 ? "s" : ""})` : ""}
+            </Button>
+          </div>
+        </div>
+      </Dialog>
 
       {/* Voyage Info Bar */}
       <VoyageInfoBar

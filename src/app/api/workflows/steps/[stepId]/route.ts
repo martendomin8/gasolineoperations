@@ -427,6 +427,49 @@ export const PUT = withAuth(
         details: { stepId: step.id, stepName: step.stepName, action },
       });
 
+      // --- Sync workflow step status → Excel excelStatuses JSONB ---
+      const TERMINAL_EXCEL = new Set(["sent", "acknowledged", "done", "received"]);
+      const REVERT_EXCEL = new Set(["ready", "pending"]);
+      if (TERMINAL_EXCEL.has(to) || REVERT_EXCEL.has(to)) {
+        // Determine the Excel field from step type/name
+        const stepNameLower = step.stepName.toLowerCase();
+        let excelField: string | null = null;
+        if (step.stepType === "instruction" || stepNameLower.includes("doc")) {
+          excelField = "docInstructions";
+        } else if (step.stepType === "order" && stepNameLower.includes("voyage")) {
+          excelField = "voyOrders";
+        } else if (step.stepType === "order" && stepNameLower.includes("discharge")) {
+          excelField = "disOrders";
+        } else if (step.stepType === "nomination" && stepNameLower.includes("discharge")) {
+          excelField = "dischargeNomination";
+        } else if (step.stepType === "nomination") {
+          excelField = "vesselNomination";
+        } else if (step.stepType === "appointment") {
+          excelField = "supervision";
+        }
+
+        if (excelField) {
+          const [deal] = await db
+            .select()
+            .from(schema.deals)
+            .where(eq(schema.deals.id, instance.dealId));
+
+          if (deal) {
+            const currentStatuses =
+              ((deal as Record<string, unknown>).excelStatuses as Record<string, string | null> | null) ?? {};
+            const updatedStatuses = {
+              ...currentStatuses,
+              [excelField]: TERMINAL_EXCEL.has(to) ? "Done" : null,
+            };
+
+            await db
+              .update(schema.deals)
+              .set({ excelStatuses: updatedStatuses, updatedAt: new Date() } as Record<string, unknown>)
+              .where(eq(schema.deals.id, instance.dealId));
+          }
+        }
+      }
+
       // Log when operator proceeds despite incomplete prerequisite
       if (skippedPrerequisite) {
         await db.insert(schema.auditLogs).values({
