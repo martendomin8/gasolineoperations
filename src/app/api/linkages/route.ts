@@ -23,6 +23,8 @@ export const GET = withAuth(async (req, _ctx, session) => {
         linkageNumber: linkages.linkageNumber,
         tempName: linkages.tempName,
         status: linkages.status,
+        vesselName: linkages.vesselName,
+        vesselImo: linkages.vesselImo,
         createdAt: linkages.createdAt,
         updatedAt: linkages.updatedAt,
         dealCount: sql<number>`count(${deals.id})::int`,

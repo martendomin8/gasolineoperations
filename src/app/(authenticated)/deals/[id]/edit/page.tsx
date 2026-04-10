@@ -70,6 +70,7 @@ export default function EditDealPage() {
     setSaving(true);
 
     const fd = new FormData(e.currentTarget);
+    const hasLinkage = Boolean(deal.linkageId);
     const updates: Record<string, unknown> = {
       version: deal.version,
       counterparty: fd.get("counterparty"),
@@ -84,8 +85,6 @@ export default function EditDealPage() {
       dischargePort: fd.get("dischargePort") || null,
       laycanStart: fd.get("laycanStart"),
       laycanEnd: fd.get("laycanEnd"),
-      vesselName: fd.get("vesselName") || null,
-      vesselImo: fd.get("vesselImo") || null,
       vesselCleared: fd.get("vesselCleared") === "on",
       docInstructionsReceived: fd.get("docInstructionsReceived") === "on",
       status: fd.get("status"),
@@ -97,6 +96,12 @@ export default function EditDealPage() {
       specialInstructions: fd.get("specialInstructions") || null,
       secondaryOperatorId: fd.get("secondaryOperatorId") || null,
     };
+    // Vessel is managed at the linkage level when the deal belongs to a linkage —
+    // do not include vesselName/vesselImo in the deal update payload in that case.
+    if (!hasLinkage) {
+      updates.vesselName = fd.get("vesselName") || null;
+      updates.vesselImo = fd.get("vesselImo") || null;
+    }
 
     const res = await fetch(`/api/deals/${id}`, {
       method: "PUT",
@@ -199,10 +204,31 @@ export default function EditDealPage() {
         <Card>
           <CardHeader><CardTitle>Vessel</CardTitle></CardHeader>
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <Input label="Vessel Name" name="vesselName" defaultValue={deal.vesselName || ""} />
-              <Input label="Vessel IMO" name="vesselImo" defaultValue={deal.vesselImo || ""} />
-            </div>
+            {deal.linkageId ? (
+              <div className="rounded-[var(--radius-md)] border border-dashed border-[var(--color-border-default)] bg-[var(--color-surface-2)] px-4 py-3 text-sm text-[var(--color-text-secondary)]">
+                Vessel is managed at the linkage level.{" "}
+                <Link
+                  href={`/deals/${id}`}
+                  className="text-[var(--color-accent)] hover:underline font-medium"
+                >
+                  Open the linkage view
+                </Link>{" "}
+                to change the vessel. All deals in this linkage share the same vessel.
+                {(deal.vesselName || deal.vesselImo) && (
+                  <div className="mt-2 text-xs text-[var(--color-text-tertiary)]">
+                    Current: <span className="text-[var(--color-text-primary)] font-medium">{deal.vesselName || "—"}</span>
+                    {deal.vesselImo && (
+                      <span className="font-mono ml-2">IMO {deal.vesselImo}</span>
+                    )}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-4">
+                <Input label="Vessel Name" name="vesselName" defaultValue={deal.vesselName || ""} />
+                <Input label="Vessel IMO" name="vesselImo" defaultValue={deal.vesselImo || ""} />
+              </div>
+            )}
             <div className="flex gap-6">
               <Checkbox label="Vessel Cleared" name="vesselCleared" defaultChecked={deal.vesselCleared} />
               <Checkbox label="Documentary Instructions Received" name="docInstructionsReceived" defaultChecked={deal.docInstructionsReceived} />

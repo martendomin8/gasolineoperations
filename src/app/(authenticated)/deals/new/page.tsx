@@ -40,6 +40,7 @@ export default function NewDealPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const prefillLinkageCode = searchParams.get("linkageCode") ?? "";
+  const prefillLinkageId = searchParams.get("linkageId") ?? "";
   const prefillDirection = searchParams.get("direction") ?? "";
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -65,6 +66,7 @@ export default function NewDealPage() {
     return {
       externalRef: fd.get("externalRef") as string || null,
       linkageCode: fd.get("linkageCode") as string || null,
+      linkageId: prefillLinkageId || null,
       counterparty: fd.get("counterparty") as string,
       direction: fd.get("direction") as string,
       product: fd.get("product") as string,

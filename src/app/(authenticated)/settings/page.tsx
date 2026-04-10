@@ -11,7 +11,10 @@ import {
   UserX,
   UserCheck,
   ChevronDown,
+  Trash2,
+  AlertTriangle,
 } from "lucide-react";
+import { toast } from "sonner";
 
 interface UserRecord {
   id: string;
@@ -132,6 +135,79 @@ function UserRow({
   );
 }
 
+function CleanSlateCard() {
+  const [confirming, setConfirming] = useState(false);
+  const [wiping, setWiping] = useState(false);
+
+  const handleWipe = async () => {
+    setWiping(true);
+    try {
+      const res = await fetch("/api/admin/reset-data", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirm: "WIPE_ALL_DATA" }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success("All data wiped", {
+          description: `${data.deleted.deals} deals, ${data.deleted.linkages} linkages, ${data.deleted.workflowInstances} workflows cleared.`,
+        });
+        setConfirming(false);
+        // Reload after a short delay so session + dashboard refresh
+        setTimeout(() => window.location.href = "/dashboard", 1500);
+      } else {
+        toast.error(data.error || "Failed to wipe data");
+      }
+    } catch {
+      toast.error("Network error");
+    } finally {
+      setWiping(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center gap-2">
+          <AlertTriangle className="h-4 w-4 text-[var(--color-danger)]" />
+          <CardTitle>Clean Slate (Testing)</CardTitle>
+        </div>
+      </CardHeader>
+      <div className="space-y-3">
+        <p className="text-sm text-[var(--color-text-secondary)]">
+          Wipe all deals, linkages, workflow instances, audit logs, email drafts, and documents
+          for this tenant. <strong className="text-[var(--color-text-primary)]">Preserves:</strong> users,
+          parties, email templates, workflow templates.
+        </p>
+        <p className="text-xs text-[var(--color-text-tertiary)]">
+          Use this to start fresh during testing. This action cannot be undone.
+        </p>
+        {!confirming ? (
+          <Button variant="danger" size="sm" onClick={() => setConfirming(true)}>
+            <Trash2 className="h-3 w-3" />
+            Wipe all transactional data
+          </Button>
+        ) : (
+          <div className="flex items-center gap-2 p-3 rounded-[var(--radius-md)] bg-[var(--color-danger-muted,#3d1515)] border border-[var(--color-danger)]">
+            <AlertTriangle className="h-4 w-4 text-[var(--color-danger)] flex-shrink-0" />
+            <div className="flex-1">
+              <p className="text-xs font-medium text-[var(--color-danger)]">
+                Are you sure? All deals and linkages will be deleted permanently.
+              </p>
+            </div>
+            <Button variant="danger" size="sm" onClick={handleWipe} disabled={wiping}>
+              {wiping ? "Wiping..." : "Yes, wipe everything"}
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setConfirming(false)} disabled={wiping}>
+              Cancel
+            </Button>
+          </div>
+        )}
+      </div>
+    </Card>
+  );
+}
+
 export default function SettingsPage() {
   const { data: session } = useSession();
   const [users, setUsers] = useState<UserRecord[]>([]);
@@ -214,6 +290,9 @@ export default function SettingsPage() {
           </div>
         </Card>
       )}
+
+      {/* Clean slate — admin only, destructive */}
+      {isAdmin && <CleanSlateCard />}
 
       {/* Tenant info (read-only for all) */}
       <Card>

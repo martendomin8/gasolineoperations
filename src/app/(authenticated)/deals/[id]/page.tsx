@@ -1031,6 +1031,7 @@ interface LinkedDeal {
 
 function VoyageInfoBar({
   linkageCode,
+  linkageId,
   vesselName,
   vesselImo,
   product,
@@ -1039,8 +1040,11 @@ function VoyageInfoBar({
   pricingType,
   pricingFormula,
   pricingEstimatedDate,
+  canEdit,
+  onVesselUpdated,
 }: {
   linkageCode: string;
+  linkageId: string | null;
   vesselName: string | null;
   vesselImo: string | null;
   product: string;
@@ -1049,10 +1053,54 @@ function VoyageInfoBar({
   pricingType: string | null;
   pricingFormula: string | null;
   pricingEstimatedDate: string | null;
+  canEdit: boolean;
+  onVesselUpdated: () => void;
 }) {
   const operatorInitials = (id: string | null) => {
     if (!id) return null;
     return id.substring(0, 2).toUpperCase();
+  };
+
+  const [editing, setEditing] = useState(false);
+  const [vesselNameDraft, setVesselNameDraft] = useState(vesselName ?? "");
+  const [vesselImoDraft, setVesselImoDraft] = useState(vesselImo ?? "");
+  const [savingVessel, setSavingVessel] = useState(false);
+
+  const startEditing = () => {
+    setVesselNameDraft(vesselName ?? "");
+    setVesselImoDraft(vesselImo ?? "");
+    setEditing(true);
+  };
+
+  const cancelEditing = () => {
+    setEditing(false);
+  };
+
+  const saveVessel = async () => {
+    if (!linkageId) return;
+    setSavingVessel(true);
+    try {
+      const res = await fetch(`/api/linkages/${linkageId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          vesselName: vesselNameDraft.trim() || null,
+          vesselImo: vesselImoDraft.trim() || null,
+        }),
+      });
+      if (res.ok) {
+        toast.success("Vessel updated");
+        setEditing(false);
+        onVesselUpdated();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.error || "Failed to update vessel");
+      }
+    } catch {
+      toast.error("Failed to update vessel");
+    } finally {
+      setSavingVessel(false);
+    }
   };
 
   return (
@@ -1069,19 +1117,76 @@ function VoyageInfoBar({
         <div className="h-5 w-px bg-[var(--color-border-subtle)]" />
 
         {/* Vessel */}
-        <div className="flex items-center gap-2">
-          <Ship className="h-3.5 w-3.5 text-[var(--color-text-tertiary)]" />
-          <div>
-            <span className="text-sm font-medium text-[var(--color-text-primary)]">
-              {vesselName || "TBN"}
-            </span>
-            {vesselImo && (
-              <span className="text-xs font-mono text-[var(--color-text-tertiary)] ml-1.5">
-                IMO {vesselImo}
-              </span>
-            )}
+        {editing && linkageId ? (
+          <div className="flex items-center gap-2 flex-1 min-w-[320px] max-w-md">
+            <Ship className="h-3.5 w-3.5 text-[var(--color-text-tertiary)] flex-shrink-0" />
+            <input
+              type="text"
+              placeholder="Vessel name"
+              value={vesselNameDraft}
+              onChange={(e) => setVesselNameDraft(e.target.value)}
+              disabled={savingVessel}
+              className="flex-1 min-w-0 rounded-[var(--radius-sm)] border border-[var(--color-border-default)] bg-[var(--color-surface-1)] px-2 py-1 text-sm text-[var(--color-text-primary)]"
+            />
+            <input
+              type="text"
+              placeholder="IMO"
+              value={vesselImoDraft}
+              onChange={(e) => setVesselImoDraft(e.target.value)}
+              disabled={savingVessel}
+              className="w-24 rounded-[var(--radius-sm)] border border-[var(--color-border-default)] bg-[var(--color-surface-1)] px-2 py-1 text-xs font-mono text-[var(--color-text-primary)]"
+            />
+            <button
+              type="button"
+              onClick={saveVessel}
+              disabled={savingVessel}
+              className="p-1 rounded text-[var(--color-success)] hover:bg-[var(--color-surface-3)] transition-colors disabled:opacity-50"
+              title="Save"
+            >
+              {savingVessel ? (
+                <div className="h-3.5 w-3.5 rounded-full border-2 border-current border-t-transparent animate-spin" />
+              ) : (
+                <Save className="h-3.5 w-3.5" />
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={cancelEditing}
+              disabled={savingVessel}
+              className="p-1 rounded text-[var(--color-text-tertiary)] hover:bg-[var(--color-surface-3)] transition-colors disabled:opacity-50"
+              title="Cancel"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
           </div>
-        </div>
+        ) : (
+          <button
+            type="button"
+            onClick={canEdit && linkageId ? startEditing : undefined}
+            disabled={!canEdit || !linkageId}
+            className={`flex items-center gap-2 ${
+              canEdit && linkageId
+                ? "cursor-pointer hover:bg-[var(--color-surface-3)] rounded-[var(--radius-sm)] px-2 py-1 -mx-2 -my-1 transition-colors"
+                : "cursor-default"
+            }`}
+            title={canEdit && linkageId ? "Click to edit vessel" : undefined}
+          >
+            <Ship className="h-3.5 w-3.5 text-[var(--color-text-tertiary)]" />
+            <div className="text-left">
+              <span className="text-sm font-medium text-[var(--color-text-primary)]">
+                {vesselName || "TBN"}
+              </span>
+              {vesselImo && (
+                <span className="text-xs font-mono text-[var(--color-text-tertiary)] ml-1.5">
+                  IMO {vesselImo}
+                </span>
+              )}
+            </div>
+            {canEdit && linkageId && (
+              <Pencil className="h-3 w-3 text-[var(--color-text-tertiary)] opacity-60" />
+            )}
+          </button>
+        )}
 
         <div className="h-5 w-px bg-[var(--color-border-subtle)]" />
 
@@ -1274,7 +1379,7 @@ function isOwnTerminalDeal(counterparty: string): boolean {
 }
 
 // ============================================================
-// ADD SALE MENU (two options: Add Sale + Discharge to Terminal)
+// ADD DEAL MENU (4 options per side: Terminal, Existing, Parse, New)
 // ============================================================
 
 interface Party {
@@ -1285,28 +1390,69 @@ interface Party {
   isFixed: boolean;
 }
 
-interface AddSaleMenuProps {
+interface ExistingDealSummary {
+  id: string;
+  linkageCode: string | null;
+  linkageId: string | null;
+  counterparty: string;
+  direction: string;
+  product: string;
+  quantityMt: string;
+  incoterm: string;
+  loadport: string;
+  dischargePort: string | null;
+  laycanStart: string;
+  laycanEnd: string;
+  version: number;
+}
+
+interface AddDealMenuProps {
+  side: "buy" | "sell";
+  linkageId: string;
   linkageCode: string;
-  purchaseDeal: LinkedDeal | null;
+  referenceDeal: LinkedDeal | null;
   onCreated: () => void;
 }
 
-function AddSaleMenu({ linkageCode, purchaseDeal, onCreated }: AddSaleMenuProps) {
+function AddDealMenu({ side, linkageId, linkageCode, referenceDeal, onCreated }: AddDealMenuProps) {
   const router = useRouter();
   const [showMenu, setShowMenu] = useState(false);
-  const [showTerminalPicker, setShowTerminalPicker] = useState(false);
+  const [subView, setSubView] = useState<"none" | "terminal" | "existing">("none");
+
+  // Terminal picker state
   const [terminals, setTerminals] = useState<Party[]>([]);
   const [loadingTerminals, setLoadingTerminals] = useState(false);
   const [creating, setCreating] = useState<string | null>(null);
+
+  // Existing deals picker state
+  const [existingDeals, setExistingDeals] = useState<ExistingDealSummary[]>([]);
+  const [loadingExisting, setLoadingExisting] = useState(false);
+  const [existingQuery, setExistingQuery] = useState("");
+  const [movingDealId, setMovingDealId] = useState<string | null>(null);
+
+  const isBuy = side === "buy";
+  const sideDirection: "buy" | "sell" = side;
+  const sideLabel = isBuy ? "purchase / loading" : "sale / discharge";
+  const existingBorderClass = isBuy
+    ? "border-blue-400/50 bg-blue-50/20 dark:bg-blue-950/10"
+    : "border-amber-400/50 bg-amber-50/20 dark:bg-amber-950/10";
+  const existingIconClass = isBuy
+    ? "text-blue-600 dark:text-blue-400"
+    : "text-amber-600 dark:text-amber-400";
+  const terminalLabel = isBuy ? "Load from own terminal" : "Discharge to own terminal";
+  const terminalDescription = "Own terminal (Amsterdam, Klaipeda, Antwerp)";
+
+  const closeAll = () => {
+    setShowMenu(false);
+    setSubView("none");
+  };
 
   const fetchTerminals = async () => {
     setLoadingTerminals(true);
     try {
       const res = await fetch("/api/parties?type=terminal");
       const data = await res.json();
-      // API returns either flat array or { matched, rest } — handle both
       const all: Party[] = Array.isArray(data) ? data : [...(data.matched ?? []), ...(data.rest ?? [])];
-      // Filter to company's own terminals (isFixed = true)
       setTerminals(all.filter((t) => t.isFixed));
     } catch {
       setTerminals([]);
@@ -1314,26 +1460,44 @@ function AddSaleMenu({ linkageCode, purchaseDeal, onCreated }: AddSaleMenuProps)
     setLoadingTerminals(false);
   };
 
-  const handleDischargeToTerminal = async (terminal: Party) => {
+  const handleTerminalOperation = async (terminal: Party) => {
     setCreating(terminal.id);
     try {
-      // Build deal from purchase data
       const today = new Date().toISOString().slice(0, 10);
-      const dealPayload = {
-        counterparty: `${OWN_TERMINAL_PREFIX}${terminal.name}`,
-        direction: "sell" as const,
-        product: purchaseDeal?.product ?? "Gasoline",
-        quantityMt: 1, // Placeholder — operator will update
-        incoterm: purchaseDeal?.incoterm ?? "FOB",
-        loadport: purchaseDeal?.loadport ?? "",
-        dischargePort: terminal.port ?? terminal.name,
-        laycanStart: purchaseDeal?.laycanStart ?? today,
-        laycanEnd: purchaseDeal?.laycanEnd ?? today,
-        linkageCode,
-        vesselName: purchaseDeal?.vesselName ?? null,
-        vesselImo: purchaseDeal?.vesselImo ?? null,
-        specialInstructions: `Discharge to own terminal: ${terminal.name}`,
-      };
+      const counterparty = `${OWN_TERMINAL_PREFIX}${terminal.name}`;
+      const dealPayload = isBuy
+        ? {
+            counterparty,
+            direction: "buy" as const,
+            product: referenceDeal?.product ?? "Gasoline",
+            quantityMt: 1,
+            incoterm: referenceDeal?.incoterm ?? "FOB",
+            loadport: terminal.port ?? terminal.name,
+            dischargePort: referenceDeal?.dischargePort ?? null,
+            laycanStart: referenceDeal?.laycanStart ?? today,
+            laycanEnd: referenceDeal?.laycanEnd ?? today,
+            linkageId,
+            linkageCode,
+            vesselName: referenceDeal?.vesselName ?? null,
+            vesselImo: referenceDeal?.vesselImo ?? null,
+            specialInstructions: `Load from own terminal: ${terminal.name}`,
+          }
+        : {
+            counterparty,
+            direction: "sell" as const,
+            product: referenceDeal?.product ?? "Gasoline",
+            quantityMt: 1,
+            incoterm: referenceDeal?.incoterm ?? "FOB",
+            loadport: referenceDeal?.loadport ?? "",
+            dischargePort: terminal.port ?? terminal.name,
+            laycanStart: referenceDeal?.laycanStart ?? today,
+            laycanEnd: referenceDeal?.laycanEnd ?? today,
+            linkageId,
+            linkageCode,
+            vesselName: referenceDeal?.vesselName ?? null,
+            vesselImo: referenceDeal?.vesselImo ?? null,
+            specialInstructions: `Discharge to own terminal: ${terminal.name}`,
+          };
 
       const res = await fetch("/api/deals", {
         method: "POST",
@@ -1343,39 +1507,107 @@ function AddSaleMenu({ linkageCode, purchaseDeal, onCreated }: AddSaleMenuProps)
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        toast.error(err.error ?? "Failed to create discharge deal");
+        toast.error(err.error ?? "Failed to create terminal operation");
         setCreating(null);
         return;
       }
 
       const newDeal = await res.json();
-
-      // Create workflow for the new deal
       await fetch(`/api/deals/${newDeal.id}/workflow`, { method: "POST" });
 
-      toast.success(`Discharge to ${terminal.name} created`);
-      setShowTerminalPicker(false);
-      setShowMenu(false);
+      toast.success(
+        isBuy
+          ? `Load from ${terminal.name} created`
+          : `Discharge to ${terminal.name} created`
+      );
+      closeAll();
       onCreated();
     } catch {
-      toast.error("Failed to create discharge deal");
+      toast.error("Failed to create terminal operation");
     }
     setCreating(null);
   };
 
+  const fetchExistingDeals = async () => {
+    setLoadingExisting(true);
+    try {
+      const res = await fetch(`/api/deals?direction=${sideDirection}&perPage=50`);
+      const data = await res.json();
+      const items: ExistingDealSummary[] = (data.items ?? []) as ExistingDealSummary[];
+      // Filter out deals already in this linkage
+      setExistingDeals(items.filter((d) => d.linkageId !== linkageId));
+    } catch {
+      setExistingDeals([]);
+    }
+    setLoadingExisting(false);
+  };
+
+  const handleMoveDeal = async (existing: ExistingDealSummary) => {
+    setMovingDealId(existing.id);
+    try {
+      const res = await fetch(`/api/deals/${existing.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          linkageId,
+          linkageCode,
+          version: existing.version,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.error ?? "Failed to move deal into linkage");
+        setMovingDealId(null);
+        return;
+      }
+      toast.success(`${existing.counterparty} added to linkage`);
+      closeAll();
+      onCreated();
+    } catch {
+      toast.error("Failed to move deal into linkage");
+    }
+    setMovingDealId(null);
+  };
+
+  const goParse = () => {
+    closeAll();
+    router.push(
+      `/deals/parse?linkageId=${encodeURIComponent(linkageId)}&linkageCode=${encodeURIComponent(linkageCode)}&direction=${sideDirection}`
+    );
+  };
+
+  const goNew = () => {
+    closeAll();
+    router.push(
+      `/deals/new?linkageId=${encodeURIComponent(linkageId)}&linkageCode=${encodeURIComponent(linkageCode)}&direction=${sideDirection}`
+    );
+  };
+
+  const filteredExisting = existingDeals.filter((d) => {
+    if (!existingQuery.trim()) return true;
+    const q = existingQuery.toLowerCase();
+    return (
+      d.counterparty.toLowerCase().includes(q) ||
+      d.product.toLowerCase().includes(q) ||
+      (d.linkageCode ?? "").toLowerCase().includes(q) ||
+      d.loadport.toLowerCase().includes(q) ||
+      (d.dischargePort ?? "").toLowerCase().includes(q)
+    );
+  });
+
   // Terminal picker sub-view
-  if (showTerminalPicker) {
+  if (subView === "terminal") {
     return (
       <div className="rounded-[var(--radius-md)] border-2 border-dashed border-teal-400/50 bg-teal-50/30 dark:bg-teal-950/20 p-4 space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Anchor className="h-4 w-4 text-teal-600 dark:text-teal-400" />
             <span className="text-sm font-semibold text-[var(--color-text-primary)]">
-              Select Terminal
+              {terminalLabel}
             </span>
           </div>
           <button
-            onClick={() => { setShowTerminalPicker(false); setShowMenu(false); }}
+            onClick={closeAll}
             className="p-1 rounded hover:bg-[var(--color-surface-3)] transition-colors"
           >
             <X className="h-3.5 w-3.5 text-[var(--color-text-tertiary)]" />
@@ -1395,7 +1627,7 @@ function AddSaleMenu({ linkageCode, purchaseDeal, onCreated }: AddSaleMenuProps)
             {terminals.map((t) => (
               <button
                 key={t.id}
-                onClick={() => handleDischargeToTerminal(t)}
+                onClick={() => handleTerminalOperation(t)}
                 disabled={creating !== null}
                 className="flex items-center gap-3 px-3 py-2.5 rounded-[var(--radius-md)] border border-[var(--color-border-default)] bg-[var(--color-surface-1)] hover:bg-teal-50 dark:hover:bg-teal-950/30 hover:border-teal-400/50 transition-all text-left disabled:opacity-50"
               >
@@ -1421,7 +1653,83 @@ function AddSaleMenu({ linkageCode, purchaseDeal, onCreated }: AddSaleMenuProps)
     );
   }
 
-  // Main menu (collapsed or expanded)
+  // Existing deals picker sub-view
+  if (subView === "existing") {
+    return (
+      <div
+        className={`rounded-[var(--radius-md)] border-2 border-dashed ${existingBorderClass} p-4 space-y-3`}
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Link2 className={`h-4 w-4 ${existingIconClass}`} />
+            <span className="text-sm font-semibold text-[var(--color-text-primary)]">
+              Add existing {sideDirection} deal
+            </span>
+          </div>
+          <button
+            onClick={closeAll}
+            className="p-1 rounded hover:bg-[var(--color-surface-3)] transition-colors"
+          >
+            <X className="h-3.5 w-3.5 text-[var(--color-text-tertiary)]" />
+          </button>
+        </div>
+
+        <input
+          type="text"
+          value={existingQuery}
+          onChange={(e) => setExistingQuery(e.target.value)}
+          placeholder="Search counterparty, product, linkage, port..."
+          className="w-full h-8 px-2 text-sm rounded-[var(--radius-md)] border border-[var(--color-border-default)] bg-[var(--color-surface-1)] text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)]"
+        />
+
+        {loadingExisting ? (
+          <div className="flex items-center justify-center py-4">
+            <div className="h-4 w-4 rounded-full border-2 border-[var(--color-accent)] border-t-transparent animate-spin" />
+          </div>
+        ) : filteredExisting.length === 0 ? (
+          <p className="text-sm text-[var(--color-text-tertiary)] text-center py-3">
+            {existingDeals.length === 0
+              ? `No other ${sideDirection} deals found.`
+              : "No deals match your search."}
+          </p>
+        ) : (
+          <div className="grid gap-1.5 max-h-64 overflow-y-auto">
+            {filteredExisting.map((d) => (
+              <button
+                key={d.id}
+                onClick={() => handleMoveDeal(d)}
+                disabled={movingDealId !== null}
+                className="flex items-center gap-3 px-3 py-2 rounded-[var(--radius-md)] border border-[var(--color-border-default)] bg-[var(--color-surface-1)] hover:bg-[var(--color-surface-3)] transition-all text-left disabled:opacity-50"
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-sm font-medium text-[var(--color-text-primary)] truncate">
+                      {d.counterparty}
+                    </span>
+                    {d.linkageCode && (
+                      <span className="text-[0.625rem] font-mono px-1.5 py-0.5 rounded bg-[var(--color-surface-3)] text-[var(--color-text-tertiary)] flex-shrink-0">
+                        {d.linkageCode}
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-xs text-[var(--color-text-tertiary)] truncate">
+                    {Number(d.quantityMt).toLocaleString()} MT {d.product} — {d.incoterm} —{" "}
+                    {d.loadport}
+                    {d.dischargePort ? ` → ${d.dischargePort}` : ""}
+                  </div>
+                </div>
+                {movingDealId === d.id && (
+                  <div className="h-4 w-4 rounded-full border-2 border-[var(--color-accent)] border-t-transparent animate-spin flex-shrink-0" />
+                )}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Collapsed trigger card
   if (!showMenu) {
     return (
       <button
@@ -1432,50 +1740,104 @@ function AddSaleMenu({ linkageCode, purchaseDeal, onCreated }: AddSaleMenuProps)
           <Plus className="h-4 w-4 text-[var(--color-text-tertiary)] group-hover:text-[var(--color-text-inverse)] transition-colors" />
         </div>
         <span className="text-sm font-medium text-[var(--color-text-tertiary)] group-hover:text-[var(--color-accent-text)] transition-colors">
-          Add Sale / Discharge
+          Add {sideLabel}
         </span>
       </button>
     );
   }
 
-  // Expanded menu with two options
+  // Expanded menu with 4 options
   return (
     <div className="rounded-[var(--radius-md)] border-2 border-dashed border-[var(--color-border-subtle)] bg-[var(--color-surface-1)] overflow-hidden">
+      {/* Option 1: Terminal operation */}
       <button
         onClick={() => {
-          setShowMenu(false);
-          router.push(`/deals/new?linkageCode=${encodeURIComponent(linkageCode)}&direction=sell`);
-        }}
-        className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-[var(--color-accent-muted)] transition-colors text-left border-b border-[var(--color-border-subtle)]"
-      >
-        <div className="h-8 w-8 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center flex-shrink-0">
-          <Plus className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
-        </div>
-        <div>
-          <div className="text-sm font-medium text-[var(--color-text-primary)]">Add Sale</div>
-          <div className="text-xs text-[var(--color-text-tertiary)]">New sale to counterparty</div>
-        </div>
-      </button>
-
-      <button
-        onClick={() => {
-          setShowTerminalPicker(true);
+          setSubView("terminal");
           fetchTerminals();
         }}
-        className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-teal-50 dark:hover:bg-teal-950/20 transition-colors text-left"
+        className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-teal-50 dark:hover:bg-teal-950/20 transition-colors text-left border-b border-[var(--color-border-subtle)]"
       >
         <div className="h-8 w-8 rounded-full bg-teal-100 dark:bg-teal-900/30 flex items-center justify-center flex-shrink-0">
           <Anchor className="h-3.5 w-3.5 text-teal-600 dark:text-teal-400" />
         </div>
         <div>
-          <div className="text-sm font-medium text-[var(--color-text-primary)]">Discharge to Terminal</div>
-          <div className="text-xs text-[var(--color-text-tertiary)]">Own terminal (Amsterdam, Klaipeda, Antwerp)</div>
+          <div className="text-sm font-medium text-[var(--color-text-primary)]">
+            {terminalLabel}
+          </div>
+          <div className="text-xs text-[var(--color-text-tertiary)]">{terminalDescription}</div>
+        </div>
+      </button>
+
+      {/* Option 2: Add existing deal */}
+      <button
+        onClick={() => {
+          setSubView("existing");
+          fetchExistingDeals();
+        }}
+        className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-[var(--color-accent-muted)] transition-colors text-left border-b border-[var(--color-border-subtle)]"
+      >
+        <div
+          className={`h-8 w-8 rounded-full ${
+            isBuy
+              ? "bg-blue-100 dark:bg-blue-900/30"
+              : "bg-amber-100 dark:bg-amber-900/30"
+          } flex items-center justify-center flex-shrink-0`}
+        >
+          <Link2
+            className={`h-3.5 w-3.5 ${
+              isBuy
+                ? "text-blue-600 dark:text-blue-400"
+                : "text-amber-600 dark:text-amber-400"
+            }`}
+          />
+        </div>
+        <div>
+          <div className="text-sm font-medium text-[var(--color-text-primary)]">
+            Add existing deal
+          </div>
+          <div className="text-xs text-[var(--color-text-tertiary)]">
+            Pick a {sideDirection} deal from another linkage
+          </div>
+        </div>
+      </button>
+
+      {/* Option 3: Parse email */}
+      <button
+        onClick={goParse}
+        className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-purple-50 dark:hover:bg-purple-950/20 transition-colors text-left border-b border-[var(--color-border-subtle)]"
+      >
+        <div className="h-8 w-8 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center flex-shrink-0">
+          <Mail className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400" />
+        </div>
+        <div>
+          <div className="text-sm font-medium text-[var(--color-text-primary)]">Parse email</div>
+          <div className="text-xs text-[var(--color-text-tertiary)]">
+            Drop a trader recap — AI parses into a {sideDirection} deal
+          </div>
+        </div>
+      </button>
+
+      {/* Option 4: New deal from scratch */}
+      <button
+        onClick={goNew}
+        className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-[var(--color-accent-muted)] transition-colors text-left"
+      >
+        <div className="h-8 w-8 rounded-full bg-[var(--color-surface-3)] flex items-center justify-center flex-shrink-0">
+          <Plus className="h-3.5 w-3.5 text-[var(--color-text-secondary)]" />
+        </div>
+        <div>
+          <div className="text-sm font-medium text-[var(--color-text-primary)]">
+            New deal from scratch
+          </div>
+          <div className="text-xs text-[var(--color-text-tertiary)]">
+            Open the {sideDirection} deal form, pre-filled for this linkage
+          </div>
         </div>
       </button>
 
       <button
-        onClick={() => setShowMenu(false)}
-        className="w-full py-2 text-xs text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] transition-colors"
+        onClick={closeAll}
+        className="w-full py-2 text-xs text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] transition-colors border-t border-[var(--color-border-subtle)]"
       >
         Cancel
       </button>
@@ -1770,6 +2132,7 @@ function LinkageView({ deal, linkedDeals, isOperator, fetchDeal }: LinkageViewPr
       {/* Voyage Info Bar */}
       <VoyageInfoBar
         linkageCode={deal.linkageCode!}
+        linkageId={deal.linkageId ?? null}
         vesselName={voyageSource?.vesselName ?? null}
         vesselImo={voyageSource?.vesselImo ?? null}
         product={voyageSource?.product ?? deal.product}
@@ -1778,6 +2141,8 @@ function LinkageView({ deal, linkedDeals, isOperator, fetchDeal }: LinkageViewPr
         pricingType={pricingSource?.pricingType ?? null}
         pricingFormula={pricingSource?.pricingFormula ?? null}
         pricingEstimatedDate={pricingSource?.pricingEstimatedDate ?? null}
+        canEdit={isOperator}
+        onVesselUpdated={fetchDeal}
       />
 
       {/* Documents */}
@@ -1795,7 +2160,7 @@ function LinkageView({ deal, linkedDeals, isOperator, fetchDeal }: LinkageViewPr
             </span>
           </h2>
           {buyDeals.length === 0 ? (
-            <div className="rounded-[var(--radius-md)] border border-dashed border-[var(--color-border-subtle)] py-8 text-center">
+            <div className="rounded-[var(--radius-md)] border border-dashed border-[var(--color-border-subtle)] py-6 text-center">
               <p className="text-sm text-[var(--color-text-tertiary)]">No purchase deals linked</p>
             </div>
           ) : (
@@ -1810,6 +2175,16 @@ function LinkageView({ deal, linkedDeals, isOperator, fetchDeal }: LinkageViewPr
               />
             ))
           )}
+          {/* Always show "Add Purchase / Loading" menu */}
+          {isOperator && deal.linkageId && (
+            <AddDealMenu
+              side="buy"
+              linkageId={deal.linkageId}
+              linkageCode={deal.linkageCode ?? ""}
+              referenceDeal={buyDeals[0] ?? sellDeals[0] ?? null}
+              onCreated={fetchDeal}
+            />
+          )}
         </div>
 
         {/* Right: Sell side */}
@@ -1821,22 +2196,32 @@ function LinkageView({ deal, linkedDeals, isOperator, fetchDeal }: LinkageViewPr
               ({sellDeals.length} deal{sellDeals.length !== 1 ? "s" : ""})
             </span>
           </h2>
-          {sellDeals.map((d) => (
-            <LinkedDealCard
-              key={d.id}
-              deal={d}
-              side="sell"
-              isCurrent={d.id === deal.id}
-              isOperator={isOperator}
-              fetchDeal={fetchDeal}
-            />
-          ))}
+          {sellDeals.length === 0 ? (
+            <div className="rounded-[var(--radius-md)] border border-dashed border-[var(--color-border-subtle)] py-6 text-center">
+              <p className="text-sm text-[var(--color-text-tertiary)]">No sale deals linked</p>
+            </div>
+          ) : (
+            sellDeals.map((d) => (
+              <LinkedDealCard
+                key={d.id}
+                deal={d}
+                side="sell"
+                isCurrent={d.id === deal.id}
+                isOperator={isOperator}
+                fetchDeal={fetchDeal}
+              />
+            ))
+          )}
           {/* Always show "Add Sale / Discharge" menu */}
-          <AddSaleMenu
-            linkageCode={deal.linkageCode!}
-            purchaseDeal={buyDeals[0] ?? null}
-            onCreated={fetchDeal}
-          />
+          {isOperator && deal.linkageId && (
+            <AddDealMenu
+              side="sell"
+              linkageId={deal.linkageId}
+              linkageCode={deal.linkageCode ?? ""}
+              referenceDeal={buyDeals[0] ?? sellDeals[0] ?? null}
+              onCreated={fetchDeal}
+            />
+          )}
         </div>
       </div>
 

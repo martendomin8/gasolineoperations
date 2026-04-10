@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -53,6 +53,20 @@ interface ParseResult {
   confidenceScores: Record<string, number>;
   mode: "ai" | "demo";
   demoNotice?: string;
+}
+
+interface LinkageSuggestion {
+  linkageId: string;
+  displayName: string;
+  score: number;
+  reason: string;
+  deals: Array<{
+    id: string;
+    counterparty: string;
+    direction: "buy" | "sell";
+    quantityMt: number;
+    product: string;
+  }>;
 }
 
 // ============================================================
@@ -450,12 +464,19 @@ function DebugPanel({ onLoad }: { onLoad: (text: string) => void }) {
 
 export default function ParseDealPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const prefillLinkageId = searchParams.get("linkageId");
+  const prefillDirection = searchParams.get("direction"); // "buy" | "sell" | null
   const [rawText, setRawText] = useState("");
   const [uploadedFilename, setUploadedFilename] = useState<string | null>(null);
   const [parsing, setParsing] = useState(false);
   const [result, setResult] = useState<ParseResult | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [editedFields, setEditedFields] = useState<Record<string, string>>({});
+  const [editedFields, setEditedFields] = useState<Record<string, string>>(
+    prefillDirection === "buy" || prefillDirection === "sell"
+      ? { direction: prefillDirection }
+      : {}
+  );
   const [creating, setCreating] = useState(false);
 
   // Duplicate detection state
@@ -465,6 +486,16 @@ export default function ParseDealPage() {
   const [manualLinkageCode, setManualLinkageCode] = useState("");
   const [activeLinkageCodes, setActiveLinkageCodes] = useState<string[]>([]);
   const [pendingPayload, setPendingPayload] = useState<any>(null);
+
+  // Linkage suggestion state (auto-detect which linkage this deal belongs to)
+  const [linkageSuggestions, setLinkageSuggestions] = useState<LinkageSuggestion[]>([]);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+  // null = "Create new linkage"; string = linkageId to link to
+  // If prefillLinkageId is provided (came from a linkage view's "+" menu),
+  // lock this deal to that linkage from the start.
+  const [selectedLinkageId, setSelectedLinkageId] = useState<string | null>(
+    prefillLinkageId ?? null
+  );
 
   // E2E: parse then immediately create and navigate — one click
   const [e2eRunning, setE2eRunning] = useState(false);
@@ -481,12 +512,69 @@ export default function ParseDealPage() {
     return data as ParseResult;
   };
 
+  const fetchLinkageSuggestions = async (fields: Record<string, string>) => {
+    // Only fetch if we have enough signal to match against
+    if (
+      !fields.counterparty ||
+      !fields.direction ||
+      !fields.product ||
+      !fields.quantity_mt ||
+      !fields.laycan_start ||
+      !fields.laycan_end
+    ) {
+      setLinkageSuggestions([]);
+      setSelectedLinkageId(null);
+      return;
+    }
+
+    setLoadingSuggestions(true);
+    try {
+      const res = await fetch("/api/linkages/suggest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          counterparty: fields.counterparty,
+          direction: fields.direction,
+          product: fields.product,
+          quantityMt: Number(fields.quantity_mt),
+          laycanStart: fields.laycan_start,
+          laycanEnd: fields.laycan_end,
+          vesselName: fields.vessel_name || null,
+          loadport: fields.loadport || "",
+          dischargePort: fields.discharge_port || null,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const suggestions: LinkageSuggestion[] = data.suggestions ?? [];
+        setLinkageSuggestions(suggestions);
+        // Preselect the top suggestion if any, otherwise "new linkage"
+        setSelectedLinkageId(suggestions[0]?.linkageId ?? null);
+      } else {
+        setLinkageSuggestions([]);
+        setSelectedLinkageId(null);
+      }
+    } catch {
+      setLinkageSuggestions([]);
+      setSelectedLinkageId(null);
+    } finally {
+      setLoadingSuggestions(false);
+    }
+  };
+
   const handleParse = async () => {
     if (!rawText.trim()) return;
     setParsing(true);
     setError(null);
     setResult(null);
-    setEditedFields({});
+    setEditedFields(
+      prefillDirection === "buy" || prefillDirection === "sell"
+        ? { direction: prefillDirection }
+        : {}
+    );
+    setLinkageSuggestions([]);
+    // Preserve prefill linkage lock across re-parse
+    setSelectedLinkageId(prefillLinkageId ?? null);
 
     try {
       const data = await runParse(rawText);
@@ -496,7 +584,19 @@ export default function ParseDealPage() {
       for (const [k, v] of Object.entries(data.fields)) {
         initial[k] = v != null ? String(v) : "";
       }
+      // If the parse came from a linkage "+ parse email" menu, force the
+      // direction the operator clicked — the AI parser sometimes flips it.
+      if (prefillDirection === "buy" || prefillDirection === "sell") {
+        initial.direction = prefillDirection;
+      }
       setEditedFields(initial);
+      // If caller pre-locked the linkage, keep it locked and skip suggestions.
+      if (prefillLinkageId) {
+        setSelectedLinkageId(prefillLinkageId);
+      } else {
+        // Auto-detect linkage based on parsed fields
+        fetchLinkageSuggestions(initial);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Parsing failed");
     } finally {
@@ -508,7 +608,11 @@ export default function ParseDealPage() {
     setEditedFields((prev) => ({ ...prev, [key]: val }));
   };
 
-  const buildDealPayload = (fields: Record<string, string>, source: string) => ({
+  const buildDealPayload = (
+    fields: Record<string, string>,
+    source: string,
+    linkageId?: string | null
+  ) => ({
     counterparty: fields.counterparty || undefined,
     direction: fields.direction || undefined,
     product: fields.product || undefined,
@@ -526,6 +630,9 @@ export default function ParseDealPage() {
     specialInstructions: fields.special_instructions || null,
     externalRef: fields.external_ref || null,
     sourceRawText: source,
+    // Auto-linkage: if linkageId is provided (non-null), backend links to it;
+    // if omitted/null, backend auto-creates a TEMP linkage.
+    linkageId: linkageId ?? undefined,
   });
 
   const submitDeal = async (payload: any) => {
@@ -547,7 +654,7 @@ export default function ParseDealPage() {
   const handleCreateDeal = async () => {
     setCreating(true);
     setError(null);
-    const payload = buildDealPayload(editedFields, rawText);
+    const payload = buildDealPayload(editedFields, rawText, selectedLinkageId);
 
     try {
       // Check for duplicates first
@@ -887,6 +994,113 @@ Price: Platts CIF NWE -$5/MT`}
                 <div className="flex items-center gap-1.5 text-xs text-[var(--color-text-tertiary)]">
                   <AlertTriangle className="h-3 w-3 text-[var(--color-danger)]" />&lt;50% — fill in
                 </div>
+              </div>
+
+              {/* Linkage suggestions */}
+              <div className="pt-3 border-t border-[var(--color-border-subtle)] mt-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <Link2 className="h-3.5 w-3.5 text-[var(--color-accent)]" />
+                  <p className="text-[0.6875rem] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider">
+                    Linkage
+                  </p>
+                  {loadingSuggestions && (
+                    <div className="h-3 w-3 rounded-full border-2 border-[var(--color-accent)] border-t-transparent animate-spin" />
+                  )}
+                </div>
+
+                {linkageSuggestions.length > 0 ? (
+                  <>
+                    <p className="text-xs text-[var(--color-text-secondary)] mb-2">
+                      We found existing linkages that may match:
+                    </p>
+                    <div className="space-y-1.5">
+                      {linkageSuggestions.map((sug) => (
+                        <button
+                          key={sug.linkageId}
+                          onClick={() => setSelectedLinkageId(sug.linkageId)}
+                          className={`w-full flex items-start gap-2.5 p-2.5 rounded-[var(--radius-md)] border text-left transition-colors ${
+                            selectedLinkageId === sug.linkageId
+                              ? "border-[var(--color-accent)] bg-[var(--color-accent-muted)]"
+                              : "border-[var(--color-border-default)] hover:bg-[var(--color-surface-3)]"
+                          }`}
+                        >
+                          <span
+                            className={`mt-0.5 h-3.5 w-3.5 rounded-full border flex-shrink-0 flex items-center justify-center ${
+                              selectedLinkageId === sug.linkageId
+                                ? "border-[var(--color-accent)] bg-[var(--color-accent)]"
+                                : "border-[var(--color-border-default)]"
+                            }`}
+                          >
+                            {selectedLinkageId === sug.linkageId && (
+                              <span className="h-1.5 w-1.5 rounded-full bg-white" />
+                            )}
+                          </span>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-sm font-mono font-medium text-[var(--color-text-primary)]">
+                                {sug.displayName}
+                              </span>
+                              <Badge variant="accent">{sug.score}% match</Badge>
+                            </div>
+                            {sug.deals.length > 0 && (
+                              <p className="text-[0.6875rem] text-[var(--color-text-secondary)] mt-0.5">
+                                {sug.deals
+                                  .slice(0, 2)
+                                  .map(
+                                    (d) =>
+                                      `${d.direction === "buy" ? "Buy from" : "Sell to"} ${d.counterparty} ${Number(
+                                        d.quantityMt
+                                      ).toLocaleString()} MT`
+                                  )
+                                  .join(" · ")}
+                                {sug.deals.length > 2 && ` · +${sug.deals.length - 2} more`}
+                              </p>
+                            )}
+                            {sug.reason && (
+                              <p className="text-[0.6875rem] text-[var(--color-text-tertiary)] mt-0.5">
+                                {sug.reason}
+                              </p>
+                            )}
+                          </div>
+                        </button>
+                      ))}
+
+                      {/* Create new linkage option */}
+                      <button
+                        onClick={() => setSelectedLinkageId(null)}
+                        className={`w-full flex items-start gap-2.5 p-2.5 rounded-[var(--radius-md)] border text-left transition-colors ${
+                          selectedLinkageId === null
+                            ? "border-[var(--color-accent)] bg-[var(--color-accent-muted)]"
+                            : "border-[var(--color-border-default)] hover:bg-[var(--color-surface-3)]"
+                        }`}
+                      >
+                        <span
+                          className={`mt-0.5 h-3.5 w-3.5 rounded-full border flex-shrink-0 flex items-center justify-center ${
+                            selectedLinkageId === null
+                              ? "border-[var(--color-accent)] bg-[var(--color-accent)]"
+                              : "border-[var(--color-border-default)]"
+                          }`}
+                        >
+                          {selectedLinkageId === null && (
+                            <span className="h-1.5 w-1.5 rounded-full bg-white" />
+                          )}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <Plus className="h-3.5 w-3.5 text-[var(--color-text-secondary)]" />
+                          <span className="text-sm text-[var(--color-text-primary)]">
+                            Create new linkage
+                          </span>
+                        </div>
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-xs text-[var(--color-text-tertiary)]">
+                    {loadingSuggestions
+                      ? "Checking for matching linkages…"
+                      : "No matching linkages found — a new TEMP linkage will be created."}
+                  </p>
+                )}
               </div>
 
               {/* Create deal button */}

@@ -124,6 +124,8 @@ export const linkages = pgTable(
     linkageNumber: varchar("linkage_number", { length: 100 }),
     tempName: varchar("temp_name", { length: 100 }).notNull(),
     status: varchar("status", { length: 50 }).default("active").notNull(),
+    vesselName: varchar("vessel_name", { length: 255 }),
+    vesselImo: varchar("vessel_imo", { length: 20 }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },

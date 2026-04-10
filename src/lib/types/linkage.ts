@@ -10,6 +10,8 @@ export const createLinkageSchema = z.object({
 export const updateLinkageSchema = z.object({
   linkageNumber: z.string().max(100).nullable().optional(),
   status: z.enum(["active", "completed"]).optional(),
+  vesselName: z.string().max(255).nullable().optional(),
+  vesselImo: z.string().max(20).nullable().optional(),
 });
 
 export type CreateLinkageInput = z.infer<typeof createLinkageSchema>;

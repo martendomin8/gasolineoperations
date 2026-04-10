@@ -1,9 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { withAuth } from "@/lib/middleware/with-auth";
 import { withTenantDb } from "@/lib/db";
-import { deals, auditLogs, users, workflowInstances, workflowSteps } from "@/lib/db/schema";
+import { deals, linkages, auditLogs, users, workflowInstances, workflowSteps } from "@/lib/db/schema";
 import { createDealSchema, dealFilterSchema } from "@/lib/types/deal";
-import { eq, and, ilike, or, desc, sql } from "drizzle-orm";
+import { eq, and, ilike, or, desc, sql, like } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 
 /** Map workflow step status to display value for Excel view */
@@ -97,8 +97,8 @@ export const GET = withAuth(async (req, _ctx, session) => {
           dischargePort: deals.dischargePort,
           laycanStart: deals.laycanStart,
           laycanEnd: deals.laycanEnd,
-          vesselName: deals.vesselName,
-          vesselImo: deals.vesselImo,
+          vesselName: sql<string | null>`coalesce(${linkages.vesselName}, ${deals.vesselName})`,
+          vesselImo: sql<string | null>`coalesce(${linkages.vesselImo}, ${deals.vesselImo})`,
           status: deals.status,
           pricingType: deals.pricingType,
           pricingFormula: deals.pricingFormula,
@@ -119,6 +119,7 @@ export const GET = withAuth(async (req, _ctx, session) => {
         .from(deals)
         .leftJoin(primaryOp, eq(deals.assignedOperatorId, primaryOp.id))
         .leftJoin(secondaryOp, eq(deals.secondaryOperatorId, secondaryOp.id))
+        .leftJoin(linkages, eq(deals.linkageId, linkages.id))
         .where(and(...conditions))
         .orderBy(desc(deals.createdAt))
         .limit(filters.perPage)
@@ -248,6 +249,68 @@ export const POST = withAuth(
     const validated = parseResult.data;
 
     const result = await withTenantDb(session.user.tenantId, async (db) => {
+      // --- Resolve linkage: every deal MUST belong to exactly one linkage ---
+      // Priority:
+      //   1. linkageId provided → look it up; sync linkageCode to its display name
+      //   2. linkageId absent  → auto-create a TEMP-NNN linkage
+      let linkageId: string | null = validated.linkageId ?? null;
+      let linkageCode: string | null = validated.linkageCode ?? null;
+
+      if (linkageId) {
+        const [existing] = await db
+          .select({
+            id: linkages.id,
+            linkageNumber: linkages.linkageNumber,
+            tempName: linkages.tempName,
+          })
+          .from(linkages)
+          .where(
+            and(
+              eq(linkages.id, linkageId),
+              eq(linkages.tenantId, session.user.tenantId)
+            )
+          )
+          .limit(1);
+
+        if (!existing) {
+          throw new Error("Linkage not found");
+        }
+        // Keep linkageCode in sync with the linkage's display name
+        linkageCode = existing.linkageNumber ?? existing.tempName;
+      } else {
+        // Auto-create a TEMP-NNN linkage
+        const [lastTemp] = await db
+          .select({ tempName: linkages.tempName })
+          .from(linkages)
+          .where(
+            and(
+              eq(linkages.tenantId, session.user.tenantId),
+              like(linkages.tempName, "TEMP-%")
+            )
+          )
+          .orderBy(desc(linkages.tempName))
+          .limit(1);
+
+        let nextNumber = 1;
+        if (lastTemp?.tempName) {
+          const match = lastTemp.tempName.match(/^TEMP-(\d+)$/);
+          if (match) nextNumber = parseInt(match[1], 10) + 1;
+        }
+        const tempName = `TEMP-${String(nextNumber).padStart(3, "0")}`;
+
+        const [createdLinkage] = await db
+          .insert(linkages)
+          .values({
+            tenantId: session.user.tenantId,
+            linkageNumber: null,
+            tempName,
+          })
+          .returning();
+
+        linkageId = createdLinkage.id;
+        linkageCode = tempName;
+      }
+
       const [deal] = await db
         .insert(deals)
         .values({
@@ -263,7 +326,8 @@ export const POST = withAuth(
           contractedQty: validated.contractedQty ?? null,
           dischargePort: validated.dischargePort ?? null,
           externalRef: validated.externalRef ?? null,
-          linkageCode: validated.linkageCode ?? null,
+          linkageCode,
+          linkageId,
           vesselName: validated.vesselName ?? null,
           vesselImo: validated.vesselImo ?? null,
           assignedOperatorId: validated.assignedOperatorId ?? null,
@@ -277,6 +341,47 @@ export const POST = withAuth(
           createdBy: session.user.id,
         })
         .returning();
+
+      // Propagate vessel info up to the linkage. When the deal has vessel info and
+      // the linkage's corresponding vessel field is still empty, write it so all
+      // sibling deals share the same vessel at the linkage level.
+      if (linkageId && (validated.vesselName || validated.vesselImo)) {
+        const [existingLinkage] = await db
+          .select({
+            vesselName: linkages.vesselName,
+            vesselImo: linkages.vesselImo,
+          })
+          .from(linkages)
+          .where(
+            and(
+              eq(linkages.id, linkageId),
+              eq(linkages.tenantId, session.user.tenantId)
+            )
+          )
+          .limit(1);
+
+        if (existingLinkage) {
+          const linkagePatch: Record<string, unknown> = {};
+          if (!existingLinkage.vesselName && validated.vesselName) {
+            linkagePatch.vesselName = validated.vesselName;
+          }
+          if (!existingLinkage.vesselImo && validated.vesselImo) {
+            linkagePatch.vesselImo = validated.vesselImo;
+          }
+          if (Object.keys(linkagePatch).length > 0) {
+            linkagePatch.updatedAt = new Date();
+            await db
+              .update(linkages)
+              .set(linkagePatch)
+              .where(
+                and(
+                  eq(linkages.id, linkageId),
+                  eq(linkages.tenantId, session.user.tenantId)
+                )
+              );
+          }
+        }
+      }
 
       await db.insert(auditLogs).values({
         tenantId: session.user.tenantId,

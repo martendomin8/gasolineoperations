@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { withAuth } from "@/lib/middleware/with-auth";
 import { withTenantDb } from "@/lib/db";
-import { deals, auditLogs, dealChangeLogs, emailDrafts, workflowSteps, workflowInstances } from "@/lib/db/schema";
+import { deals, linkages, auditLogs, dealChangeLogs, emailDrafts, workflowSteps, workflowInstances } from "@/lib/db/schema";
 import { updateDealSchema, isValidTransition, RE_NOTIFICATION_FIELDS } from "@/lib/types/deal";
 import { eq, and, desc, inArray } from "drizzle-orm";
 import type { DealStatus } from "@/lib/db/schema";
@@ -36,6 +36,28 @@ export const GET = withAuth(async (_req, ctx, session) => {
       .limit(1);
 
     if (!deal) return null;
+
+    // Override vesselName/vesselImo with linkage-level values when the deal belongs to a linkage
+    if (deal.linkageId) {
+      const [linkage] = await db
+        .select({
+          vesselName: linkages.vesselName,
+          vesselImo: linkages.vesselImo,
+        })
+        .from(linkages)
+        .where(
+          and(
+            eq(linkages.id, deal.linkageId),
+            eq(linkages.tenantId, session.user.tenantId)
+          )
+        )
+        .limit(1);
+
+      if (linkage) {
+        deal.vesselName = linkage.vesselName ?? deal.vesselName;
+        deal.vesselImo = linkage.vesselImo ?? deal.vesselImo;
+      }
+    }
 
     // Fetch change history and audit log
     const [changes, logs] = await Promise.all([
