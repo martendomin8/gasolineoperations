@@ -9,6 +9,13 @@ export interface ParsedDealFields {
   direction: "buy" | "sell" | null;
   product: string | null;
   quantity_mt: number | null;
+  /**
+   * Full contracted quantity with tolerance text EXACTLY as written in the recap,
+   * e.g. "18000 MT +/-10%", "37kt +/- 5%". This preserves the operator's view of
+   * the original contractual number. `quantity_mt` stays the numeric middle value
+   * for calculations.
+   */
+  contracted_qty: string | null;
   incoterm: "FOB" | "CIF" | "CFR" | "DAP" | "FCA" | null;
   loadport: string | null;
   discharge_port: string | null;
@@ -44,7 +51,7 @@ Be precise and conservative with confidence scores:
 - 0.0-0.49: Guessed or not mentioned — set field to null instead
 
 For dates, always output YYYY-MM-DD format. If only a month/year is given (e.g. "April 5/7"), use the current year.
-For quantities, extract the number in metric tonnes (MT). Convert from BBLs if needed (1 MT ≈ 7.5 BBLs for gasoline).
+For quantities: extract TWO values. (1) quantity_mt = the numeric middle/nominal quantity in metric tonnes (e.g. for "18000 MT +/-10%" → 18000; for "37kt +/-5%" → 37000). Convert from BBLs if needed (1 MT ≈ 7.5 BBLs for gasoline). (2) contracted_qty = the full text EXACTLY as written in the recap, including units and tolerance, e.g. "18000 MT +/-10%", "37kt +/- 5%", "25,000 MT +/-10% in buyer's option". Preserve the original spacing and casing. If there is no tolerance stated, contracted_qty can be just the plain quantity string (e.g. "30,000 MT").
 For direction: "buy" means we are purchasing, "sell" means we are selling.
 For pricing: extract both the pricing formula (e.g. 'Platts FOB Baltic +$5.50/MT') AND the pricing period type (BL, NOR, Fixed, or EFP) with its parameters (e.g. '0-1-5'). BL+5 is shorthand for BL 0-0-5.`;
 
@@ -57,7 +64,8 @@ const EXTRACTION_TOOL: Anthropic.Tool = {
       counterparty: { type: "string", description: "Company name of the trading counterparty" },
       direction: { type: "string", enum: ["buy", "sell"], description: "Trade direction from our perspective" },
       product: { type: "string", description: "Product grade (e.g. EBOB, RBOB, Eurobob Oxy, Light Naphtha, Reformate)" },
-      quantity_mt: { type: "number", description: "Quantity in metric tonnes" },
+      quantity_mt: { type: "number", description: "Numeric middle/nominal quantity in metric tonnes (e.g. 18000 for '18000 MT +/-10%', 37000 for '37kt +/-5%')" },
+      contracted_qty: { type: "string", description: "Full contracted quantity with tolerance, EXACTLY as written in the recap including units and tolerance notation. Examples: '18000 MT +/-10%', '37kt +/- 5%', '25,000 MT +/-10% in buyer's option'. If no tolerance is stated, the plain quantity string is fine." },
       incoterm: { type: "string", enum: ["FOB", "CIF", "CFR", "DAP", "FCA"], description: "Incoterm" },
       loadport: { type: "string", description: "Loading port or terminal city" },
       discharge_port: { type: "string", description: "Discharge port or terminal city" },
@@ -78,6 +86,7 @@ const EXTRACTION_TOOL: Anthropic.Tool = {
           direction: { type: "number" },
           product: { type: "number" },
           quantity_mt: { type: "number" },
+          contracted_qty: { type: "number" },
           incoterm: { type: "number" },
           loadport: { type: "number" },
           discharge_port: { type: "number" },
@@ -139,6 +148,7 @@ export async function parseDealFromText(rawText: string): Promise<ParsedDealResu
     direction: (input.direction as "buy" | "sell") ?? null,
     product: (input.product as string) ?? null,
     quantity_mt: (input.quantity_mt as number) ?? null,
+    contracted_qty: (input.contracted_qty as string) ?? null,
     incoterm: (input.incoterm as ParsedDealFields["incoterm"]) ?? null,
     loadport: (input.loadport as string) ?? null,
     discharge_port: (input.discharge_port as string) ?? null,
@@ -302,12 +312,32 @@ export function parseDealDemo(rawText: string): ParsedDealResult {
 
   // ── Quantity ─────────────────────────────────────────────────
   let quantity_mt: number | null = null;
+  let contracted_qty: string | null = null;
   // "30,000 MT" / "30kt" / "30 KT" / "28,500 metric tonnes"
   const qtyMT  = rawText.match(/(\d[\d,]+)\s*(?:mt|mts|metric\s*ton(?:ne)?s?)\b/i);
   const qtyKT  = rawText.match(/(\d+(?:\.\d+)?)\s*kt\b/i);
   if (qtyMT)      { quantity_mt = parseFloat(qtyMT[1].replace(/,/g, "")); scores.quantity_mt = 0.9; }
   else if (qtyKT) { quantity_mt = parseFloat(qtyKT[1]) * 1000;            scores.quantity_mt = 0.85; }
   else             { scores.quantity_mt = 0; }
+
+  // Contracted qty with tolerance — capture the full text including tolerance,
+  // e.g. "18000 MT +/-10%", "37kt +/- 5%", "25,000 MT +/- 10%".
+  // Pattern tries to match number + unit + optional tolerance in one chunk.
+  const qtyTolerance = rawText.match(
+    /(\d[\d,]*(?:\.\d+)?)\s*(mt|mts|kt|metric\s*ton(?:ne)?s?)\s*([+\-±]\s*\/?\s*[+\-]?\s*\d+(?:\.\d+)?\s*%)/i
+  );
+  if (qtyTolerance) {
+    contracted_qty = qtyTolerance[0].replace(/\s+/g, " ").trim();
+    scores.contracted_qty = 0.92;
+  } else if (qtyMT) {
+    contracted_qty = qtyMT[0].replace(/\s+/g, " ").trim();
+    scores.contracted_qty = 0.7;
+  } else if (qtyKT) {
+    contracted_qty = qtyKT[0].replace(/\s+/g, " ").trim();
+    scores.contracted_qty = 0.7;
+  } else {
+    scores.contracted_qty = 0;
+  }
 
   // ── Ports ────────────────────────────────────────────────────
   const PORT_ALIASES: Record<string, string> = {
@@ -487,7 +517,7 @@ export function parseDealDemo(rawText: string): ParsedDealResult {
   scores.special_instructions = special_instructions ? 0.75 : 0;
 
   const fields: ParsedDealFields = {
-    counterparty, direction, product, quantity_mt, incoterm,
+    counterparty, direction, product, quantity_mt, contracted_qty, incoterm,
     loadport, discharge_port, laycan_start, laycan_end,
     vessel_name, vessel_imo, pricing_formula,
     pricing_period_type, pricing_period_value,

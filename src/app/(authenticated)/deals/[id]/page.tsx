@@ -42,6 +42,7 @@ import {
   Upload,
   Merge,
   Scissors,
+  Trash2,
 } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
@@ -56,6 +57,17 @@ interface LinkageSummary {
   tempName: string;
   status: string;
   dealCount: number;
+}
+
+interface LinkageDetail {
+  id: string;
+  linkageNumber: string | null;
+  tempName: string;
+  vesselName: string | null;
+  vesselImo: string | null;
+  assignedOperatorId: string | null;
+  secondaryOperatorId: string | null;
+  status: string;
 }
 
 interface DealDetail {
@@ -1056,8 +1068,27 @@ function VoyageInfoBar({
   canEdit: boolean;
   onVesselUpdated: () => void;
 }) {
+  // Operator list + name cache for proper initials display
+  const [operators, setOperators] = useState<Array<{ id: string; name: string }>>([]);
+
+  useEffect(() => {
+    if (!canEdit) return;
+    fetch("/api/users?role=operator")
+      .then((r) => r.json())
+      .then((data) => setOperators(data.users ?? []))
+      .catch(() => setOperators([]));
+  }, [canEdit]);
+
   const operatorInitials = (id: string | null) => {
     if (!id) return null;
+    const user = operators.find((u) => u.id === id);
+    if (user?.name) {
+      return user.name
+        .split(/\s+/)
+        .map((n) => n[0]?.toUpperCase() ?? "")
+        .join("")
+        .slice(0, 2);
+    }
     return id.substring(0, 2).toUpperCase();
   };
 
@@ -1065,6 +1096,54 @@ function VoyageInfoBar({
   const [vesselNameDraft, setVesselNameDraft] = useState(vesselName ?? "");
   const [vesselImoDraft, setVesselImoDraft] = useState(vesselImo ?? "");
   const [savingVessel, setSavingVessel] = useState(false);
+
+  // Linkage number editor state
+  const [editingLinkage, setEditingLinkage] = useState(false);
+  const [linkageNumberDraft, setLinkageNumberDraft] = useState(linkageCode ?? "");
+  const [savingLinkage, setSavingLinkage] = useState(false);
+
+  // Operator editor state
+  const [editingOperators, setEditingOperators] = useState(false);
+  const [primaryOperatorDraft, setPrimaryOperatorDraft] = useState(assignedOperatorId ?? "");
+  const [secondaryOperatorDraft, setSecondaryOperatorDraft] = useState(secondaryOperatorId ?? "");
+  const [savingOperators, setSavingOperators] = useState(false);
+
+  const startEditingOperators = () => {
+    setPrimaryOperatorDraft(assignedOperatorId ?? "");
+    setSecondaryOperatorDraft(secondaryOperatorId ?? "");
+    setEditingOperators(true);
+  };
+
+  const cancelEditingOperators = () => {
+    setEditingOperators(false);
+  };
+
+  const saveOperators = async () => {
+    if (!linkageId) return;
+    setSavingOperators(true);
+    try {
+      const res = await fetch(`/api/linkages/${linkageId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          assignedOperatorId: primaryOperatorDraft || null,
+          secondaryOperatorId: secondaryOperatorDraft || null,
+        }),
+      });
+      if (res.ok) {
+        toast.success("Operators updated");
+        setEditingOperators(false);
+        onVesselUpdated();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.error || "Failed to update operators");
+      }
+    } catch {
+      toast.error("Failed to update operators");
+    } finally {
+      setSavingOperators(false);
+    }
+  };
 
   const startEditing = () => {
     setVesselNameDraft(vesselName ?? "");
@@ -1074,6 +1153,44 @@ function VoyageInfoBar({
 
   const cancelEditing = () => {
     setEditing(false);
+  };
+
+  const startEditingLinkage = () => {
+    setLinkageNumberDraft(linkageCode ?? "");
+    setEditingLinkage(true);
+  };
+
+  const cancelEditingLinkage = () => {
+    setEditingLinkage(false);
+  };
+
+  const saveLinkageNumber = async () => {
+    if (!linkageId) return;
+    const next = linkageNumberDraft.trim();
+    if (!next) {
+      toast.error("Linkage number cannot be empty");
+      return;
+    }
+    setSavingLinkage(true);
+    try {
+      const res = await fetch(`/api/linkages/${linkageId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ linkageNumber: next }),
+      });
+      if (res.ok) {
+        toast.success("Linkage number updated");
+        setEditingLinkage(false);
+        onVesselUpdated();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.error || "Failed to update linkage number");
+      }
+    } catch {
+      toast.error("Failed to update linkage number");
+    } finally {
+      setSavingLinkage(false);
+    }
   };
 
   const saveVessel = async () => {
@@ -1106,13 +1223,63 @@ function VoyageInfoBar({
   return (
     <div className="rounded-[var(--radius-md)] bg-[var(--color-surface-2)] border border-[var(--color-border-default)] border-b-2 border-b-[var(--color-border-default)]">
       <div className="flex items-center gap-6 px-5 py-3 flex-wrap">
-        {/* Linkage code */}
-        <div className="flex items-center gap-2">
-          <Link2 className="h-4 w-4 text-[var(--color-accent)]" />
-          <span className="text-lg font-bold font-mono text-[var(--color-text-primary)] tracking-wide">
-            {linkageCode}
-          </span>
-        </div>
+        {/* Linkage code — inline-editable */}
+        {editingLinkage && linkageId ? (
+          <div className="flex items-center gap-2">
+            <Link2 className="h-4 w-4 text-[var(--color-accent)] flex-shrink-0" />
+            <input
+              type="text"
+              value={linkageNumberDraft}
+              onChange={(e) => setLinkageNumberDraft(e.target.value)}
+              disabled={savingLinkage}
+              placeholder="Linkage number"
+              className="w-44 rounded-[var(--radius-sm)] border border-[var(--color-border-default)] bg-[var(--color-surface-1)] px-2 py-1 text-base font-mono font-bold text-[var(--color-text-primary)] tracking-wide"
+              autoFocus
+            />
+            <button
+              type="button"
+              onClick={saveLinkageNumber}
+              disabled={savingLinkage}
+              className="p-1 rounded text-[var(--color-success)] hover:bg-[var(--color-surface-3)] transition-colors disabled:opacity-50"
+              title="Save linkage number"
+            >
+              {savingLinkage ? (
+                <div className="h-3.5 w-3.5 rounded-full border-2 border-current border-t-transparent animate-spin" />
+              ) : (
+                <Save className="h-3.5 w-3.5" />
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={cancelEditingLinkage}
+              disabled={savingLinkage}
+              className="p-1 rounded text-[var(--color-text-tertiary)] hover:bg-[var(--color-surface-3)] transition-colors disabled:opacity-50"
+              title="Cancel"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={canEdit && linkageId ? startEditingLinkage : undefined}
+            disabled={!canEdit || !linkageId}
+            className={`flex items-center gap-2 ${
+              canEdit && linkageId
+                ? "cursor-pointer hover:bg-[var(--color-surface-3)] rounded-[var(--radius-sm)] px-2 py-1 -mx-2 -my-1 transition-colors"
+                : "cursor-default"
+            }`}
+            title={canEdit && linkageId ? "Click to edit linkage number" : undefined}
+          >
+            <Link2 className="h-4 w-4 text-[var(--color-accent)]" />
+            <span className="text-lg font-bold font-mono text-[var(--color-text-primary)] tracking-wide">
+              {linkageCode}
+            </span>
+            {canEdit && linkageId && (
+              <Pencil className="h-3 w-3 text-[var(--color-text-tertiary)] opacity-60" />
+            )}
+          </button>
+        )}
 
         <div className="h-5 w-px bg-[var(--color-border-subtle)]" />
 
@@ -1198,23 +1365,86 @@ function VoyageInfoBar({
 
         <div className="h-5 w-px bg-[var(--color-border-subtle)]" />
 
-        {/* Operators */}
-        <div className="flex items-center gap-1.5">
-          <Users className="h-3.5 w-3.5 text-[var(--color-text-tertiary)]" />
-          {assignedOperatorId && (
-            <span className="h-6 w-6 rounded-full bg-[var(--color-accent)] text-[var(--color-text-inverse)] text-[0.625rem] font-bold flex items-center justify-center">
-              {operatorInitials(assignedOperatorId)}
-            </span>
-          )}
-          {secondaryOperatorId && (
-            <span className="h-6 w-6 rounded-full bg-[var(--color-surface-3)] text-[var(--color-text-secondary)] text-[0.625rem] font-bold flex items-center justify-center border border-[var(--color-border-subtle)]">
-              {operatorInitials(secondaryOperatorId)}
-            </span>
-          )}
-          {!assignedOperatorId && !secondaryOperatorId && (
-            <span className="text-xs text-[var(--color-text-tertiary)]">Unassigned</span>
-          )}
-        </div>
+        {/* Operators — click to edit (linkage-level only) */}
+        {editingOperators && linkageId ? (
+          <div className="flex items-center gap-2">
+            <Users className="h-3.5 w-3.5 text-[var(--color-text-tertiary)]" />
+            <select
+              value={primaryOperatorDraft}
+              onChange={(e) => setPrimaryOperatorDraft(e.target.value)}
+              disabled={savingOperators}
+              className="rounded-[var(--radius-sm)] border border-[var(--color-border-default)] bg-[var(--color-surface-1)] px-2 py-1 text-xs text-[var(--color-text-primary)]"
+            >
+              <option value="">— primary —</option>
+              {operators.map((op) => (
+                <option key={op.id} value={op.id}>{op.name}</option>
+              ))}
+            </select>
+            <select
+              value={secondaryOperatorDraft}
+              onChange={(e) => setSecondaryOperatorDraft(e.target.value)}
+              disabled={savingOperators}
+              className="rounded-[var(--radius-sm)] border border-[var(--color-border-default)] bg-[var(--color-surface-1)] px-2 py-1 text-xs text-[var(--color-text-primary)]"
+            >
+              <option value="">— secondary —</option>
+              {operators.map((op) => (
+                <option key={op.id} value={op.id}>{op.name}</option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={saveOperators}
+              disabled={savingOperators}
+              className="p-1 rounded text-[var(--color-success)] hover:bg-[var(--color-surface-3)] transition-colors disabled:opacity-50"
+              title="Save operators"
+            >
+              {savingOperators ? (
+                <div className="h-3.5 w-3.5 rounded-full border-2 border-current border-t-transparent animate-spin" />
+              ) : (
+                <Save className="h-3.5 w-3.5" />
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={cancelEditingOperators}
+              disabled={savingOperators}
+              className="p-1 rounded text-[var(--color-text-tertiary)] hover:bg-[var(--color-surface-3)] transition-colors disabled:opacity-50"
+              title="Cancel"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={canEdit && linkageId ? startEditingOperators : undefined}
+            disabled={!canEdit || !linkageId}
+            className={`flex items-center gap-1.5 ${
+              canEdit && linkageId
+                ? "cursor-pointer hover:bg-[var(--color-surface-3)] rounded-[var(--radius-sm)] px-2 py-1 -mx-2 -my-1 transition-colors"
+                : "cursor-default"
+            }`}
+            title={canEdit && linkageId ? "Click to assign operators (linkage-level)" : undefined}
+          >
+            <Users className="h-3.5 w-3.5 text-[var(--color-text-tertiary)]" />
+            {assignedOperatorId && (
+              <span className="h-6 w-6 rounded-full bg-[var(--color-accent)] text-[var(--color-text-inverse)] text-[0.625rem] font-bold flex items-center justify-center">
+                {operatorInitials(assignedOperatorId)}
+              </span>
+            )}
+            {secondaryOperatorId && (
+              <span className="h-6 w-6 rounded-full bg-[var(--color-surface-3)] text-[var(--color-text-secondary)] text-[0.625rem] font-bold flex items-center justify-center border border-[var(--color-border-subtle)]">
+                {operatorInitials(secondaryOperatorId)}
+              </span>
+            )}
+            {!assignedOperatorId && !secondaryOperatorId && (
+              <span className="text-xs text-[var(--color-text-tertiary)]">Unassigned</span>
+            )}
+            {canEdit && linkageId && (
+              <Pencil className="h-3 w-3 text-[var(--color-text-tertiary)] opacity-60 ml-0.5" />
+            )}
+          </button>
+        )}
 
         {/* Pricing - pushed to the right */}
         {(pricingType || pricingFormula) && (
@@ -1461,6 +1691,14 @@ function AddDealMenu({ side, linkageId, linkageCode, referenceDeal, onCreated }:
   };
 
   const handleTerminalOperation = async (terminal: Party) => {
+    // Hard guard: a terminal-op MUST be attached to the current linkage. If
+    // linkageId is somehow missing (stale closure, prop drift, etc.) we refuse
+    // to create the deal — silently auto-creating a TEMP linkage was the
+    // round 5/6 data-loss bug.
+    if (!linkageId) {
+      toast.error("Cannot add terminal operation: linkage is not loaded yet. Please refresh.");
+      return;
+    }
     setCreating(terminal.id);
     try {
       const today = new Date().toISOString().slice(0, 10);
@@ -1469,6 +1707,9 @@ function AddDealMenu({ side, linkageId, linkageCode, referenceDeal, onCreated }:
         ? {
             counterparty,
             direction: "buy" as const,
+            // CRITICAL: dealType must be set so the Excel view groups this row
+            // under INTERNAL / TERMINAL OPERATIONS instead of PURCHASE.
+            dealType: "terminal_operation" as const,
             product: referenceDeal?.product ?? "Gasoline",
             quantityMt: 1,
             incoterm: referenceDeal?.incoterm ?? "FOB",
@@ -1485,6 +1726,7 @@ function AddDealMenu({ side, linkageId, linkageCode, referenceDeal, onCreated }:
         : {
             counterparty,
             direction: "sell" as const,
+            dealType: "terminal_operation" as const,
             product: referenceDeal?.product ?? "Gasoline",
             quantityMt: 1,
             incoterm: referenceDeal?.incoterm ?? "FOB",
@@ -1852,11 +2094,12 @@ function AddDealMenu({ side, linkageId, linkageCode, referenceDeal, onCreated }:
 interface LinkageViewProps {
   deal: DealDetail;
   linkedDeals: LinkedDeal[];
+  linkage: LinkageDetail | null;
   isOperator: boolean;
   fetchDeal: () => void;
 }
 
-function LinkageView({ deal, linkedDeals, isOperator, fetchDeal }: LinkageViewProps) {
+function LinkageView({ deal, linkedDeals, linkage, isOperator, fetchDeal }: LinkageViewProps) {
   const router = useRouter();
   const buyDeals = linkedDeals.filter((d) => d.direction === "buy");
   const sellDeals = linkedDeals.filter((d) => d.direction === "sell");
@@ -1952,6 +2195,57 @@ function LinkageView({ deal, linkedDeals, isOperator, fetchDeal }: LinkageViewPr
     }
   };
 
+  // Delete dialog state
+  const [deleteDealOpen, setDeleteDealOpen] = useState(false);
+  const [deleteDealLoading, setDeleteDealLoading] = useState(false);
+  const [deleteLinkageOpen, setDeleteLinkageOpen] = useState(false);
+  const [deleteLinkageLoading, setDeleteLinkageLoading] = useState(false);
+
+  const handleDeleteDeal = async () => {
+    setDeleteDealLoading(true);
+    try {
+      const res = await fetch(`/api/deals/${deal.id}`, { method: "DELETE" });
+      if (res.ok) {
+        toast.success("Deal deleted");
+        router.push("/deals");
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.error || "Failed to delete deal");
+        setDeleteDealLoading(false);
+        setDeleteDealOpen(false);
+      }
+    } catch {
+      toast.error("Failed to delete deal");
+      setDeleteDealLoading(false);
+      setDeleteDealOpen(false);
+    }
+  };
+
+  const handleDeleteLinkage = async () => {
+    if (!deal.linkageId) return;
+    setDeleteLinkageLoading(true);
+    try {
+      const res = await fetch(`/api/linkages/${deal.linkageId}`, { method: "DELETE" });
+      if (res.ok) {
+        toast.success("Linkage deleted");
+        router.push("/deals");
+      } else {
+        const err = await res.json().catch(() => ({}));
+        if (err.error === "linkage_has_deals") {
+          toast.error(err.message || "Remove all deals from this linkage first");
+        } else {
+          toast.error(err.error || "Failed to delete linkage");
+        }
+        setDeleteLinkageLoading(false);
+        setDeleteLinkageOpen(false);
+      }
+    } catch {
+      toast.error("Failed to delete linkage");
+      setDeleteLinkageLoading(false);
+      setDeleteLinkageOpen(false);
+    }
+  };
+
   // Gather shared voyage info from whichever deal has it
   const voyageSource = linkedDeals.find((d) => d.vesselName) ?? linkedDeals[0];
   const pricingSource = linkedDeals.find((d) => d.pricingFormula || d.pricingType) ?? linkedDeals[0];
@@ -1987,6 +2281,15 @@ function LinkageView({ deal, linkedDeals, isOperator, fetchDeal }: LinkageViewPr
                 <Scissors className="h-3.5 w-3.5" />
                 Split
               </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setDeleteLinkageOpen(true)}
+                className="text-[var(--color-danger)] hover:bg-[var(--color-danger)]/10"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Delete Linkage
+              </Button>
             </>
           )}
           {isOperator && (
@@ -1996,6 +2299,17 @@ function LinkageView({ deal, linkedDeals, isOperator, fetchDeal }: LinkageViewPr
                 Edit Current
               </Button>
             </Link>
+          )}
+          {isOperator && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setDeleteDealOpen(true)}
+              className="text-[var(--color-danger)] hover:bg-[var(--color-danger)]/10"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Delete Deal
+            </Button>
           )}
           <DealExportDropdown dealId={deal.id} />
         </div>
@@ -2129,15 +2443,86 @@ function LinkageView({ deal, linkedDeals, isOperator, fetchDeal }: LinkageViewPr
         </div>
       </Dialog>
 
+      {/* Delete Deal Confirmation */}
+      <Dialog
+        open={deleteDealOpen}
+        onClose={() => !deleteDealLoading && setDeleteDealOpen(false)}
+        title="Delete this deal?"
+        description="This will permanently remove the deal and all of its workflow steps, email drafts, and change history. This cannot be undone."
+      >
+        <div className="space-y-4">
+          <div className="rounded-[var(--radius-md)] border border-[var(--color-danger)]/30 bg-[var(--color-danger)]/5 px-4 py-3 text-sm text-[var(--color-text-secondary)]">
+            <div className="font-medium text-[var(--color-text-primary)] mb-1">
+              {deal.counterparty} — {deal.direction.toUpperCase()} {deal.product}
+            </div>
+            <div className="text-xs font-mono text-[var(--color-text-tertiary)]">
+              {Number(deal.quantityMt).toLocaleString()} MT · {deal.incoterm} · {deal.loadport}
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="ghost" size="sm" onClick={() => setDeleteDealOpen(false)} disabled={deleteDealLoading}>
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              size="sm"
+              onClick={handleDeleteDeal}
+              loading={deleteDealLoading}
+            >
+              Delete Deal
+            </Button>
+          </div>
+        </div>
+      </Dialog>
+
+      {/* Delete Linkage Confirmation */}
+      <Dialog
+        open={deleteLinkageOpen}
+        onClose={() => !deleteLinkageLoading && setDeleteLinkageOpen(false)}
+        title="Delete this linkage?"
+        description="Linkages can only be deleted when empty. If this linkage still has deals, you'll need to remove them first."
+      >
+        <div className="space-y-4">
+          <div className="rounded-[var(--radius-md)] border border-[var(--color-danger)]/30 bg-[var(--color-danger)]/5 px-4 py-3 text-sm text-[var(--color-text-secondary)]">
+            <div className="font-mono font-medium text-[var(--color-text-primary)] mb-1">
+              {deal.linkageCode}
+            </div>
+            <div className="text-xs text-[var(--color-text-tertiary)]">
+              {linkedDeals.length} deal{linkedDeals.length === 1 ? "" : "s"} currently attached
+            </div>
+          </div>
+          {linkedDeals.length > 0 && (
+            <p className="text-xs text-[var(--color-warning)]">
+              This linkage still contains {linkedDeals.length} deal{linkedDeals.length === 1 ? "" : "s"}.
+              The delete will fail — remove all deals first.
+            </p>
+          )}
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="ghost" size="sm" onClick={() => setDeleteLinkageOpen(false)} disabled={deleteLinkageLoading}>
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              size="sm"
+              onClick={handleDeleteLinkage}
+              loading={deleteLinkageLoading}
+              disabled={linkedDeals.length > 0}
+            >
+              Delete Linkage
+            </Button>
+          </div>
+        </div>
+      </Dialog>
+
       {/* Voyage Info Bar */}
       <VoyageInfoBar
         linkageCode={deal.linkageCode!}
         linkageId={deal.linkageId ?? null}
-        vesselName={voyageSource?.vesselName ?? null}
-        vesselImo={voyageSource?.vesselImo ?? null}
+        vesselName={linkage?.vesselName ?? voyageSource?.vesselName ?? null}
+        vesselImo={linkage?.vesselImo ?? voyageSource?.vesselImo ?? null}
         product={voyageSource?.product ?? deal.product}
-        assignedOperatorId={voyageSource?.assignedOperatorId ?? null}
-        secondaryOperatorId={voyageSource?.secondaryOperatorId ?? null}
+        assignedOperatorId={linkage?.assignedOperatorId ?? voyageSource?.assignedOperatorId ?? null}
+        secondaryOperatorId={linkage?.secondaryOperatorId ?? voyageSource?.secondaryOperatorId ?? null}
         pricingType={pricingSource?.pricingType ?? null}
         pricingFormula={pricingSource?.pricingFormula ?? null}
         pricingEstimatedDate={pricingSource?.pricingEstimatedDate ?? null}
@@ -2243,6 +2628,30 @@ interface SingleDealViewProps {
 }
 
 function SingleDealView({ deal, canEdit, isOperator, fetchDeal }: SingleDealViewProps) {
+  const router = useRouter();
+  const [deleteDealOpen, setDeleteDealOpen] = useState(false);
+  const [deleteDealLoading, setDeleteDealLoading] = useState(false);
+
+  const handleDeleteDeal = async () => {
+    setDeleteDealLoading(true);
+    try {
+      const res = await fetch(`/api/deals/${deal.id}`, { method: "DELETE" });
+      if (res.ok) {
+        toast.success("Deal deleted");
+        router.push("/deals");
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.error || "Failed to delete deal");
+        setDeleteDealLoading(false);
+        setDeleteDealOpen(false);
+      }
+    } catch {
+      toast.error("Failed to delete deal");
+      setDeleteDealLoading(false);
+      setDeleteDealOpen(false);
+    }
+  };
+
   return (
     <div className="max-w-4xl space-y-6">
       {/* Header */}
@@ -2277,6 +2686,17 @@ function SingleDealView({ deal, canEdit, isOperator, fetchDeal }: SingleDealView
                   Edit
                 </Button>
               </Link>
+            )}
+            {canEdit && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setDeleteDealOpen(true)}
+                className="text-[var(--color-danger)] hover:bg-[var(--color-danger)]/10"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Delete
+              </Button>
             )}
             <DealExportDropdown dealId={deal.id} />
           </div>
@@ -2391,6 +2811,38 @@ function SingleDealView({ deal, canEdit, isOperator, fetchDeal }: SingleDealView
 
       {/* Change History + Audit */}
       <DealFooterSections deal={deal} />
+
+      {/* Delete Deal Confirmation */}
+      <Dialog
+        open={deleteDealOpen}
+        onClose={() => !deleteDealLoading && setDeleteDealOpen(false)}
+        title="Delete this deal?"
+        description="This will permanently remove the deal and all of its workflow steps, email drafts, and change history. This cannot be undone."
+      >
+        <div className="space-y-4">
+          <div className="rounded-[var(--radius-md)] border border-[var(--color-danger)]/30 bg-[var(--color-danger)]/5 px-4 py-3 text-sm text-[var(--color-text-secondary)]">
+            <div className="font-medium text-[var(--color-text-primary)] mb-1">
+              {deal.counterparty} — {deal.direction.toUpperCase()} {deal.product}
+            </div>
+            <div className="text-xs font-mono text-[var(--color-text-tertiary)]">
+              {Number(deal.quantityMt).toLocaleString()} MT · {deal.incoterm} · {deal.loadport}
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="ghost" size="sm" onClick={() => setDeleteDealOpen(false)} disabled={deleteDealLoading}>
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              size="sm"
+              onClick={handleDeleteDeal}
+              loading={deleteDealLoading}
+            >
+              Delete Deal
+            </Button>
+          </div>
+        </div>
+      </Dialog>
     </div>
   );
 }
@@ -2688,25 +3140,51 @@ export default function DealDetailPage() {
   const { data: session } = useSession();
   const [deal, setDeal] = useState<DealDetail | null>(null);
   const [linkedDeals, setLinkedDeals] = useState<LinkedDeal[]>([]);
+  const [linkage, setLinkage] = useState<LinkageDetail | null>(null);
   const [loading, setLoading] = useState(true);
 
   const fetchDeal = useCallback(() => {
-    fetch(`/api/deals/${id}`)
+    // Cache-bust everything: this is called immediately after deal mutations
+    // (create, edit, link rename) and stale reads cause silent corruption.
+    const t = Date.now();
+    fetch(`/api/deals/${id}?_t=${t}`, { cache: "no-store" })
       .then((r) => r.json())
       .then(async (data) => {
         setDeal(data);
 
-        // If deal has a linkageCode, fetch all linked deals
-        if (data.linkageCode) {
+        // Prefer the stable linkageId FK for grouping — the linkageCode string can
+        // drift after a linkage number update and would break the view. Fall back to
+        // linkageCode only for legacy rows that predate the linkages table.
+        if (data.linkageId) {
           try {
-            const res = await fetch(`/api/deals?linkageCode=${encodeURIComponent(data.linkageCode)}&perPage=50`);
-            const linked = await res.json();
+            const [dealsRes, linkageRes] = await Promise.all([
+              fetch(`/api/deals?linkageId=${encodeURIComponent(data.linkageId)}&perPage=50&_t=${t}`, { cache: "no-store" }),
+              fetch(`/api/linkages/${encodeURIComponent(data.linkageId)}?_t=${t}`, { cache: "no-store" }),
+            ]);
+            const linked = await dealsRes.json();
             setLinkedDeals(linked.items ?? []);
+            if (linkageRes.ok) {
+              setLinkage(await linkageRes.json());
+            } else {
+              setLinkage(null);
+            }
           } catch {
             setLinkedDeals([]);
+            setLinkage(null);
+          }
+        } else if (data.linkageCode) {
+          try {
+            const res = await fetch(`/api/deals?linkageCode=${encodeURIComponent(data.linkageCode)}&perPage=50&_t=${t}`, { cache: "no-store" });
+            const linked = await res.json();
+            setLinkedDeals(linked.items ?? []);
+            setLinkage(null);
+          } catch {
+            setLinkedDeals([]);
+            setLinkage(null);
           }
         } else {
           setLinkedDeals([]);
+          setLinkage(null);
         }
 
         setLoading(false);
@@ -2740,6 +3218,7 @@ export default function DealDetailPage() {
         <LinkageView
           deal={deal}
           linkedDeals={linkedDeals}
+          linkage={linkage}
           isOperator={isOperator ?? false}
           fetchDeal={fetchDeal}
         />

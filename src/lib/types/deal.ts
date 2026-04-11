@@ -169,6 +169,7 @@ export const dealFilterSchema = z.object({
   incoterm: z.enum(incoterms).optional(),
   counterparty: z.string().optional(),
   linkageCode: z.string().optional(),
+  linkageId: z.string().uuid().optional(),
   assignedOperatorId: z.string().uuid().optional(),
   search: z.string().optional(),
   page: z.coerce.number().int().positive().default(1),

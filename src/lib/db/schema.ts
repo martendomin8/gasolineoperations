@@ -126,6 +126,10 @@ export const linkages = pgTable(
     status: varchar("status", { length: 50 }).default("active").notNull(),
     vesselName: varchar("vessel_name", { length: 255 }),
     vesselImo: varchar("vessel_imo", { length: 20 }),
+    // Operators work entire voyages, so the assignment lives on the linkage and all
+    // deals inside it inherit. `deals.secondary_operator_id` is deprecated.
+    assignedOperatorId: uuid("assigned_operator_id").references(() => users.id),
+    secondaryOperatorId: uuid("secondary_operator_id").references(() => users.id),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },

@@ -300,7 +300,10 @@ export const PUT = withAuth(
   { roles: ["operator", "admin"] }
 );
 
-// DELETE /api/deals/:id — Cancel deal (operator/admin)
+// DELETE /api/deals/:id — Hard delete deal (operator/admin)
+// Dependent rows (workflow_instances → workflow_steps → email_drafts, deal_change_logs,
+// deal_legs, documents) cascade automatically via FK ON DELETE CASCADE.
+// audit_logs.deal_id is ON DELETE SET NULL by design — the audit trail is preserved.
 export const DELETE = withAuth(
   async (_req, ctx, session) => {
     const { id } = await (ctx as RouteContext).params;
@@ -314,35 +317,34 @@ export const DELETE = withAuth(
 
       if (!current) return null;
 
-      if (!isValidTransition(current.status as DealStatus, "cancelled")) {
-        return { error: `Cannot cancel a deal in ${current.status} status` };
-      }
-
-      const [updated] = await db
-        .update(deals)
-        .set({ status: "cancelled", updatedAt: new Date() })
-        .where(and(eq(deals.id, id), eq(deals.tenantId, session.user.tenantId)))
-        .returning();
-
+      // Write the audit log BEFORE deleting so the entry survives (audit_logs.deal_id
+      // is SET NULL on delete, but the row + details JSON is preserved).
       await db.insert(auditLogs).values({
         tenantId: session.user.tenantId,
         dealId: id,
         userId: session.user.id,
-        action: "deal.cancelled",
-        details: { previousStatus: current.status },
+        action: "deal.deleted",
+        details: {
+          counterparty: current.counterparty,
+          direction: current.direction,
+          product: current.product,
+          status: current.status,
+          linkageCode: current.linkageCode,
+        },
       });
 
-      return updated;
+      await db
+        .delete(deals)
+        .where(and(eq(deals.id, id), eq(deals.tenantId, session.user.tenantId)));
+
+      return { deleted: true as const };
     });
 
     if (!result) {
       return NextResponse.json({ error: "Deal not found" }, { status: 404 });
     }
-    if ("error" in result) {
-      return NextResponse.json({ error: result.error }, { status: 422 });
-    }
 
-    return NextResponse.json(result);
+    return NextResponse.json({ ok: true });
   },
   { roles: ["operator", "admin"] }
 );

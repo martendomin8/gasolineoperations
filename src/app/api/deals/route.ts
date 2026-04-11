@@ -37,6 +37,7 @@ export const GET = withAuth(async (req, _ctx, session) => {
     incoterm: url.searchParams.get("incoterm") || undefined,
     counterparty: url.searchParams.get("counterparty") || undefined,
     linkageCode: url.searchParams.get("linkageCode") || undefined,
+    linkageId: url.searchParams.get("linkageId") || undefined,
     assignedOperatorId: url.searchParams.get("assignedOperatorId") || undefined,
     search: url.searchParams.get("search") || undefined,
     page: url.searchParams.get("page") || 1,
@@ -57,6 +58,9 @@ export const GET = withAuth(async (req, _ctx, session) => {
     // NOT from the deals list. The deals list shows all statuses by default.
     if (filters.direction) conditions.push(eq(deals.direction, filters.direction));
     if (filters.incoterm) conditions.push(eq(deals.incoterm, filters.incoterm));
+    // Prefer the stable linkageId FK — this is the grouping the linkage view uses.
+    if (filters.linkageId)
+      conditions.push(eq(deals.linkageId, filters.linkageId));
     if (filters.linkageCode)
       conditions.push(eq(deals.linkageCode, filters.linkageCode));
     if (filters.assignedOperatorId)
@@ -229,8 +233,11 @@ export const GET = withAuth(async (req, _ctx, session) => {
   if (!result) {
     return NextResponse.json({ error: "Failed to fetch deals" }, { status: 500 });
   }
+  // No-store: deal data changes frequently (status edits, linkage renames,
+  // adds, deletes). Stale data here causes cross-page consistency bugs (e.g.
+  // dashboard showing TEMP-001 after a linkage rename to 911WTF).
   const response = NextResponse.json(result);
-  response.headers.set("Cache-Control", "private, max-age=5, stale-while-revalidate=30");
+  response.headers.set("Cache-Control", "no-store");
   return response;
 });
 
@@ -252,7 +259,14 @@ export const POST = withAuth(
       // --- Resolve linkage: every deal MUST belong to exactly one linkage ---
       // Priority:
       //   1. linkageId provided → look it up; sync linkageCode to its display name
-      //   2. linkageId absent  → auto-create a TEMP-NNN linkage
+      //   2. linkageId absent but linkageCode provided → look up linkage by code
+      //      (matches linkage_number first, then temp_name) within tenant
+      //   3. neither provided → auto-create a TEMP-NNN linkage
+      //
+      // The linkageCode fallback is the round-6 fix: previously the endpoint
+      // silently auto-created a fresh TEMP linkage when the caller forgot to
+      // pass linkageId, even when a perfectly valid linkageCode was supplied.
+      // That made stale closures and prop drift duplicate linkages.
       let linkageId: string | null = validated.linkageId ?? null;
       let linkageCode: string | null = validated.linkageCode ?? null;
 
@@ -277,7 +291,53 @@ export const POST = withAuth(
         }
         // Keep linkageCode in sync with the linkage's display name
         linkageCode = existing.linkageNumber ?? existing.tempName;
-      } else {
+      } else if (linkageCode) {
+        // Fallback: look up the linkage by its display code (linkage_number,
+        // then temp_name). If a match exists, attach this deal to it.
+        const [byNumber] = await db
+          .select({
+            id: linkages.id,
+            linkageNumber: linkages.linkageNumber,
+            tempName: linkages.tempName,
+          })
+          .from(linkages)
+          .where(
+            and(
+              eq(linkages.tenantId, session.user.tenantId),
+              eq(linkages.linkageNumber, linkageCode)
+            )
+          )
+          .limit(1);
+
+        let matched = byNumber;
+        if (!matched) {
+          const [byTemp] = await db
+            .select({
+              id: linkages.id,
+              linkageNumber: linkages.linkageNumber,
+              tempName: linkages.tempName,
+            })
+            .from(linkages)
+            .where(
+              and(
+                eq(linkages.tenantId, session.user.tenantId),
+                eq(linkages.tempName, linkageCode)
+              )
+            )
+            .limit(1);
+          matched = byTemp;
+        }
+
+        if (matched) {
+          linkageId = matched.id;
+          linkageCode = matched.linkageNumber ?? matched.tempName;
+        } else {
+          // No match — fall through to auto-create below
+          linkageId = null;
+        }
+      }
+
+      if (!linkageId) {
         // Auto-create a TEMP-NNN linkage
         const [lastTemp] = await db
           .select({ tempName: linkages.tempName })
@@ -316,6 +376,11 @@ export const POST = withAuth(
         .values({
           counterparty: validated.counterparty,
           direction: validated.direction,
+          // dealType: must be persisted so terminal-op deals end up in the
+          // INTERNAL/TERMINAL OPERATIONS section of the Excel view rather than
+          // PURCHASE. The Zod schema defaults to "regular" so omitting this
+          // here was the round-6 silent corruption bug.
+          dealType: validated.dealType ?? "regular",
           product: validated.product,
           incoterm: validated.incoterm,
           loadport: validated.loadport,

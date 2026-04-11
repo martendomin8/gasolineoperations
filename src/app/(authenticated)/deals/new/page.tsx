@@ -212,12 +212,19 @@ export default function NewDealPage() {
               <Input label="Nominated Qty" name="nominatedQty" type="number" step="0.001" placeholder="Exact nominated quantity" />
             </div>
             <Select label="Incoterm" name="incoterm" options={incotermOptions} required placeholder="Select incoterm" error={errors.incoterm} />
-            <Select
-              label="Secondary Operator"
-              name="secondaryOperatorId"
-              options={[{ value: "", label: "— None —" }, ...operators.map((o) => ({ value: o.id, label: o.name }))]}
-              placeholder="Optional secondary operator"
-            />
+            {prefillLinkageId ? (
+              <div className="rounded-[var(--radius-md)] border border-dashed border-[var(--color-border-default)] bg-[var(--color-surface-2)] px-4 py-3 text-xs text-[var(--color-text-tertiary)]">
+                Secondary operator is managed at the linkage level. Assign operators in the
+                voyage bar of the linkage view after creating this deal.
+              </div>
+            ) : (
+              <Select
+                label="Secondary Operator"
+                name="secondaryOperatorId"
+                options={[{ value: "", label: "— None —" }, ...operators.map((o) => ({ value: o.id, label: o.name }))]}
+                placeholder="Optional secondary operator"
+              />
+            )}
           </div>
         </Card>
 

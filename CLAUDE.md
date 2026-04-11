@@ -111,6 +111,21 @@ If the operator creates two separate linkages and later discovers they're the sa
 - **From dashboard "+" button**: Creates empty linkage (no deals yet) for planned operations
 - Empty linkages can have terminal operations added via the "+" button in the linkage view
 
+### Updating the Linkage Number
+
+The linkage number (e.g. `086412GSS`) is updated via the **inline editor in the voyage info bar** at the top of the linkage view. This is the ONLY legitimate way to change a linkage number.
+
+- Operator clicks the linkage code in the voyage bar → inline input → save
+- The update is sent to `PUT /api/linkages/:id` with `{ linkageNumber }`
+- The backend cascades the new value to all child deals' `linkage_code` field via a WHERE clause on `linkage_id` FK — so every deal in the linkage stays in sync
+- **Never edit `linkage_code` on an individual deal.** The deal edit form has no such input — linkage_code is read-only at the deal level. Editing it would orphan one deal from its siblings and break the linkage grouping.
+
+### Deleting Linkages
+
+- `DELETE /api/linkages/:id` is a **guarded delete**: if any deal still references the linkage (`linkage_id = :id`), the API returns `{ error: "linkage_has_deals" }` with HTTP 400.
+- Operator must first delete (or reassign) every deal in the linkage before the linkage itself can be removed.
+- The UI shows a "Delete Linkage" button that opens a confirmation modal; on a guard error it surfaces a toast: "Remove all deals from this linkage first."
+
 ### Linking Patterns
 
 | Pattern | Example |
@@ -165,12 +180,17 @@ Tenant
 User
   id, tenant_id, email, name, role (operator|trader|admin), created_at
 
-Linkage (NEW — every deal belongs to exactly one linkage)
+Linkage (every deal belongs to exactly one linkage)
   id, tenant_id,
   linkage_number (nullable — official number from trader's ETRM system),
   temp_name (auto-generated, e.g. "TEMP-001"),
   display_name (computed: linkage_number ?? temp_name),
-  status (active|completed), created_at
+  vessel_name (nullable — shared by all deals in this linkage),
+  vessel_imo (nullable),
+  assigned_operator_id (nullable — primary operator for this voyage),
+  secondary_operator_id (nullable — backup operator; moved from Deal),
+  status (active|completed),
+  created_at, updated_at
 
 Deal
   id, tenant_id, linkage_id (FK → Linkage, required, never null),
@@ -187,7 +207,8 @@ Deal
   pricing_period_value (text — e.g. "0-1-5" or "1-15 Mar"),
   pricing_confirmed (boolean, default false — operator marks when settled),
   estimated_bl_nor_date (date, nullable — only for BL/NOR pricing),
-  status (enum), assigned_operator_id, secondary_operator_id,
+  status (enum), assigned_operator_id,
+  secondary_operator_id (DEPRECATED — moved to Linkage; kept for migration compat, do not read in new code),
   created_by, source_raw_text, version,
   created_at, updated_at
 
@@ -266,6 +287,10 @@ The in-app Excel view replaces the external Excel file. Two sections:
 - **Main table**: Regular deals (`deal_type = 'regular'`). PURCHASE, SALE, PURCHASE+SALE sections.
 - **Internal / Terminal Operations**: Linkages with only `deal_type = 'terminal_operation'` deals (own-terminal loading/discharge, no external counterparty yet).
 
+**Grouping uses `linkage_id` (UUID FK), NEVER `linkage_code` string.** The linkage_code is volatile — it gets renamed when the operator updates the linkage number. Grouping by string would split a single voyage across two cards the moment the cascade hasn't fully propagated. All section assignment, linked-deal joining, and "purchase + sell" detection in the Excel and dashboard views MUST go through `linkage_id`.
+
+**Auto-refresh on focus.** Both the Excel page and the dashboard MUST refetch their data when the user returns to the tab (visibility change) and on route navigation back. Otherwise renaming a linkage in the linkage view leaves stale linkage codes in the dashboard for up to 30 seconds.
+
 **Editable cells (dropdown)**: Operator action columns have a dropdown with `(empty)` / `Done`. Selecting "Done" turns the cell green. Editable cells show a ▾ arrow.
 **Locked cells (read-only)**: System-populated fields (B/L Figures, Vessel, etc.) update automatically.
 
@@ -288,6 +313,18 @@ When any deal field is updated:
 3. Set affected WorkflowSteps to `needs_update`
 4. Surface in task queue under "Re-notification Required"
 
+### Delete Flows
+
+**Deal delete** (`DELETE /api/deals/:id`) is a **hard delete**. The deal row and its dependent rows (workflow_instances, workflow_steps, email_drafts, deal_change_logs, audit_logs, deal_legs, documents) are removed via FK `ON DELETE CASCADE`. Soft-delete via `status = 'cancelled'` remains available for deals that were officially cancelled (cancellation email sent) — those stay in the DB for audit.
+
+**Where the delete affordance must live.** The delete button MUST be accessible from EVERY surface where a deal is shown — deal detail page, linkage view, Excel/Gasoline Vessels List rows, and dashboard linkage cards. Operators don't navigate down to detail just to delete; they expect a trash icon on the row they're looking at. Each delete still opens a confirmation modal — no exceptions.
+
+**Linkage delete** (`DELETE /api/linkages/:id`) is a **guarded delete**:
+- If the linkage still has deals attached, return `{ error: "linkage_has_deals" }` with HTTP 400. No rows removed.
+- If the linkage is empty, delete the linkage row.
+
+**UI confirmation**: Every destructive action (deal delete, linkage delete) MUST open a confirmation modal before firing the DELETE request. The modal states exactly what will be removed and warns "This cannot be undone." No keyboard shortcut or gesture can bypass the modal.
+
 ### AI Deal Parsing
 
 Abstract interface (`parseRecap()`) with swappable providers:
@@ -295,7 +332,9 @@ Abstract interface (`parseRecap()`) with swappable providers:
 ```
 Input: Free-text email (.eml, .msg, .docx, or pasted text) + attachments (PDF, Word)
 Output: {
-  counterparty, direction, product, quantity (with tolerance),
+  counterparty, direction, product,
+  quantity_mt (numeric — the middle/nominal quantity, used for calculations),
+  contracted_qty (string — exact tolerance text as written, e.g. "18000 MT +/-10%", "37kt +/- 5%"),
   incoterm, loadport, discharge_port, laycan_start, laycan_end,
   vessel_name, vessel_imo,
   pricing_type (BL|NOR), pricing_formula (0-0-5 notation),
@@ -304,6 +343,8 @@ Output: {
   confidence_scores: { [field]: number }
 }
 ```
+
+**Tolerance extraction**: The parser MUST extract quantity tolerance expressed as `+/-5%`, `+/-10%`, `±5%` etc. and populate `contracted_qty` with the full text exactly as it appeared in the recap (including units). `quantity_mt` stays as the numeric middle value for arithmetic (calculations, comparisons). This split lets the operator see the original contractual quantity while the system can still compute on a number.
 
 AI never auto-creates or auto-modifies deals. Operator always confirms.
 
@@ -316,12 +357,14 @@ CP Recaps are also parsed via the same drag & drop → AI parse → confirm flow
 When the operator opens a cargo chain, the screen is divided into three sections:
 
 ### Top Section — Voyage Info & Vessel
-- Linkage code, reference codes, product, quality
-- Vessel information (name, IMO, Q88 attached)
+- Linkage code (inline-editable — edits cascade to all child deals via `PUT /api/linkages/:id`)
+- Reference codes, product, quality
+- Vessel information (name, IMO, Q88 attached) — stored on the **linkage**, not the deal
 - CP recap (attached/parsed)
-- Assigned operators (primary + secondary initials)
+- **Assigned operators — primary + secondary, both at the linkage level.** Operators work entire voyages, not individual deals. The secondary operator is a backup/coverage; both are set once per linkage and apply to every buy/sell deal inside it. Editing the primary or secondary is done via the voyage bar, never via a deal form.
 - Pricing terms (prominently displayed, highlighted if approaching)
 - Voyage orders and discharge orders (per-vessel, not per-deal)
+- **Delete Linkage** button (guarded — only succeeds if the linkage is empty)
 
 ### Left Section — Buy Side
 - Purchase deal(s): counterparty, qty, laycan, incoterm, loadport
@@ -331,6 +374,7 @@ When the operator opens a cargo chain, the screen is divided into three sections
 - **"+" button always visible** at bottom with two options:
   - **"Add sale"** — creates a new sale deal block (counterparty, qty, destination, full sell-side workflow)
   - **"Discharge to own terminal"** — operator selects from company's own terminal list (Amsterdam, Klaipeda, Antwerp). Creates a discharge block with: terminal nomination + agent nomination + inspector nomination. No counterparty, no doc instructions — just discharge logistics.
+  - **CRITICAL**: Both "+" actions MUST attach the new deal to the CURRENT linkage (`linkageId` from the deal being viewed). The terminal-operation creation MUST include `dealType: "terminal_operation"` in the API payload — otherwise the deal is treated as a regular buy and lands in the wrong section of the Excel view. The POST `/api/deals` endpoint also accepts `linkageCode` lookup as a fallback when `linkageId` is missing, so a stale closure or omitted prop never silently spawns a fresh TEMP linkage.
 - Each block is independent and collapsible
 - If the operator later sells the remaining balance, the own terminal block is CANCELLED (cancellation emails generated) and replaced with a new sale block
 - Balance = total purchased qty minus all sold quantities. Always an approximation until outturn report (e.g. buy 37kt, sell 7kt + 11kt → balance ~19kt)
@@ -378,7 +422,7 @@ Same region-based filtering as agents. Tagged by ports/regions they cover.
 9. Party management with region-based filtering
 10. Excel sync (read/write to GASOLINE VESSELS LIST)
 11. Audit log per deal
-12. Two operators per deal (primary + secondary)
+12. Two operators per **linkage** (primary + secondary) — operators work entire voyages
 13. Quantity declaration logic (contracted vs nominated)
 14. Pricing tracking (BL/NOR type, formula, estimated date)
 15. Cancel and vessel swap cascade flows

@@ -3,10 +3,10 @@
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import {
-  Ship, Plus, Package, Anchor, AlertTriangle,
+  Ship, Plus, Package, Anchor, AlertTriangle, Trash2,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { toast } from "sonner";
 
@@ -237,17 +237,18 @@ function buildLinkageCards(linkageRows: LinkageRow[], allDeals: DealItem[]): Lin
 // Linkage card component
 // ────────────────────────────────────────────────────
 
-function LinkageCardItem({ card, onClick }: { card: LinkageCard; onClick: () => void }) {
+function LinkageCardItem({ card, onClick, onDelete }: { card: LinkageCard; onClick: () => void; onDelete: (card: LinkageCard) => void }) {
   const days = card.earliestLaycan ? daysUntil(card.earliestLaycan) : null;
   const isUrgent = days !== null && days <= 3 && days >= 0;
 
   return (
-    <button
-      onClick={onClick}
-      className="w-full text-left bg-[var(--color-surface-2)] border border-[var(--color-border-subtle)] rounded-[var(--radius-md)] p-3 hover:border-[var(--color-border-default)] hover:bg-[var(--color-surface-3)] transition-all cursor-pointer group"
-    >
+    <div className="relative group">
+      <button
+        onClick={onClick}
+        className="w-full text-left bg-[var(--color-surface-2)] border border-[var(--color-border-subtle)] rounded-[var(--radius-md)] p-3 hover:border-[var(--color-border-default)] hover:bg-[var(--color-surface-3)] transition-all cursor-pointer"
+      >
       {/* Header row */}
-      <div className="flex items-center gap-2 mb-1.5">
+      <div className="flex items-center gap-2 mb-1.5 pr-5">
         {isUrgent && (
           <span className={`h-2 w-2 rounded-full flex-shrink-0 ${days! <= 1 ? "bg-[var(--color-danger)] animate-pulse" : "bg-[var(--color-warning,#c8972e)]"}`} />
         )}
@@ -306,7 +307,17 @@ function LinkageCardItem({ card, onClick }: { card: LinkageCard; onClick: () => 
           )}
         </div>
       )}
-    </button>
+      </button>
+      {/* Delete button — visible on hover, top-right corner */}
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); onDelete(card); }}
+        title="Delete this linkage"
+        className="absolute top-2 right-2 p-1 rounded text-[var(--color-text-tertiary)] hover:text-[var(--color-danger)] hover:bg-[var(--color-surface-1)] opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
+      >
+        <Trash2 className="h-3 w-3" />
+      </button>
+    </div>
   );
 }
 
@@ -314,7 +325,7 @@ function LinkageCardItem({ card, onClick }: { card: LinkageCard; onClick: () => 
 // Column component
 // ────────────────────────────────────────────────────
 
-function Column({ title, cards, onCardClick }: { title: string; cards: LinkageCard[]; onCardClick: (card: LinkageCard) => void }) {
+function Column({ title, cards, onCardClick, onCardDelete }: { title: string; cards: LinkageCard[]; onCardClick: (card: LinkageCard) => void; onCardDelete: (card: LinkageCard) => void }) {
   return (
     <div className="min-w-[280px] w-[280px] flex-shrink-0 flex flex-col">
       <div className="flex items-center gap-2 mb-3 px-1">
@@ -332,7 +343,12 @@ function Column({ title, cards, onCardClick }: { title: string; cards: LinkageCa
           </div>
         ) : (
           cards.map((card) => (
-            <LinkageCardItem key={card.id} card={card} onClick={() => onCardClick(card)} />
+            <LinkageCardItem
+              key={card.id}
+              card={card}
+              onClick={() => onCardClick(card)}
+              onDelete={onCardDelete}
+            />
           ))
         )}
       </div>
@@ -381,14 +397,16 @@ export default function DashboardPage() {
   const [allDeals, setAllDeals] = useState<DealItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
+  const [cardToDelete, setCardToDelete] = useState<LinkageCard | null>(null);
+  const [deletingCard, setDeletingCard] = useState(false);
 
-  useEffect(() => {
+  const fetchAll = useCallback(() => {
     Promise.all([
-      fetch(`/api/linkages?status=active&_t=${Date.now()}`).then((r) => {
+      fetch(`/api/linkages?status=active&_t=${Date.now()}`, { cache: "no-store" }).then((r) => {
         if (!r.ok) throw new Error("Failed to load linkages");
         return r.json() as Promise<LinkageRow[]>;
       }),
-      fetch(`/api/deals?perPage=100&_t=${Date.now()}`).then((r) => {
+      fetch(`/api/deals?perPage=100&_t=${Date.now()}`, { cache: "no-store" }).then((r) => {
         if (!r.ok) throw new Error("Failed to load deals");
         return r.json() as Promise<{ items: DealItem[] }>;
       }),
@@ -407,6 +425,26 @@ export default function DashboardPage() {
       })
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    fetchAll();
+  }, [fetchAll]);
+
+  // Auto-refetch when the page becomes visible again (e.g. operator returns
+  // from the linkage view after renaming a linkage or adding a deal).
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible") {
+        fetchAll();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", fetchAll);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", fetchAll);
+    };
+  }, [fetchAll]);
 
   // Build cards
   const cards = buildLinkageCards(linkageRows, allDeals);
@@ -433,6 +471,52 @@ export default function DashboardPage() {
     } else {
       // Empty linkage — navigate to new deal page with linkage context
       router.push(`/deals/new?linkageId=${card.id}`);
+    }
+  }
+
+  function requestCardDelete(card: LinkageCard) {
+    setCardToDelete(card);
+  }
+
+  function cancelCardDelete() {
+    if (deletingCard) return;
+    setCardToDelete(null);
+  }
+
+  async function confirmCardDelete() {
+    if (!cardToDelete) return;
+    setDeletingCard(true);
+    try {
+      // Cascade-delete every deal in the linkage first, then the linkage row.
+      // Each /api/deals/:id DELETE removes its dependent rows via FK CASCADE.
+      const allCardDeals = [...cardToDelete.buys, ...cardToDelete.sells];
+      for (const d of allCardDeals) {
+        const r = await fetch(`/api/deals/${d.id}`, { method: "DELETE" });
+        if (!r.ok) {
+          const err = await r.json().catch(() => ({}));
+          throw new Error(err.error || `Failed to delete deal ${d.counterparty}`);
+        }
+      }
+      // Try to delete the linkage row itself (only succeeds if it's a real
+      // linkage row in the DB, not a virtual orphan/code-only card).
+      if (!cardToDelete.id.startsWith("orphan-") && !cardToDelete.id.startsWith("code-")) {
+        const r = await fetch(`/api/linkages/${cardToDelete.id}`, { method: "DELETE" });
+        if (!r.ok) {
+          const err = await r.json().catch(() => ({}));
+          // If the linkage still has dangling rows (race), surface the error
+          // but don't fail the whole flow — the deals are already gone.
+          if (err.error !== "linkage_has_deals") {
+            console.warn("Linkage delete returned non-OK:", err);
+          }
+        }
+      }
+      toast.success("Linkage deleted");
+      setCardToDelete(null);
+      fetchAll();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to delete linkage");
+    } finally {
+      setDeletingCard(false);
     }
   }
 
@@ -527,11 +611,57 @@ export default function DashboardPage() {
         </Card>
       ) : (
         <div className="flex gap-4 overflow-x-auto pb-4">
-          <Column title="Sell Only" cards={sellOnly} onCardClick={handleCardClick} />
-          <Column title="Buy Only" cards={buyOnly} onCardClick={handleCardClick} />
-          <Column title="Purchase + Sell" cards={purchaseSell} onCardClick={handleCardClick} />
-          <Column title="Own Terminal" cards={ownTerminal} onCardClick={handleCardClick} />
-          <Column title="Empty" cards={empty} onCardClick={handleCardClick} />
+          <Column title="Sell Only" cards={sellOnly} onCardClick={handleCardClick} onCardDelete={requestCardDelete} />
+          <Column title="Buy Only" cards={buyOnly} onCardClick={handleCardClick} onCardDelete={requestCardDelete} />
+          <Column title="Purchase + Sell" cards={purchaseSell} onCardClick={handleCardClick} onCardDelete={requestCardDelete} />
+          <Column title="Own Terminal" cards={ownTerminal} onCardClick={handleCardClick} onCardDelete={requestCardDelete} />
+          <Column title="Empty" cards={empty} onCardClick={handleCardClick} onCardDelete={requestCardDelete} />
+        </div>
+      )}
+
+      {/* Delete confirmation modal */}
+      {cardToDelete && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+          onClick={cancelCardDelete}
+        >
+          <div
+            className="bg-[var(--color-surface-1)] border border-[var(--color-border-default)] rounded-[var(--radius-lg)] p-5 max-w-md w-full mx-4 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-base font-semibold text-[var(--color-text-primary)] mb-1">
+              Delete this linkage?
+            </h3>
+            <p className="text-xs text-[var(--color-text-secondary)] mb-3">
+              This will permanently remove the linkage and every deal inside it
+              (workflow steps, email drafts, change history). This cannot be
+              undone.
+            </p>
+            <div className="rounded-[var(--radius-md)] border border-[var(--color-danger)]/30 bg-[var(--color-danger)]/5 px-3 py-2 text-xs mb-4">
+              <div className="font-mono font-medium text-[var(--color-text-primary)]">
+                {cardToDelete.displayName}
+              </div>
+              <div className="text-[var(--color-text-tertiary)] mt-0.5">
+                {cardToDelete.buys.length + cardToDelete.sells.length} deal{cardToDelete.buys.length + cardToDelete.sells.length === 1 ? "" : "s"} attached
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={cancelCardDelete}
+                disabled={deletingCard}
+                className="px-3 py-1.5 text-xs font-medium rounded-[var(--radius-md)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-3)] cursor-pointer disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmCardDelete}
+                disabled={deletingCard}
+                className="px-3 py-1.5 text-xs font-medium rounded-[var(--radius-md)] bg-[var(--color-danger)] text-white hover:opacity-90 cursor-pointer disabled:opacity-50"
+              >
+                {deletingCard ? "Deleting..." : "Delete Linkage"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

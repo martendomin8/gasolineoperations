@@ -71,16 +71,19 @@ export default function EditDealPage() {
 
     const fd = new FormData(e.currentTarget);
     const hasLinkage = Boolean(deal.linkageId);
+    const isTerminalOp = deal.dealType === "terminal_operation";
+
+    // IMPORTANT: linkageCode is NEVER sent from the deal edit form. Editing it on a single
+    // deal would orphan the deal from its siblings. Linkage number changes happen at the
+    // linkage level via PUT /api/linkages/:id (inline editor in the voyage info bar).
     const updates: Record<string, unknown> = {
       version: deal.version,
       counterparty: fd.get("counterparty"),
       direction: fd.get("direction"),
       product: fd.get("product"),
-      quantityMt: fd.get("quantityMt"),
       contractedQty: fd.get("contractedQty") || null,
       nominatedQty: fd.get("nominatedQty") ? Number(fd.get("nominatedQty")) : null,
       incoterm: fd.get("incoterm"),
-      linkageCode: fd.get("linkageCode") || null,
       loadport: fd.get("loadport"),
       dischargePort: fd.get("dischargePort") || null,
       laycanStart: fd.get("laycanStart"),
@@ -94,8 +97,17 @@ export default function EditDealPage() {
       pricingType: fd.get("pricingPeriodType") || null,
       pricingEstimatedDate: fd.get("pricingEstimatedDate") || null,
       specialInstructions: fd.get("specialInstructions") || null,
-      secondaryOperatorId: fd.get("secondaryOperatorId") || null,
     };
+    // quantityMt: terminal operation deals use the loadedQuantityMt inline editor in the
+    // linkage view. Never overwrite quantityMt from this form for terminal ops — that wiped
+    // Arne's terminal operation qty in round 4 testing.
+    if (!isTerminalOp) {
+      updates.quantityMt = fd.get("quantityMt");
+    }
+    // Secondary operator is managed at the linkage level when the deal belongs to a linkage.
+    if (!hasLinkage) {
+      updates.secondaryOperatorId = fd.get("secondaryOperatorId") || null;
+    }
     // Vessel is managed at the linkage level when the deal belongs to a linkage —
     // do not include vesselName/vesselImo in the deal update payload in that case.
     if (!hasLinkage) {
@@ -167,23 +179,64 @@ export default function EditDealPage() {
               <Input label="Counterparty" name="counterparty" required defaultValue={deal.counterparty} />
               <Select label="Status" name="status" options={statusOptions} defaultValue={deal.status} />
             </div>
-            <Input label="Linkage Code" name="linkageCode" defaultValue={deal.linkageCode || ""} placeholder="Optional linkage code" />
-            <div className="grid grid-cols-3 gap-4">
-              <Select label="Direction" name="direction" options={directionOptions} defaultValue={deal.direction} />
-              <Input label="Product" name="product" required defaultValue={deal.product} />
-              <Input label="Quantity (MT)" name="quantityMt" type="number" step="0.001" required defaultValue={deal.quantityMt} />
-            </div>
+            {deal.linkageId && (
+              <div className="rounded-[var(--radius-md)] border border-dashed border-[var(--color-border-default)] bg-[var(--color-surface-2)] px-4 py-3 text-sm text-[var(--color-text-secondary)]">
+                Linkage:{" "}
+                <span className="text-[var(--color-text-primary)] font-mono font-medium">
+                  {deal.linkageCode || "—"}
+                </span>{" "}
+                — managed at the linkage level.{" "}
+                <Link
+                  href={`/deals/${id}`}
+                  className="text-[var(--color-accent)] hover:underline font-medium"
+                >
+                  Open the linkage view
+                </Link>{" "}
+                to change the linkage number.
+              </div>
+            )}
+            {deal.dealType === "terminal_operation" ? (
+              <div className="grid grid-cols-2 gap-4">
+                <Select label="Direction" name="direction" options={directionOptions} defaultValue={deal.direction} />
+                <Input label="Product" name="product" required defaultValue={deal.product} />
+              </div>
+            ) : (
+              <div className="grid grid-cols-3 gap-4">
+                <Select label="Direction" name="direction" options={directionOptions} defaultValue={deal.direction} />
+                <Input label="Product" name="product" required defaultValue={deal.product} />
+                <Input label="Quantity (MT)" name="quantityMt" type="number" step="0.001" required defaultValue={deal.quantityMt} />
+              </div>
+            )}
+            {deal.dealType === "terminal_operation" && (
+              <div className="rounded-[var(--radius-md)] border border-dashed border-[var(--color-border-default)] bg-[var(--color-surface-2)] px-4 py-3 text-xs text-[var(--color-text-tertiary)]">
+                Quantity for terminal operations is managed via the linkage view (loaded qty
+                inline editor). It is not editable from this form.
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-4">
-              <Input label="Contracted Qty" name="contractedQty" defaultValue={deal.contractedQty || ""} placeholder="e.g. 37kt +/-10%" />
+              <Input label="Contracted Qty" name="contractedQty" defaultValue={deal.contractedQty || ""} placeholder="e.g. 18000 MT +/-10%" />
               <Input label="Nominated Qty" name="nominatedQty" type="number" step="0.001" defaultValue={deal.nominatedQty || ""} placeholder="Exact nominated quantity" />
             </div>
             <Select label="Incoterm" name="incoterm" options={incotermOptions} defaultValue={deal.incoterm} />
-            <Select
-              label="Secondary Operator"
-              name="secondaryOperatorId"
-              options={[{ value: "", label: "— None —" }, ...operators.map((o) => ({ value: o.id, label: o.name }))]}
-              defaultValue={deal.secondaryOperatorId || ""}
-            />
+            {deal.linkageId ? (
+              <div className="rounded-[var(--radius-md)] border border-dashed border-[var(--color-border-default)] bg-[var(--color-surface-2)] px-4 py-3 text-xs text-[var(--color-text-tertiary)]">
+                Secondary operator is managed at the linkage level.{" "}
+                <Link
+                  href={`/deals/${id}`}
+                  className="text-[var(--color-accent)] hover:underline font-medium"
+                >
+                  Open the linkage view
+                </Link>{" "}
+                to change it.
+              </div>
+            ) : (
+              <Select
+                label="Secondary Operator"
+                name="secondaryOperatorId"
+                options={[{ value: "", label: "— None —" }, ...operators.map((o) => ({ value: o.id, label: o.name }))]}
+                defaultValue={deal.secondaryOperatorId || ""}
+              />
+            )}
           </div>
         </Card>
 

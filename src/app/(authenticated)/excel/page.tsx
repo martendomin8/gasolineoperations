@@ -3,11 +3,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import Link from "next/link";
+import { Trash2 } from "lucide-react";
 
 interface DealRow {
   id: string;
   externalRef: string | null;
   linkageCode: string | null;
+  linkageId: string | null;
   dealType: string;
   counterparty: string;
   direction: string;
@@ -323,14 +325,24 @@ function ColumnHeaders() {
 // DealRow — the main row component with editable and locked cells
 // ---------------------------------------------------------------------------
 
-function DealRowComponent({ deal, onUpdate }: { deal: DealRow; onUpdate: () => void }) {
+function DealRowComponent({ deal, onUpdate, onDelete }: { deal: DealRow; onUpdate: () => void; onDelete: (deal: DealRow) => void }) {
   return (
-    <tr className="hover:bg-[var(--color-surface-2)] transition-colors group">
+    <tr className="hover:bg-[var(--color-surface-2)] transition-colors group relative">
       {/* Locked cells — system-populated, read-only */}
       <LockedCell className="font-mono whitespace-nowrap">
-        <Link href={`/deals/${deal.id}`} className="text-[var(--color-accent-text)] hover:underline">
-          {formatLaycan(deal)}
-        </Link>
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onDelete(deal); }}
+            title="Delete this deal"
+            className="opacity-0 group-hover:opacity-60 hover:!opacity-100 hover:text-[var(--color-danger)] transition-all flex-shrink-0 p-0.5 -ml-1 cursor-pointer"
+          >
+            <Trash2 className="h-3 w-3" />
+          </button>
+          <Link href={`/deals/${deal.id}`} className="text-[var(--color-accent-text)] hover:underline">
+            {formatLaycan(deal)}
+          </Link>
+        </div>
       </LockedCell>
       <LockedCell>{deal.counterparty}</LockedCell>
       <LockedCell className="font-mono">{deal.vesselName || "\u2014"}</LockedCell>
@@ -407,14 +419,24 @@ function GrayedCell() {
   return <td className="px-2 py-1.5 text-xs border-b border-r border-[var(--color-border-subtle)] bg-[var(--color-surface-3)] opacity-30" />;
 }
 
-function InternalDealRowComponent({ deal, onUpdate }: { deal: DealRow; onUpdate: () => void }) {
+function InternalDealRowComponent({ deal, onUpdate, onDelete }: { deal: DealRow; onUpdate: () => void; onDelete: (deal: DealRow) => void }) {
   return (
-    <tr className="hover:bg-[var(--color-surface-2)] transition-colors group">
+    <tr className="hover:bg-[var(--color-surface-2)] transition-colors group relative">
       {/* Same columns as main table — grayed out where not applicable */}
       <LockedCell className="font-mono whitespace-nowrap">
-        <Link href={`/deals/${deal.id}`} className="text-[var(--color-accent-text)] hover:underline">
-          {formatLaycan(deal)}
-        </Link>
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onDelete(deal); }}
+            title="Delete this deal"
+            className="opacity-0 group-hover:opacity-60 hover:!opacity-100 hover:text-[var(--color-danger)] transition-all flex-shrink-0 p-0.5 -ml-1 cursor-pointer"
+          >
+            <Trash2 className="h-3 w-3" />
+          </button>
+          <Link href={`/deals/${deal.id}`} className="text-[var(--color-accent-text)] hover:underline">
+            {formatLaycan(deal)}
+          </Link>
+        </div>
       </LockedCell>
       <LockedCell>{deal.counterparty}</LockedCell>
       <LockedCell className="font-mono">{deal.vesselName || "\u2014"}</LockedCell>
@@ -528,6 +550,8 @@ export default function ExcelPage() {
   const [deals, setDeals] = useState<DealRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"ongoing" | "completed">("ongoing");
+  const [dealToDelete, setDealToDelete] = useState<DealRow | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const fetchDeals = useCallback(() => {
     // Cache-bust to ensure we get fresh data after inline edits
@@ -559,45 +583,114 @@ export default function ExcelPage() {
     fetchDeals();
   }, [fetchDeals]);
 
+  // Auto-refetch when the page becomes visible again (e.g. operator returns
+  // from the linkage view after renaming a linkage). Without this, the Excel
+  // view shows the old linkage codes until a manual refresh.
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible") {
+        fetchDeals();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", fetchDeals);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", fetchDeals);
+    };
+  }, [fetchDeals]);
+
   const refreshData = useCallback(() => {
     fetchDeals();
   }, [fetchDeals]);
 
+  const requestDelete = useCallback((deal: DealRow) => {
+    setDealToDelete(deal);
+  }, []);
+
+  const cancelDelete = useCallback(() => {
+    if (deleting) return;
+    setDealToDelete(null);
+  }, [deleting]);
+
+  const confirmDelete = useCallback(async () => {
+    if (!dealToDelete) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/deals/${dealToDelete.id}`, { method: "DELETE" });
+      if (res.ok) {
+        toast.success("Deal deleted");
+        setDealToDelete(null);
+        fetchDeals();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.error || "Failed to delete deal");
+      }
+    } catch {
+      toast.error("Failed to delete deal");
+    } finally {
+      setDeleting(false);
+    }
+  }, [dealToDelete, fetchDeals]);
+
   const ongoing = deals.filter((d) => d.status !== "completed" && d.status !== "cancelled");
   const completed = deals.filter((d) => d.status === "completed");
 
-  // Separate regular deals from terminal operation deals
+  // Separate regular deals from terminal operation deals.
+  // CRITICAL: All grouping below uses `linkageId` (UUID FK), NEVER `linkageCode` (string).
+  // The linkage_code is volatile — renaming a linkage cascades to deals async, so a
+  // string-based grouping splits a single voyage across two cards. linkage_id is stable.
   const mainDeals = ongoing.filter((d) => d.dealType !== "terminal_operation");
   const terminalDeals = ongoing.filter((d) => d.dealType === "terminal_operation");
 
-  // Find linkage codes that have at least one regular deal
-  const linkagesWithRegular = new Set<string>();
+  // Find linkage IDs that have at least one regular deal
+  const linkageIdsWithRegular = new Set<string>();
   mainDeals.forEach((d) => {
-    if (d.linkageCode) linkagesWithRegular.add(d.linkageCode);
+    if (d.linkageId) linkageIdsWithRegular.add(d.linkageId);
   });
 
   // Internal section: terminal deals whose linkage has NO regular deals
   const internalDeals = terminalDeals.filter(
-    (d) => !d.linkageCode || !linkagesWithRegular.has(d.linkageCode)
+    (d) => !d.linkageId || !linkageIdsWithRegular.has(d.linkageId)
   );
 
-  // Group main ongoing into sections (same logic, but only mainDeals)
-  const purchases = mainDeals.filter((d) => d.direction === "buy" && !mainDeals.some((s) => s.direction === "sell" && s.linkageCode && s.linkageCode === d.linkageCode));
-  const sales = mainDeals.filter((d) => d.direction === "sell" && !mainDeals.some((p) => p.direction === "buy" && p.linkageCode && p.linkageCode === d.linkageCode));
-
-  // Linked: find linkage codes that have both buy and sell
-  const linkedCodes = new Set<string>();
+  // Linked: linkage IDs that contain BOTH a buy and a sell among mainDeals
+  const linkedIds = new Set<string>();
   mainDeals.forEach((d) => {
-    if (d.linkageCode) {
-      const hasBuy = mainDeals.some((x) => x.linkageCode === d.linkageCode && x.direction === "buy");
-      const hasSell = mainDeals.some((x) => x.linkageCode === d.linkageCode && x.direction === "sell");
-      if (hasBuy && hasSell) linkedCodes.add(d.linkageCode);
+    if (d.linkageId) {
+      const hasBuy = mainDeals.some((x) => x.linkageId === d.linkageId && x.direction === "buy");
+      const hasSell = mainDeals.some((x) => x.linkageId === d.linkageId && x.direction === "sell");
+      if (hasBuy && hasSell) linkedIds.add(d.linkageId);
     }
   });
-  const linked = Array.from(linkedCodes).map((code) => ({
-    code,
-    deals: mainDeals.filter((d) => d.linkageCode === code).sort((a, b) => (a.direction === "buy" ? -1 : 1)),
-  }));
+
+  // Standalone purchases: buys whose linkage is NOT in the linked set
+  const purchases = mainDeals.filter(
+    (d) => d.direction === "buy" && (!d.linkageId || !linkedIds.has(d.linkageId))
+  );
+  // Standalone sales: sells whose linkage is NOT in the linked set
+  const sales = mainDeals.filter(
+    (d) => d.direction === "sell" && (!d.linkageId || !linkedIds.has(d.linkageId))
+  );
+
+  const linked = Array.from(linkedIds).map((linkageId) => {
+    const groupDeals = mainDeals
+      .filter((d) => d.linkageId === linkageId)
+      .sort((a, b) => (a.direction === "buy" ? -1 : 1));
+    return {
+      linkageId,
+      code: groupDeals[0]?.linkageCode ?? null,
+      deals: groupDeals,
+    };
+  });
+
+  // Terminal ops attached to a regular linkage render in the INTERNAL section
+  // alongside the standalone terminal-only linkages. This way the operator sees
+  // own-terminal moves grouped together regardless of which linkage they're in.
+  const linkedTerminalOps = terminalDeals.filter(
+    (d) => d.linkageId && linkageIdsWithRegular.has(d.linkageId)
+  );
+  const allInternalDeals = [...internalDeals, ...linkedTerminalOps];
 
   return (
     <div className="space-y-4">
@@ -644,7 +737,7 @@ export default function ExcelPage() {
                   <SectionHeader title="PURCHASE" />
                   <ColumnHeaders />
                   {purchases.length > 0 ? (
-                    purchases.map((d) => <DealRowComponent key={d.id} deal={d} onUpdate={refreshData} />)
+                    purchases.map((d) => <DealRowComponent key={d.id} deal={d} onUpdate={refreshData} onDelete={requestDelete} />)
                   ) : (
                     <tr><td colSpan={COLUMNS.length} className="px-3 py-4 text-xs text-center text-[var(--color-text-tertiary)] border-b border-[var(--color-border-subtle)]">No standalone purchases</td></tr>
                   )}
@@ -653,7 +746,7 @@ export default function ExcelPage() {
                   <SectionHeader title="SALE" />
                   <ColumnHeaders />
                   {sales.length > 0 ? (
-                    sales.map((d) => <DealRowComponent key={d.id} deal={d} onUpdate={refreshData} />)
+                    sales.map((d) => <DealRowComponent key={d.id} deal={d} onUpdate={refreshData} onDelete={requestDelete} />)
                   ) : (
                     <tr><td colSpan={COLUMNS.length} className="px-3 py-4 text-xs text-center text-[var(--color-text-tertiary)] border-b border-[var(--color-border-subtle)]">No standalone sales</td></tr>
                   )}
@@ -663,7 +756,7 @@ export default function ExcelPage() {
                   <ColumnHeaders />
                   {linked.length > 0 ? (
                     linked.map((group) => (
-                      group.deals.map((d) => <DealRowComponent key={d.id} deal={d} onUpdate={refreshData} />)
+                      group.deals.map((d) => <DealRowComponent key={d.id} deal={d} onUpdate={refreshData} onDelete={requestDelete} />)
                     ))
                   ) : (
                     <tr><td colSpan={COLUMNS.length} className="px-3 py-4 text-xs text-center text-[var(--color-text-tertiary)]">No linked deals</td></tr>
@@ -674,8 +767,8 @@ export default function ExcelPage() {
                 <tbody>
                   <InternalSectionHeader />
                   <InternalColumnHeaders />
-                  {internalDeals.length > 0 ? (
-                    internalDeals.map((d) => <InternalDealRowComponent key={d.id} deal={d} onUpdate={refreshData} />)
+                  {allInternalDeals.length > 0 ? (
+                    allInternalDeals.map((d) => <InternalDealRowComponent key={d.id} deal={d} onUpdate={refreshData} onDelete={requestDelete} />)
                   ) : (
                     <tr><td colSpan={COLUMNS.length} className="px-3 py-4 text-xs text-center text-[var(--color-text-tertiary)]">No internal operations</td></tr>
                   )}
@@ -685,13 +778,58 @@ export default function ExcelPage() {
               <tbody>
                 <ColumnHeaders />
                 {completed.length > 0 ? (
-                  completed.map((d) => <DealRowComponent key={d.id} deal={d} onUpdate={refreshData} />)
+                  completed.map((d) => <DealRowComponent key={d.id} deal={d} onUpdate={refreshData} onDelete={requestDelete} />)
                 ) : (
                   <tr><td colSpan={COLUMNS.length} className="px-3 py-4 text-xs text-center text-[var(--color-text-tertiary)]">No completed deals</td></tr>
                 )}
               </tbody>
             )}
           </table>
+        </div>
+      )}
+
+      {/* Delete confirmation modal */}
+      {dealToDelete && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+          onClick={cancelDelete}
+        >
+          <div
+            className="bg-[var(--color-surface-1)] border border-[var(--color-border-default)] rounded-[var(--radius-lg)] p-5 max-w-md w-full mx-4 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-base font-semibold text-[var(--color-text-primary)] mb-1">
+              Delete this deal?
+            </h3>
+            <p className="text-xs text-[var(--color-text-secondary)] mb-3">
+              This will permanently remove the deal and all of its workflow steps,
+              email drafts, and change history. This cannot be undone.
+            </p>
+            <div className="rounded-[var(--radius-md)] border border-[var(--color-danger)]/30 bg-[var(--color-danger)]/5 px-3 py-2 text-xs mb-4">
+              <div className="font-medium text-[var(--color-text-primary)]">
+                {dealToDelete.counterparty} — {dealToDelete.direction.toUpperCase()} {dealToDelete.product}
+              </div>
+              <div className="font-mono text-[var(--color-text-tertiary)] mt-0.5">
+                {Number(dealToDelete.quantityMt).toLocaleString()} MT · {dealToDelete.incoterm} · {dealToDelete.loadport} · {dealToDelete.linkageCode || "—"}
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={cancelDelete}
+                disabled={deleting}
+                className="px-3 py-1.5 text-xs font-medium rounded-[var(--radius-md)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-3)] cursor-pointer disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                disabled={deleting}
+                className="px-3 py-1.5 text-xs font-medium rounded-[var(--radius-md)] bg-[var(--color-danger)] text-white hover:opacity-90 cursor-pointer disabled:opacity-50"
+              >
+                {deleting ? "Deleting..." : "Delete Deal"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

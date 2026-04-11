@@ -1,9 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { withAuth } from "@/lib/middleware/with-auth";
 import { withTenantDb } from "@/lib/db";
-import { linkages, deals } from "@/lib/db/schema";
+import { linkages, deals, users } from "@/lib/db/schema";
 import { createLinkageSchema } from "@/lib/types/linkage";
 import { eq, and, desc, sql, like } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 
 // GET /api/linkages — List all linkages for tenant (with deal counts)
 export const GET = withAuth(async (req, _ctx, session) => {
@@ -16,6 +17,9 @@ export const GET = withAuth(async (req, _ctx, session) => {
       conditions.push(eq(linkages.status, status));
     }
 
+    const primaryOp = alias(users, "primaryOp");
+    const secondaryOp = alias(users, "secondaryOp");
+
     const rows = await db
       .select({
         id: linkages.id,
@@ -25,14 +29,20 @@ export const GET = withAuth(async (req, _ctx, session) => {
         status: linkages.status,
         vesselName: linkages.vesselName,
         vesselImo: linkages.vesselImo,
+        assignedOperatorId: linkages.assignedOperatorId,
+        secondaryOperatorId: linkages.secondaryOperatorId,
+        assignedOperatorName: primaryOp.name,
+        secondaryOperatorName: secondaryOp.name,
         createdAt: linkages.createdAt,
         updatedAt: linkages.updatedAt,
         dealCount: sql<number>`count(${deals.id})::int`,
       })
       .from(linkages)
       .leftJoin(deals, eq(deals.linkageId, linkages.id))
+      .leftJoin(primaryOp, eq(linkages.assignedOperatorId, primaryOp.id))
+      .leftJoin(secondaryOp, eq(linkages.secondaryOperatorId, secondaryOp.id))
       .where(and(...conditions))
-      .groupBy(linkages.id)
+      .groupBy(linkages.id, primaryOp.id, secondaryOp.id)
       .orderBy(desc(linkages.createdAt));
 
     return rows;
@@ -85,6 +95,9 @@ export const POST = withAuth(async (req, _ctx, session) => {
         tenantId: session.user.tenantId,
         linkageNumber: data.linkageNumber ?? null,
         tempName,
+        vesselName: data.vesselName ?? null,
+        assignedOperatorId: data.assignedOperatorId ?? null,
+        secondaryOperatorId: data.secondaryOperatorId ?? null,
       })
       .returning();
 
