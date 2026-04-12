@@ -112,13 +112,18 @@ export default function LinkageDetailPage() {
       .catch(() => {});
   }, [isOperator]);
 
-  // Auto-refetch on visibility change
+  // Auto-refetch on visibility change + deal-added event from AddDealMenu
   useEffect(() => {
     const onVisible = () => {
       if (document.visibilityState === "visible") fetchData();
     };
+    const onDealAdded = () => fetchData();
     document.addEventListener("visibilitychange", onVisible);
-    return () => document.removeEventListener("visibilitychange", onVisible);
+    window.addEventListener("linkage:deal-added", onDealAdded);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("linkage:deal-added", onDealAdded);
+    };
   }, [fetchData]);
 
   if (loading) {
@@ -216,7 +221,7 @@ export default function LinkageDetailPage() {
           </h2>
           {buyDeals.length === 0 ? (
             isOperator ? (
-              <AddDealPlaceholder linkageId={linkage.id} linkageCode={displayName} side="buy" />
+              <AddDealMenu linkageId={linkage.id} linkageCode={displayName} variant="placeholder" side="buy" />
             ) : (
               <div className="rounded-[var(--radius-md)] border border-dashed border-[var(--color-border-subtle)] py-8 text-center">
                 <p className="text-sm text-[var(--color-text-tertiary)]">No purchases yet</p>
@@ -226,7 +231,7 @@ export default function LinkageDetailPage() {
             <>
               {buyDeals.map((d) => <DealCard key={d.id} deal={d} onDeleted={fetchData} canDelete={isOperator} />)}
               {isOperator && (
-                <AddDealButtons linkageId={linkage.id} linkageCode={displayName} side="buy" />
+                <AddDealMenu linkageId={linkage.id} linkageCode={displayName} variant="compact" side="buy" />
               )}
             </>
           )}
@@ -243,7 +248,7 @@ export default function LinkageDetailPage() {
           </h2>
           {sellDeals.length === 0 ? (
             isOperator ? (
-              <AddDealPlaceholder linkageId={linkage.id} linkageCode={displayName} side="sell" />
+              <AddDealMenu linkageId={linkage.id} linkageCode={displayName} variant="placeholder" side="sell" />
             ) : (
               <div className="rounded-[var(--radius-md)] border border-dashed border-[var(--color-border-subtle)] py-8 text-center">
                 <p className="text-sm text-[var(--color-text-tertiary)]">No sales yet</p>
@@ -253,7 +258,7 @@ export default function LinkageDetailPage() {
             <>
               {sellDeals.map((d) => <DealCard key={d.id} deal={d} onDeleted={fetchData} canDelete={isOperator} />)}
               {isOperator && (
-                <AddDealButtons linkageId={linkage.id} linkageCode={displayName} side="sell" />
+                <AddDealMenu linkageId={linkage.id} linkageCode={displayName} variant="compact" side="sell" />
               )}
             </>
           )}
@@ -545,61 +550,199 @@ function DealCard({ deal, onDeleted, canDelete }: { deal: DealSummary; onDeleted
   );
 }
 
-// ── Add Deal Placeholder (large "+" for empty columns) ───────
+// ── Add Deal Menu (popup with 3 options) ─────────────────────
 
-function AddDealPlaceholder({ linkageId, linkageCode, side }: { linkageId: string; linkageCode: string; side: "buy" | "sell" }) {
-  const router = useRouter();
-  const label = side === "buy" ? "Add purchase / loading" : "Add sale / discharge";
-
-  return (
-    <div className="rounded-[var(--radius-lg)] border-2 border-dashed border-[var(--color-border-subtle)] py-10 flex flex-col items-center justify-center gap-3 hover:border-[var(--color-border-default)] hover:bg-[var(--color-surface-2)]/50 transition-colors">
-      <button
-        onClick={() => router.push(`/deals/new?linkageId=${encodeURIComponent(linkageId)}&linkageCode=${encodeURIComponent(linkageCode)}&direction=${side}`)}
-        className="h-14 w-14 rounded-full bg-[var(--color-surface-3)] border border-[var(--color-border-default)] flex items-center justify-center hover:bg-[var(--color-surface-4)] hover:border-[var(--color-accent)]/40 transition-all cursor-pointer group"
-      >
-        <Plus className="h-6 w-6 text-[var(--color-text-tertiary)] group-hover:text-[var(--color-accent)]" />
-      </button>
-      <span className="text-sm text-[var(--color-text-tertiary)]">{label}</span>
-      <div className="flex items-center gap-3 text-xs">
-        <button
-          onClick={() => router.push(`/deals/parse?linkageId=${encodeURIComponent(linkageId)}&linkageCode=${encodeURIComponent(linkageCode)}&direction=${side}`)}
-          className="text-[var(--color-text-tertiary)] hover:text-[var(--color-accent-text)] transition-colors cursor-pointer flex items-center gap-1"
-        >
-          <Plus className="h-3 w-3" /> Parse email
-        </button>
-        <span className="text-[var(--color-border-subtle)]">|</span>
-        <button
-          onClick={() => router.push(`/deals/new?linkageId=${encodeURIComponent(linkageId)}&linkageCode=${encodeURIComponent(linkageCode)}&direction=${side}`)}
-          className="text-[var(--color-text-tertiary)] hover:text-[var(--color-accent-text)] transition-colors cursor-pointer flex items-center gap-1"
-        >
-          <Plus className="h-3 w-3" /> Manual entry
-        </button>
-      </div>
-    </div>
-  );
+interface TerminalParty {
+  id: string;
+  name: string;
+  port: string | null;
+  isFixed: boolean;
 }
 
-// ── Add Deal Buttons (compact, for non-empty columns) ────────
-
-function AddDealButtons({ linkageId, linkageCode, side }: { linkageId: string; linkageCode: string; side: "buy" | "sell" }) {
+function AddDealMenu({ linkageId, linkageCode, side, variant }: {
+  linkageId: string;
+  linkageCode: string;
+  side: "buy" | "sell";
+  variant: "placeholder" | "compact";
+}) {
   const router = useRouter();
-  const direction = side;
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [terminalPicker, setTerminalPicker] = useState(false);
+  const [terminals, setTerminals] = useState<TerminalParty[]>([]);
+  const [loadingTerminals, setLoadingTerminals] = useState(false);
+  const [creating, setCreating] = useState<string | null>(null);
 
+  const direction = side;
+  const label = side === "buy" ? "Add purchase / loading" : "Add sale / discharge";
+  const terminalLabel = side === "buy" ? "Load from own terminal" : "Discharge to own terminal";
+
+  const openMenu = () => setMenuOpen(true);
+  const closeAll = () => { setMenuOpen(false); setTerminalPicker(false); };
+
+  const goParseEmail = () => {
+    closeAll();
+    router.push(`/deals/parse?linkageId=${encodeURIComponent(linkageId)}&linkageCode=${encodeURIComponent(linkageCode)}&direction=${direction}`);
+  };
+
+  const goManualEntry = () => {
+    closeAll();
+    router.push(`/deals/new?linkageId=${encodeURIComponent(linkageId)}&linkageCode=${encodeURIComponent(linkageCode)}&direction=${direction}`);
+  };
+
+  const openTerminalPicker = async () => {
+    setMenuOpen(false);
+    setTerminalPicker(true);
+    setLoadingTerminals(true);
+    try {
+      const res = await fetch("/api/parties?type=terminal");
+      const data = await res.json();
+      const all: TerminalParty[] = Array.isArray(data) ? data : [...(data.matched ?? []), ...(data.rest ?? [])];
+      setTerminals(all.filter((t) => t.isFixed));
+    } catch {
+      setTerminals([]);
+    }
+    setLoadingTerminals(false);
+  };
+
+  const handleTerminalOperation = async (terminal: TerminalParty) => {
+    setCreating(terminal.id);
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      const isBuy = side === "buy";
+      const res = await fetch("/api/deals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          counterparty: `Own Terminal \u2014 ${terminal.name}`,
+          direction,
+          dealType: "terminal_operation",
+          product: "Gasoline",
+          quantityMt: 1,
+          incoterm: "FOB",
+          loadport: isBuy ? (terminal.port ?? terminal.name) : "",
+          dischargePort: isBuy ? null : (terminal.port ?? terminal.name),
+          laycanStart: today,
+          laycanEnd: today,
+          linkageId,
+          linkageCode,
+          specialInstructions: `${isBuy ? "Load from" : "Discharge to"} own terminal: ${terminal.name}`,
+        }),
+      });
+      if (res.ok) {
+        const newDeal = await res.json();
+        await fetch(`/api/deals/${newDeal.id}/workflow`, { method: "POST" });
+        toast.success(`${isBuy ? "Load from" : "Discharge to"} ${terminal.name} created`);
+        closeAll();
+        // Trigger parent refetch
+        window.dispatchEvent(new CustomEvent("linkage:deal-added"));
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.error ?? "Failed to create terminal operation");
+      }
+    } catch {
+      toast.error("Failed to create terminal operation");
+    }
+    setCreating(null);
+  };
+
+  // Terminal picker sub-view
+  if (terminalPicker) {
+    return (
+      <div className="rounded-[var(--radius-md)] border-2 border-dashed border-teal-400/50 bg-teal-50/30 dark:bg-teal-950/20 p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-semibold text-[var(--color-text-primary)]">{terminalLabel}</span>
+          <button onClick={closeAll} className="p-1 text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] cursor-pointer">
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+        {loadingTerminals ? (
+          <div className="flex justify-center py-4">
+            <div className="h-4 w-4 rounded-full border-2 border-[var(--color-accent)] border-t-transparent animate-spin" />
+          </div>
+        ) : terminals.length === 0 ? (
+          <p className="text-xs text-[var(--color-text-tertiary)] text-center py-4">No terminals found</p>
+        ) : (
+          <div className="space-y-1.5">
+            {terminals.map((t) => (
+              <button
+                key={t.id}
+                onClick={() => handleTerminalOperation(t)}
+                disabled={creating === t.id}
+                className="w-full text-left px-3 py-2 rounded-[var(--radius-sm)] border border-[var(--color-border-subtle)] hover:border-teal-500/40 hover:bg-teal-900/10 transition-colors cursor-pointer disabled:opacity-50 flex items-center justify-between"
+              >
+                <div>
+                  <div className="text-sm font-medium text-[var(--color-text-primary)]">{t.name}</div>
+                  {t.port && <div className="text-xs text-[var(--color-text-tertiary)]">{t.port}</div>}
+                </div>
+                {creating === t.id && <div className="h-3 w-3 rounded-full border-2 border-teal-400 border-t-transparent animate-spin" />}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Large placeholder for empty columns
+  if (variant === "placeholder") {
+    return (
+      <div className="relative">
+        {menuOpen ? (
+          <div className="rounded-[var(--radius-lg)] border-2 border-dashed border-[var(--color-accent)]/30 bg-[var(--color-surface-2)] p-4 space-y-2">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-semibold text-[var(--color-text-primary)]">{label}</span>
+              <button onClick={closeAll} className="p-1 text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] cursor-pointer">
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+            <button onClick={goManualEntry} className="w-full text-left px-3 py-2.5 rounded-[var(--radius-sm)] hover:bg-[var(--color-surface-3)] transition-colors cursor-pointer">
+              <div className="text-sm font-medium text-[var(--color-text-primary)]">Manual entry</div>
+              <div className="text-xs text-[var(--color-text-tertiary)]">Create a deal from scratch</div>
+            </button>
+            <button onClick={goParseEmail} className="w-full text-left px-3 py-2.5 rounded-[var(--radius-sm)] hover:bg-[var(--color-surface-3)] transition-colors cursor-pointer">
+              <div className="text-sm font-medium text-[var(--color-text-primary)]">Parse email</div>
+              <div className="text-xs text-[var(--color-text-tertiary)]">AI extracts deal from trader email</div>
+            </button>
+            <button onClick={openTerminalPicker} className="w-full text-left px-3 py-2.5 rounded-[var(--radius-sm)] hover:bg-teal-900/10 transition-colors cursor-pointer">
+              <div className="text-sm font-medium text-teal-400">{terminalLabel}</div>
+              <div className="text-xs text-[var(--color-text-tertiary)]">Amsterdam, Klaipeda, Antwerp</div>
+            </button>
+          </div>
+        ) : (
+          <div
+            onClick={openMenu}
+            className="rounded-[var(--radius-lg)] border-2 border-dashed border-[var(--color-border-subtle)] py-10 flex flex-col items-center justify-center gap-3 hover:border-[var(--color-border-default)] hover:bg-[var(--color-surface-2)]/50 transition-colors cursor-pointer"
+          >
+            <div className="h-14 w-14 rounded-full bg-[var(--color-surface-3)] border border-[var(--color-border-default)] flex items-center justify-center group-hover:bg-[var(--color-surface-4)]">
+              <Plus className="h-6 w-6 text-[var(--color-text-tertiary)]" />
+            </div>
+            <span className="text-sm text-[var(--color-text-tertiary)]">{label}</span>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Compact buttons for non-empty columns
   return (
-    <div className="flex items-center gap-2">
-      <button
-        onClick={() => router.push(`/deals/parse?linkageId=${encodeURIComponent(linkageId)}&linkageCode=${encodeURIComponent(linkageCode)}&direction=${direction}`)}
-        className="flex items-center gap-1.5 text-xs text-[var(--color-text-tertiary)] hover:text-[var(--color-accent-text)] transition-colors cursor-pointer"
-      >
-        <Plus className="h-3 w-3" /> Parse email
-      </button>
-      <span className="text-[var(--color-border-subtle)]">|</span>
-      <button
-        onClick={() => router.push(`/deals/new?linkageId=${encodeURIComponent(linkageId)}&linkageCode=${encodeURIComponent(linkageCode)}&direction=${direction}`)}
-        className="flex items-center gap-1.5 text-xs text-[var(--color-text-tertiary)] hover:text-[var(--color-accent-text)] transition-colors cursor-pointer"
-      >
-        <Plus className="h-3 w-3" /> Manual entry
-      </button>
+    <div className="relative">
+      {menuOpen ? (
+        <div className="rounded-[var(--radius-md)] border border-[var(--color-border-default)] bg-[var(--color-surface-2)] p-2 space-y-1">
+          <button onClick={goManualEntry} className="w-full text-left px-2.5 py-1.5 rounded-[var(--radius-sm)] hover:bg-[var(--color-surface-3)] transition-colors cursor-pointer text-xs text-[var(--color-text-secondary)]">
+            Manual entry
+          </button>
+          <button onClick={goParseEmail} className="w-full text-left px-2.5 py-1.5 rounded-[var(--radius-sm)] hover:bg-[var(--color-surface-3)] transition-colors cursor-pointer text-xs text-[var(--color-text-secondary)]">
+            Parse email
+          </button>
+          <button onClick={openTerminalPicker} className="w-full text-left px-2.5 py-1.5 rounded-[var(--radius-sm)] hover:bg-teal-900/10 transition-colors cursor-pointer text-xs text-teal-400">
+            {terminalLabel}
+          </button>
+        </div>
+      ) : (
+        <button onClick={openMenu} className="flex items-center gap-1.5 text-xs text-[var(--color-text-tertiary)] hover:text-[var(--color-accent-text)] transition-colors cursor-pointer">
+          <Plus className="h-3 w-3" /> Add
+        </button>
+      )}
     </div>
   );
 }
