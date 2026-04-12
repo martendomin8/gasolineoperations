@@ -11,7 +11,7 @@ import type { Deal, WorkflowTemplateStep } from "@/lib/db/schema";
  * Score a template against a deal. Higher = better match.
  * Returns null if the template has no match on incoterm or direction.
  */
-function scoreTemplate(template: schema.WorkflowTemplate, deal: Deal): number {
+export function scoreTemplate(template: schema.WorkflowTemplate, deal: Deal): number {
   let score = 0;
 
   if (template.incoterm && template.incoterm !== deal.incoterm) return -1;

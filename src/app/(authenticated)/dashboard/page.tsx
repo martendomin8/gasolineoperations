@@ -112,7 +112,7 @@ function StatusBadge({ status }: { status: string }) {
 // Build linkage cards from API data
 // ────────────────────────────────────────────────────
 
-function buildLinkageCards(linkageRows: LinkageRow[], allDeals: DealItem[]): LinkageCard[] {
+export function buildLinkageCards(linkageRows: LinkageRow[], allDeals: DealItem[]): LinkageCard[] {
   // Group deals by linkageId, then by linkageCode as fallback
   const dealsByLinkageId = new Map<string, DealItem[]>();
   const dealsByLinkageCode = new Map<string, DealItem[]>();
