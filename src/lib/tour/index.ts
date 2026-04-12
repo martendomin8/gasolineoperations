@@ -51,17 +51,17 @@ export const TOUR_STEPS: TourStep[] = [
   {
     id: "generate-draft",
     path: null, // same deal page
-    duration: 3500,
+    duration: 6000,
     label: "Generating nomination draft…",
-    description: "One click generates a professional terminal nomination email from the deal data",
+    description: "One click generates a professional terminal nomination email from the deal data. The system merges vessel, cargo, and documentary instruction fields into the template.",
     clickTarget: "[data-tour='generate-draft']",
   },
   {
     id: "view-draft",
     path: null, // same deal page — draft just generated
-    duration: 10000,
+    duration: 14000,
     label: "Nomination Draft — Ready to Review",
-    description: "Copy to Outlook, send from there, then click Sent in the program. The system tracks what was sent and when.",
+    description: "Full email with To, Subject, and Body — ready to copy-paste into Outlook. After sending, the operator clicks 'Sent' to track it. If any deal field changes later, the system flags this step for re-notification.",
     clickTarget: "[data-tour='expand-draft']",
   },
   {

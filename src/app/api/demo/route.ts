@@ -134,136 +134,98 @@ export async function POST() {
   const template = { id: templateIds["CIF Sale — ARA"] };
 
   // =============================================================
-  // DEALS — from Arne's Excel "GASOLINE VESSELS LIST 2026"
+  // LINKAGES + DEALS — from Arne's Excel "GASOLINE VESSELS LIST 2026"
+  // Every deal MUST have a proper linkage row with linkageId FK.
   // =============================================================
 
-  // --- Deal 1: PURCHASE — SOCAR, FOB Aliaga ---
+  // --- Linkage 1: SOCAR purchase ---
+  const [linkSocar] = await db.insert(schema.linkages).values({
+    tenantId: tenant.id, linkageNumber: "086412GSS", tempName: "TEMP-001",
+    vesselName: "MRC SEMIRAMIS", assignedOperatorId: opAT.id, secondaryOperatorId: opKK.id,
+  }).returning();
+
   const [dealSocar] = await db.insert(schema.deals).values({
-    tenantId: tenant.id,
-    externalRef: "GP54124",
-    linkageCode: "086412GSS",
-    counterparty: "SOCAR",
-    direction: "buy",
-    product: "Reformate",
-    quantityMt: "37000",
-    contractedQty: "37000 MT +/-10%",
-    incoterm: "FOB",
-    loadport: "Aliaga",
-    dischargePort: "Amsterdam",
-    laycanStart: "2026-04-10",
-    laycanEnd: "2026-04-15",
-    vesselName: "MRC SEMIRAMIS",
-    vesselCleared: true,
-    docInstructionsReceived: true,
-    status: "active",
-    pricingType: "BL",
-    pricingFormula: "0-0-5",
-    pricingEstimatedDate: "2026-03-18",
-    assignedOperatorId: opAT.id,
-    secondaryOperatorId: opKK.id,
-    createdBy: adminUser.id,
+    tenantId: tenant.id, linkageId: linkSocar.id, linkageCode: "086412GSS",
+    externalRef: "GP54124", counterparty: "SOCAR", direction: "buy",
+    product: "Reformate", quantityMt: "37000", contractedQty: "37000 MT +/-10%",
+    incoterm: "FOB", loadport: "Aliaga", dischargePort: "Amsterdam",
+    laycanStart: "2026-04-10", laycanEnd: "2026-04-15",
+    vesselCleared: true, docInstructionsReceived: true, status: "active",
+    pricingType: "BL", pricingFormula: "0-0-5", pricingEstimatedDate: "2026-03-18",
+    assignedOperatorId: opAT.id, secondaryOperatorId: opKK.id, createdBy: adminUser.id,
   }).returning();
 
-  // --- Deal 2: SALE — VITOL, FOB Amsterdam ---
+  // --- Linkage 2: VITOL sale ---
+  const [linkVitol] = await db.insert(schema.linkages).values({
+    tenantId: tenant.id, linkageNumber: "068742GSS", tempName: "TEMP-002",
+    vesselName: "BGAS MAUD", assignedOperatorId: opLR.id, secondaryOperatorId: opKK.id,
+  }).returning();
+
   const [dealVitol] = await db.insert(schema.deals).values({
-    tenantId: tenant.id,
-    externalRef: "GP54871",
-    linkageCode: "068742GSS",
-    counterparty: "VITOL",
-    direction: "sell",
-    product: "Gasoline",
-    quantityMt: "15000",
-    contractedQty: "15000 MT +/-10%",
-    incoterm: "FOB",
-    loadport: "Amsterdam",
-    laycanStart: "2026-04-04",
-    laycanEnd: "2026-04-07",
-    vesselName: "BGAS MAUD",
-    vesselCleared: false,
-    docInstructionsReceived: false,
-    status: "active",
+    tenantId: tenant.id, linkageId: linkVitol.id, linkageCode: "068742GSS",
+    externalRef: "GP54871", counterparty: "VITOL", direction: "sell",
+    product: "Gasoline", quantityMt: "15000", contractedQty: "15000 MT +/-10%",
+    incoterm: "FOB", loadport: "Amsterdam",
+    laycanStart: "2026-04-04", laycanEnd: "2026-04-07",
+    vesselCleared: false, docInstructionsReceived: false, status: "active",
     pricingFormula: "01-30 APR",
-    assignedOperatorId: opLR.id,
-    secondaryOperatorId: opKK.id,
-    createdBy: adminUser.id,
+    assignedOperatorId: opLR.id, secondaryOperatorId: opKK.id, createdBy: adminUser.id,
   }).returning();
 
-  // --- Deal 3: PURCHASE+SALE linked — HOLBORN (buy) + SHELL (sell) ---
+  // --- Linkage 3: HOLBORN (buy) + SHELL (sell) — linked purchase+sale ---
+  const [linkHolborn] = await db.insert(schema.linkages).values({
+    tenantId: tenant.id, linkageNumber: "064457GSS", tempName: "TEMP-003",
+    vesselName: "GULF HOPPER", assignedOperatorId: opKK.id, secondaryOperatorId: opAT.id,
+  }).returning();
+
   const [dealHolborn] = await db.insert(schema.deals).values({
-    tenantId: tenant.id,
-    externalRef: "GP99715",
-    linkageCode: "064457GSS",
-    counterparty: "HOLBORN",
-    direction: "buy",
-    product: "Gasoline",
-    quantityMt: "11438.534",
-    contractedQty: "11438.534 MT VAC (loaded)",
-    incoterm: "FOB",
-    loadport: "Hamburg",
-    dischargePort: "New York",
-    laycanStart: "2026-04-02",
-    laycanEnd: "2026-04-04",
-    vesselName: "GULF HOPPER",
-    vesselCleared: true,
-    docInstructionsReceived: true,
-    status: "sailing",
-    pricingType: "BL",
-    pricingFormula: "0-0-5",
-    pricingEstimatedDate: "2026-04-03",
-    assignedOperatorId: opKK.id,
-    secondaryOperatorId: opAT.id,
-    createdBy: adminUser.id,
+    tenantId: tenant.id, linkageId: linkHolborn.id, linkageCode: "064457GSS",
+    externalRef: "GP99715", counterparty: "HOLBORN", direction: "buy",
+    product: "Gasoline", quantityMt: "11438.534", contractedQty: "11438.534 MT VAC (loaded)",
+    incoterm: "FOB", loadport: "Hamburg", dischargePort: "New York",
+    laycanStart: "2026-04-02", laycanEnd: "2026-04-04",
+    vesselCleared: true, docInstructionsReceived: true, status: "sailing",
+    pricingType: "BL", pricingFormula: "0-0-5", pricingEstimatedDate: "2026-04-03",
+    assignedOperatorId: opKK.id, secondaryOperatorId: opAT.id, createdBy: adminUser.id,
   }).returning();
 
   const [dealShell] = await db.insert(schema.deals).values({
-    tenantId: tenant.id,
-    externalRef: "GP35477",
-    linkageCode: "064457GSS",
-    counterparty: "SHELL",
-    direction: "sell",
-    product: "Gasoline",
-    quantityMt: "11438.534",
-    contractedQty: "11438.534 MT VAC (loaded)",
-    incoterm: "DAP",
-    loadport: "Hamburg",
-    dischargePort: "New York",
-    laycanStart: "2026-04-20",
-    laycanEnd: "2026-04-25",
-    vesselName: "GULF HOPPER",
-    vesselCleared: true,
-    docInstructionsReceived: true,
-    status: "sailing",
-    pricingType: "NOR",
-    pricingFormula: "0-0-5",
-    pricingEstimatedDate: "2026-04-24",
-    assignedOperatorId: opKK.id,
-    secondaryOperatorId: opAT.id,
-    createdBy: adminUser.id,
+    tenantId: tenant.id, linkageId: linkHolborn.id, linkageCode: "064457GSS",
+    externalRef: "GP35477", counterparty: "SHELL", direction: "sell",
+    product: "Gasoline", quantityMt: "11438.534", contractedQty: "11438.534 MT VAC (loaded)",
+    incoterm: "DAP", loadport: "Hamburg", dischargePort: "New York",
+    laycanStart: "2026-04-20", laycanEnd: "2026-04-25",
+    vesselCleared: true, docInstructionsReceived: true, status: "sailing",
+    pricingType: "NOR", pricingFormula: "0-0-5", pricingEstimatedDate: "2026-04-24",
+    assignedOperatorId: opKK.id, secondaryOperatorId: opAT.id, createdBy: adminUser.id,
   }).returning();
 
-  // --- Deal 4: COMPLETED — MERCURIUS sale ---
+  // --- Linkage 4: MERCURIUS sale (completed) ---
+  const [linkMercurius] = await db.insert(schema.linkages).values({
+    tenantId: tenant.id, linkageNumber: "022478GSS", tempName: "TEMP-004",
+    vesselName: "BGAS ALPINE", status: "completed",
+    assignedOperatorId: opLR.id, secondaryOperatorId: opKK.id,
+  }).returning();
+
   await db.insert(schema.deals).values({
-    tenantId: tenant.id,
-    externalRef: "GP51131",
-    linkageCode: "022478GSS",
-    counterparty: "MERCURIUS",
-    direction: "sell",
-    product: "Gasoline",
-    quantityMt: "25000",
-    contractedQty: "25000 MT +/-10%",
-    incoterm: "FOB",
-    loadport: "Antwerp",
-    laycanStart: "2026-04-04",
-    laycanEnd: "2026-04-07",
-    vesselName: "BGAS ALPINE",
-    vesselCleared: true,
-    docInstructionsReceived: true,
-    status: "completed",
+    tenantId: tenant.id, linkageId: linkMercurius.id, linkageCode: "022478GSS",
+    externalRef: "GP51131", counterparty: "MERCURIUS", direction: "sell",
+    product: "Gasoline", quantityMt: "25000", contractedQty: "25000 MT +/-10%",
+    incoterm: "FOB", loadport: "Antwerp",
+    laycanStart: "2026-04-04", laycanEnd: "2026-04-07",
+    vesselCleared: true, docInstructionsReceived: true, status: "completed",
     pricingFormula: "01-30 APR",
-    assignedOperatorId: opLR.id,
-    secondaryOperatorId: opKK.id,
-    createdBy: adminUser.id,
+    assignedOperatorId: opLR.id, secondaryOperatorId: opKK.id, createdBy: adminUser.id,
   });
+
+  // --- Instantiate workflows for active/sailing deals ---
+  const { matchTemplate, instantiateWorkflow } = await import("@/lib/workflow-engine");
+  for (const deal of [dealSocar, dealVitol, dealHolborn, dealShell]) {
+    const matched = await matchTemplate(deal as any, db as any);
+    if (matched) {
+      await instantiateWorkflow(deal as any, matched.id, db as any);
+    }
+  }
 
   // --- Audit logs ---
   await db.insert(schema.auditLogs).values([

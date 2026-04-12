@@ -297,9 +297,9 @@ export function DemoTour() {
       <button
         onClick={startTour}
         title="Run automated demo tour (2 min)"
-        className="fixed bottom-5 right-5 z-50 flex items-center gap-2 px-4 py-2.5 rounded-full bg-[var(--color-accent)] text-white text-xs font-semibold shadow-lg hover:opacity-90 active:scale-95 transition-all"
+        className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 px-5 py-3 rounded-full bg-[var(--color-accent)] text-white text-sm font-semibold shadow-lg hover:opacity-90 active:scale-95 transition-all"
       >
-        <Play className="h-3.5 w-3.5 fill-white" />
+        <Play className="h-4 w-4 fill-white" />
         Demo Tour
       </button>
     );
@@ -314,22 +314,22 @@ export function DemoTour() {
   return (
     <>
       {/* Floating HUD */}
-      <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 w-full max-w-lg px-4 pointer-events-none">
+      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-full max-w-2xl px-6 pointer-events-none">
         <div className="pointer-events-auto bg-[var(--color-surface-1)] border border-[var(--color-border-default)] rounded-2xl shadow-2xl overflow-hidden">
           {/* Progress bar */}
-          <div className="h-0.5 bg-[var(--color-surface-2)]">
+          <div className="h-1 bg-[var(--color-surface-2)]">
             <div
               className="h-full bg-[var(--color-accent)] transition-all duration-100"
               style={{ width: `${progress}%` }}
             />
           </div>
 
-          <div className="flex items-start gap-3 px-4 py-3">
+          <div className="flex items-start gap-4 px-6 py-4">
             {/* Step indicator */}
-            <div className="flex-shrink-0 mt-0.5">
-              <div className="flex items-center gap-1.5">
-                <Zap className="h-4 w-4 text-[var(--color-accent)]" />
-                <span className="text-[10px] font-mono text-[var(--color-text-tertiary)] uppercase tracking-wider">
+            <div className="flex-shrink-0 mt-1">
+              <div className="flex items-center gap-2">
+                <Zap className="h-5 w-5 text-[var(--color-accent)]" />
+                <span className="text-xs font-mono text-[var(--color-text-tertiary)] uppercase tracking-wider">
                   {stepIndex + 1}/{totalSteps}
                 </span>
               </div>
@@ -337,27 +337,27 @@ export function DemoTour() {
 
             {/* Step content */}
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-0.5">
-                <span className="text-xs font-semibold text-[var(--color-text-primary)] truncate">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-base font-semibold text-[var(--color-text-primary)]">
                   {step.label}
                 </span>
               </div>
-              <p className="text-xs text-[var(--color-text-secondary)] leading-relaxed">
+              <p className="text-sm text-[var(--color-text-secondary)] leading-relaxed">
                 {step.description}
               </p>
             </div>
 
             {/* Step dots */}
-            <div className="flex-shrink-0 flex items-center gap-1 mt-1">
+            <div className="flex-shrink-0 flex items-center gap-1.5 mt-2">
               {TOUR_STEPS.map((_, i) => (
                 <div
                   key={i}
                   className={`rounded-full transition-all duration-300 ${
                     i < stepIndex
-                      ? "w-1.5 h-1.5 bg-[var(--color-success)]"
+                      ? "w-2 h-2 bg-[var(--color-success)]"
                       : i === stepIndex
-                      ? "w-2.5 h-1.5 bg-[var(--color-accent)]"
-                      : "w-1.5 h-1.5 bg-[var(--color-border-default)]"
+                      ? "w-3 h-2 bg-[var(--color-accent)]"
+                      : "w-2 h-2 bg-[var(--color-border-default)]"
                   }`}
                 />
               ))}
@@ -367,19 +367,19 @@ export function DemoTour() {
             <button
               onClick={stopTour}
               title="Stop demo tour"
-              className="flex-shrink-0 p-1 rounded-lg text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-surface-2)] transition-colors"
+              className="flex-shrink-0 p-1.5 rounded-lg text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-surface-2)] transition-colors"
             >
-              <X className="h-3.5 w-3.5" />
+              <X className="h-4 w-4" />
             </button>
           </div>
 
           {/* Step progress mini-nav */}
-          <div className="px-4 pb-2.5 flex items-center justify-between">
-            <div className="flex gap-0.5">
+          <div className="px-6 pb-3 flex items-center justify-between">
+            <div className="flex gap-1">
               {TOUR_STEPS.map((s, i) => (
                 <div
                   key={i}
-                  className={`text-[9px] font-mono px-1 py-0.5 rounded transition-colors ${
+                  className={`text-[10px] font-mono px-1.5 py-0.5 rounded transition-colors ${
                     i === stepIndex
                       ? "bg-[var(--color-accent-muted)] text-[var(--color-accent-text)]"
                       : i < stepIndex
@@ -391,8 +391,8 @@ export function DemoTour() {
                 </div>
               ))}
             </div>
-            <span className="text-[9px] text-[var(--color-text-tertiary)] font-mono uppercase tracking-wider flex items-center gap-1">
-              <ChevronRight className="h-2.5 w-2.5" />
+            <span className="text-[10px] text-[var(--color-text-tertiary)] font-mono uppercase tracking-wider flex items-center gap-1">
+              <ChevronRight className="h-3 w-3" />
               auto-advancing
             </span>
           </div>
