@@ -778,7 +778,10 @@ export default function ParseDealPage() {
   useEffect(() => {
     const handleTourE2E = () => {
       // Use the "CIF Sale ARA — clean" fixture for the demo — best showcase
-      const demoFixture = SAMPLE_EMAILS.find((s) => s.id === "cif-sale-ara-clean");
+      // Use the CFR sale fixture for the demo tour — showcases the new CFR
+      // workflow template matching (round 7 addition). Falls back to CIF if missing.
+      const demoFixture = SAMPLE_EMAILS.find((s) => s.id === "cfr-sale-med")
+        ?? SAMPLE_EMAILS.find((s) => s.id === "cif-sale-ara-clean");
       handleE2E(demoFixture, /* tourMode */ true);
     };
     window.addEventListener("tour:run-e2e", handleTourE2E);

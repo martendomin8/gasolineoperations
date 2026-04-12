@@ -85,23 +85,53 @@ export async function POST() {
     createdBy: adminUser.id,
   });
 
-  // --- Workflow template ---
-  const templateSteps: schema.WorkflowTemplateStep[] = [
-    { order: 1, name: "Vessel Clearance Request to Buyer", stepType: "nomination", recipientPartyType: "broker", isExternalWait: true, emailTemplateId: tplClearance.id },
-    { order: 2, name: "Nomination + Doc Instructions to Terminal", stepType: "nomination", recipientPartyType: "terminal", isExternalWait: false, recommendedAfterStep: 1 },
-    { order: 3, name: "Inspector Appointment — Loadport", stepType: "appointment", recipientPartyType: "inspector", isExternalWait: false },
-    { order: 4, name: "Agent Appointment — Loadport", stepType: "appointment", recipientPartyType: "agent", isExternalWait: false },
-    { order: 5, name: "Voyage Orders to Chartering Broker", stepType: "order", recipientPartyType: "broker", isExternalWait: false },
+  // --- Workflow templates (7 covering all common incoterm × direction combos) ---
+  const cifSteps: schema.WorkflowTemplateStep[] = [
+    { order: 1, name: "Vessel Clearance Request to Buyer", stepType: "nomination", recipientPartyType: "broker", isExternalWait: true, emailTemplateId: tplClearance.id, description: "Send Q88 + vessel details to buyer. WAIT for clearance confirmation + documentary instructions." },
+    { order: 2, name: "Nomination + Doc Instructions to Terminal", stepType: "nomination", recipientPartyType: "terminal", isExternalWait: false, recommendedAfterStep: 1, description: "Send vessel nomination and documentary instructions to loading terminal." },
+    { order: 3, name: "Inspector Appointment — Loadport", stepType: "appointment", recipientPartyType: "inspector", isExternalWait: false, recommendedAfterStep: 1, description: "Appoint Q&Q inspector at loadport." },
+    { order: 4, name: "Agent Appointment — Loadport", stepType: "appointment", recipientPartyType: "agent", isExternalWait: false, recommendedAfterStep: 1, description: "Appoint loadport agent to coordinate vessel arrival." },
+    { order: 5, name: "Voyage Orders to Chartering Broker", stepType: "order", recipientPartyType: "broker", isExternalWait: false, recommendedAfterStep: 1, description: "Issue voyage orders to chartering broker." },
   ];
 
-  const [template] = await db.insert(schema.workflowTemplates).values({
-    tenantId: tenant.id,
-    name: "CIF Sale — ARA",
-    incoterm: "CIF",
-    direction: "sell",
-    regionPattern: "ARA",
-    steps: templateSteps,
-  }).returning();
+  // All 7 templates — new demo tenants get the full set
+  const templateDefs: Array<{ name: string; incoterm: string; direction: string; regionPattern: string | null; steps: schema.WorkflowTemplateStep[] }> = [
+    { name: "FOB Sale — ARA", incoterm: "FOB", direction: "sell", regionPattern: "Amsterdam|Antwerp|Rotterdam", steps: [
+      { order: 1, name: "Loading Instructions to Terminal", stepType: "instruction", recipientPartyType: "terminal", description: "Send loading instructions to the terminal." },
+      { order: 2, name: "Inspector Appointment — Loadport", stepType: "appointment", recipientPartyType: "inspector", description: "Appoint Q&Q inspector at loadport." },
+    ]},
+    { name: "CIF Sale — ARA", incoterm: "CIF", direction: "sell", regionPattern: "Amsterdam|Antwerp|Rotterdam", steps: cifSteps },
+    { name: "CIF Sale — Klaipeda", incoterm: "CIF", direction: "sell", regionPattern: "Klaipeda|Klaip", steps: cifSteps },
+    { name: "CFR Sale — Generic", incoterm: "CFR", direction: "sell", regionPattern: null, steps: cifSteps },
+    { name: "DAP Sale — Generic", incoterm: "DAP", direction: "sell", regionPattern: null, steps: [
+      ...cifSteps,
+      { order: 6, name: "Discharge Agent Appointment", stepType: "appointment", recipientPartyType: "agent", recommendedAfterStep: 1, description: "Appoint discharge port agent (DAP — seller coordinates discharge)." },
+    ]},
+    { name: "FOB Purchase — Klaipeda", incoterm: "FOB", direction: "buy", regionPattern: "Klaipeda|Klaip", steps: [
+      { order: 1, name: "Vessel Nomination to Seller", stepType: "nomination", recipientPartyType: "broker", emailTemplateId: tplClearance.id, description: "Nominate vessel to seller within contractual deadline." },
+      { order: 2, name: "Inspector Appointment — Loadport", stepType: "appointment", recipientPartyType: "inspector", recommendedAfterStep: 1, description: "Appoint Q&Q inspector at loadport." },
+      { order: 3, name: "Agent Appointment — Loadport", stepType: "appointment", recipientPartyType: "agent", recommendedAfterStep: 1, description: "Appoint loadport agent." },
+    ]},
+    { name: "FOB Purchase — Generic", incoterm: "FOB", direction: "buy", regionPattern: null, steps: [
+      { order: 1, name: "Vessel Nomination to Seller", stepType: "nomination", recipientPartyType: "broker", description: "Nominate vessel to seller within contractual deadline." },
+      { order: 2, name: "Inspector Appointment — Loadport", stepType: "appointment", recipientPartyType: "inspector", recommendedAfterStep: 1, description: "Appoint Q&Q inspector at loadport." },
+      { order: 3, name: "Agent Appointment — Loadport", stepType: "appointment", recipientPartyType: "agent", recommendedAfterStep: 1, description: "Appoint loadport agent." },
+    ]},
+  ];
+
+  const templateIds: Record<string, string> = {};
+  for (const td of templateDefs) {
+    const [created] = await db.insert(schema.workflowTemplates).values({
+      tenantId: tenant.id,
+      name: td.name,
+      incoterm: td.incoterm as "FOB" | "CIF" | "CFR" | "DAP" | "FCA" | undefined,
+      direction: td.direction as "buy" | "sell" | undefined,
+      regionPattern: td.regionPattern ?? undefined,
+      steps: td.steps,
+    }).returning();
+    templateIds[td.name] = created.id;
+  }
+  const template = { id: templateIds["CIF Sale — ARA"] };
 
   // =============================================================
   // DEALS — from Arne's Excel "GASOLINE VESSELS LIST 2026"

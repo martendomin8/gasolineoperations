@@ -102,11 +102,11 @@ export function DemoTour() {
 
       // Determine the actual path to navigate to
       let targetPath = step.path;
-      if (step.id === "shell-deal" || step.id === "generate-draft" || step.id === "view-draft") {
-        if (currentState.shellDealId) {
-          targetPath = `/deals/${currentState.shellDealId}`;
+      if (step.id === "linked-deal" || step.id === "generate-draft" || step.id === "view-draft") {
+        if (currentState.linkedDealId) {
+          targetPath = `/deals/${currentState.linkedDealId}`;
         } else {
-          // Skip if we don't have the shell deal ID
+          // Skip if we don't have the linked deal ID
           save({ ...currentState, stepIndex: stepIndex + 1 });
           executeStep(stepIndex + 1, currentState);
           return;
@@ -222,22 +222,44 @@ export function DemoTour() {
   // ── start tour ────────────────────────────────────────────────────────
 
   const startTour = useCallback(async () => {
-    // Look up the Shell deal (EG-2026-041) from the API
-    let shellDealId: string | null = null;
+    // Look up a linked deal (HOLBORN or the first deal with a sibling) for the tour
+    let linkedDealId: string | null = null;
     try {
-      const res = await fetch("/api/deals?search=EG-2026-041&perPage=1");
+      const res = await fetch("/api/deals?perPage=50&_t=" + Date.now(), { cache: "no-store" });
       if (res.ok) {
         const data = await res.json();
-        shellDealId = data.items?.[0]?.id ?? null;
+        const items: Array<{ id: string; linkageId: string | null; direction: string; dealType: string }> = data.items ?? [];
+        // Find a deal whose linkage has both buy and sell (regular deals only)
+        const regular = items.filter((d) => d.dealType !== "terminal_operation");
+        const linkageCounts = new Map<string, { buys: number; sells: number; id: string }>();
+        for (const d of regular) {
+          if (!d.linkageId) continue;
+          const c = linkageCounts.get(d.linkageId) ?? { buys: 0, sells: 0, id: d.id };
+          if (d.direction === "buy") c.buys++;
+          else c.sells++;
+          c.id = d.id; // keep last seen
+          linkageCounts.set(d.linkageId, c);
+        }
+        // Pick first linkage with both buy+sell
+        for (const [, c] of linkageCounts) {
+          if (c.buys > 0 && c.sells > 0) {
+            linkedDealId = c.id;
+            break;
+          }
+        }
+        // Fallback to any deal
+        if (!linkedDealId && items.length > 0) {
+          linkedDealId = items[0].id;
+        }
       }
     } catch {
-      /* ok, will skip shell deal step */
+      /* ok, will skip linked deal step */
     }
 
     const initial: TourState = {
       running: true,
       stepIndex: 0,
-      shellDealId,
+      linkedDealId,
       newDealId: null,
     };
     save(initial);
