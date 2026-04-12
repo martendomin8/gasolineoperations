@@ -135,8 +135,13 @@ function buildLinkageCards(linkageRows: LinkageRow[], allDeals: DealItem[]): Lin
       deals = dealsByLinkageCode.get(row.linkageNumber) ?? [];
     }
 
-    const buys = deals.filter((d) => d.direction === "buy");
-    const sells = deals.filter((d) => d.direction === "sell");
+    // Split regular deals from terminal ops for categorization.
+    // Terminal ops have direction='buy'/'sell' but should NOT count as
+    // regular purchases/sales — a linkage with only terminal ops belongs
+    // in OWN TERMINAL, not PURCHASE+SELL.
+    const regularDeals = deals.filter((d) => d.dealType !== "terminal_operation");
+    const buys = regularDeals.filter((d) => d.direction === "buy");
+    const sells = regularDeals.filter((d) => d.direction === "sell");
     const vessel = deals.find((d) => d.vesselName)?.vesselName ?? null;
     const product = deals[0]?.product ?? null;
 
@@ -147,12 +152,12 @@ function buildLinkageCards(linkageRows: LinkageRow[], allDeals: DealItem[]): Lin
     // First deal for navigation
     const firstDealId = deals[0]?.id ?? null;
 
-    // Categorize
-    const hasTerminalOps = deals.some((d) => d.dealType === "terminal_operation");
+    // Categorize based on REGULAR deals only
     let category: LinkageCard["category"];
     if (deals.length === 0) {
       category = "empty";
-    } else if (hasTerminalOps && buys.length === 0 && sells.length === 0) {
+    } else if (regularDeals.length === 0) {
+      // All deals are terminal ops → own terminal
       category = "own_terminal";
     } else if (buys.length > 0 && sells.length > 0) {
       category = "purchase_sell";
@@ -615,9 +620,9 @@ export default function DashboardPage() {
         </Card>
       ) : (
         <div className="flex gap-4 overflow-x-auto pb-4">
-          <Column title="Sell Only" cards={sellOnly} onCardClick={handleCardClick} onCardDelete={requestCardDelete} />
-          <Column title="Buy Only" cards={buyOnly} onCardClick={handleCardClick} onCardDelete={requestCardDelete} />
-          <Column title="Purchase + Sell" cards={purchaseSell} onCardClick={handleCardClick} onCardDelete={requestCardDelete} />
+          <Column title="Sale" cards={sellOnly} onCardClick={handleCardClick} onCardDelete={requestCardDelete} />
+          <Column title="Purchase" cards={buyOnly} onCardClick={handleCardClick} onCardDelete={requestCardDelete} />
+          <Column title="Purchase + Sale" cards={purchaseSell} onCardClick={handleCardClick} onCardDelete={requestCardDelete} />
           <Column title="Own Terminal" cards={ownTerminal} onCardClick={handleCardClick} onCardDelete={requestCardDelete} />
           <Column title="Empty" cards={empty} onCardClick={handleCardClick} onCardDelete={requestCardDelete} />
         </div>

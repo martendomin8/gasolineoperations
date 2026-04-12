@@ -335,9 +335,28 @@ function ColumnHeaders() {
 // DealRow — the main row component with editable and locked cells
 // ---------------------------------------------------------------------------
 
+// Stable color for each linkage — cycles through 6 tints
+const LINKAGE_TINTS = [
+  "border-l-emerald-500/50",
+  "border-l-blue-500/50",
+  "border-l-purple-500/50",
+  "border-l-pink-500/50",
+  "border-l-cyan-500/50",
+  "border-l-orange-500/50",
+];
+
+function linkageTint(linkageId: string | null): string {
+  if (!linkageId) return "";
+  // Simple hash → index
+  let hash = 0;
+  for (let i = 0; i < linkageId.length; i++) hash = (hash * 31 + linkageId.charCodeAt(i)) | 0;
+  return LINKAGE_TINTS[Math.abs(hash) % LINKAGE_TINTS.length];
+}
+
 function DealRowComponent({ deal, onUpdate, onDelete }: { deal: DealRow; onUpdate: () => void; onDelete: (deal: DealRow) => void }) {
+  const tint = linkageTint(deal.linkageId);
   return (
-    <tr className="hover:bg-[var(--color-surface-2)] transition-colors group relative">
+    <tr className={`hover:bg-[var(--color-surface-2)] transition-colors group relative ${tint ? `border-l-[3px] ${tint}` : ""}`}>
       {/* Locked cells — system-populated, read-only */}
       <LockedCell className="font-mono whitespace-nowrap">
         <div className="flex items-center gap-1.5">
@@ -421,8 +440,9 @@ function GrayedCell() {
 }
 
 function InternalDealRowComponent({ deal, onUpdate, onDelete }: { deal: DealRow; onUpdate: () => void; onDelete: (deal: DealRow) => void }) {
+  const tint = linkageTint(deal.linkageId);
   return (
-    <tr className="hover:bg-[var(--color-surface-2)] transition-colors group relative">
+    <tr className={`hover:bg-[var(--color-surface-2)] transition-colors group relative ${tint ? `border-l-[3px] ${tint}` : ""}`}>
       {/* Same columns as main table — grayed out where not applicable */}
       <LockedCell className="font-mono whitespace-nowrap">
         <div className="flex items-center gap-1.5">
