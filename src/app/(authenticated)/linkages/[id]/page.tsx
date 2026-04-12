@@ -215,14 +215,20 @@ export default function LinkageDetailPage() {
             </span>
           </h2>
           {buyDeals.length === 0 ? (
-            <div className="rounded-[var(--radius-md)] border border-dashed border-[var(--color-border-subtle)] py-8 text-center">
-              <p className="text-sm text-[var(--color-text-tertiary)]">No purchases yet</p>
-            </div>
+            isOperator ? (
+              <AddDealPlaceholder linkageId={linkage.id} linkageCode={displayName} side="buy" />
+            ) : (
+              <div className="rounded-[var(--radius-md)] border border-dashed border-[var(--color-border-subtle)] py-8 text-center">
+                <p className="text-sm text-[var(--color-text-tertiary)]">No purchases yet</p>
+              </div>
+            )
           ) : (
-            buyDeals.map((d) => <DealCard key={d.id} deal={d} onDeleted={fetchData} canDelete={isOperator} />)
-          )}
-          {isOperator && (
-            <AddDealButtons linkageId={linkage.id} linkageCode={displayName} side="buy" />
+            <>
+              {buyDeals.map((d) => <DealCard key={d.id} deal={d} onDeleted={fetchData} canDelete={isOperator} />)}
+              {isOperator && (
+                <AddDealButtons linkageId={linkage.id} linkageCode={displayName} side="buy" />
+              )}
+            </>
           )}
         </div>
 
@@ -236,14 +242,20 @@ export default function LinkageDetailPage() {
             </span>
           </h2>
           {sellDeals.length === 0 ? (
-            <div className="rounded-[var(--radius-md)] border border-dashed border-[var(--color-border-subtle)] py-8 text-center">
-              <p className="text-sm text-[var(--color-text-tertiary)]">No sales yet</p>
-            </div>
+            isOperator ? (
+              <AddDealPlaceholder linkageId={linkage.id} linkageCode={displayName} side="sell" />
+            ) : (
+              <div className="rounded-[var(--radius-md)] border border-dashed border-[var(--color-border-subtle)] py-8 text-center">
+                <p className="text-sm text-[var(--color-text-tertiary)]">No sales yet</p>
+              </div>
+            )
           ) : (
-            sellDeals.map((d) => <DealCard key={d.id} deal={d} onDeleted={fetchData} canDelete={isOperator} />)
-          )}
-          {isOperator && (
-            <AddDealButtons linkageId={linkage.id} linkageCode={displayName} side="sell" />
+            <>
+              {sellDeals.map((d) => <DealCard key={d.id} deal={d} onDeleted={fetchData} canDelete={isOperator} />)}
+              {isOperator && (
+                <AddDealButtons linkageId={linkage.id} linkageCode={displayName} side="sell" />
+              )}
+            </>
           )}
         </div>
       </div>
@@ -533,7 +545,41 @@ function DealCard({ deal, onDeleted, canDelete }: { deal: DealSummary; onDeleted
   );
 }
 
-// ── Add Deal Buttons ─────────────────────────────────────────
+// ── Add Deal Placeholder (large "+" for empty columns) ───────
+
+function AddDealPlaceholder({ linkageId, linkageCode, side }: { linkageId: string; linkageCode: string; side: "buy" | "sell" }) {
+  const router = useRouter();
+  const label = side === "buy" ? "Add purchase / loading" : "Add sale / discharge";
+
+  return (
+    <div className="rounded-[var(--radius-lg)] border-2 border-dashed border-[var(--color-border-subtle)] py-10 flex flex-col items-center justify-center gap-3 hover:border-[var(--color-border-default)] hover:bg-[var(--color-surface-2)]/50 transition-colors">
+      <button
+        onClick={() => router.push(`/deals/new?linkageId=${encodeURIComponent(linkageId)}&linkageCode=${encodeURIComponent(linkageCode)}&direction=${side}`)}
+        className="h-14 w-14 rounded-full bg-[var(--color-surface-3)] border border-[var(--color-border-default)] flex items-center justify-center hover:bg-[var(--color-surface-4)] hover:border-[var(--color-accent)]/40 transition-all cursor-pointer group"
+      >
+        <Plus className="h-6 w-6 text-[var(--color-text-tertiary)] group-hover:text-[var(--color-accent)]" />
+      </button>
+      <span className="text-sm text-[var(--color-text-tertiary)]">{label}</span>
+      <div className="flex items-center gap-3 text-xs">
+        <button
+          onClick={() => router.push(`/deals/parse?linkageId=${encodeURIComponent(linkageId)}&linkageCode=${encodeURIComponent(linkageCode)}&direction=${side}`)}
+          className="text-[var(--color-text-tertiary)] hover:text-[var(--color-accent-text)] transition-colors cursor-pointer flex items-center gap-1"
+        >
+          <Plus className="h-3 w-3" /> Parse email
+        </button>
+        <span className="text-[var(--color-border-subtle)]">|</span>
+        <button
+          onClick={() => router.push(`/deals/new?linkageId=${encodeURIComponent(linkageId)}&linkageCode=${encodeURIComponent(linkageCode)}&direction=${side}`)}
+          className="text-[var(--color-text-tertiary)] hover:text-[var(--color-accent-text)] transition-colors cursor-pointer flex items-center gap-1"
+        >
+          <Plus className="h-3 w-3" /> Manual entry
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Add Deal Buttons (compact, for non-empty columns) ────────
 
 function AddDealButtons({ linkageId, linkageCode, side }: { linkageId: string; linkageCode: string; side: "buy" | "sell" }) {
   const router = useRouter();
