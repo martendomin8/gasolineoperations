@@ -469,14 +469,16 @@ export default function DashboardPage() {
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
 
-  // Navigate to a linkage's first deal, or just to the linkage itself
+  // Navigate to the canonical linkage view — /linkages/[id].
+  // A linkage is a first-class "folder" that can be viewed even when empty.
+  // The old path (going to /deals/[firstDealId] or /deals/new) broke empty linkages.
   function handleCardClick(card: LinkageCard) {
-    if (card.firstDealId) {
-      router.push(`/deals/${card.firstDealId}`);
-    } else {
-      // Empty linkage — navigate to new deal page with linkage context
-      router.push(`/deals/new?linkageId=${card.id}`);
+    // Skip virtual orphan/code-only cards that don't have real linkage rows
+    if (card.id.startsWith("orphan-") || card.id.startsWith("code-")) {
+      if (card.firstDealId) router.push(`/deals/${card.firstDealId}`);
+      return;
     }
+    router.push(`/linkages/${card.id}`);
   }
 
   function requestCardDelete(card: LinkageCard) {

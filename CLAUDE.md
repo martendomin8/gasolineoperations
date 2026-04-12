@@ -352,7 +352,9 @@ CP Recaps are also parsed via the same drag & drop → AI parse → confirm flow
 
 ---
 
-## UI: Deal Detail View (Linkage View)
+## UI: Linkage View (`/linkages/[id]`)
+
+A linkage is a **first-class route** at `/linkages/[id]`. The dashboard routes ALL linkage card clicks to this page — never to `/deals/new` or `/deals/[firstDealId]`. The page renders even when the linkage is empty (no deals). Think of it as opening a folder on a computer: an empty folder is a valid state.
 
 When the operator opens a cargo chain, the screen is divided into three sections:
 

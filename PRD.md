@@ -233,6 +233,8 @@ Manages operations function. Configures templates, onboards operators, oversees 
 
 ### 4.13 UI: Linkage View (Deal Detail)
 
+**UI-0**: **Linkage is a first-class route.** Every linkage has its own canonical page at `/linkages/[id]`. This page renders the voyage bar, notes, qty totals, and buy/sell columns even when the linkage is empty. The dashboard routes ALL linkage card clicks to `/linkages/[id]`, never to `/deals/new` or `/deals/[firstDealId]`. Think of a linkage as a folder on a computer — an empty folder exists and can be opened.
+
 **UI-1**: Top section — Voyage info (linkage code, vessel, Q88, CP recap, operators, pricing, voyage/discharge orders).
 
 **UI-2**: Left section — Buy side (purchase deals with workflow steps).
