@@ -3305,6 +3305,7 @@ function DealFooterSections({ deal }: { deal: DealDetail }) {
 
 export default function DealDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const router = useRouter();
   const { data: session } = useSession();
   const [deal, setDeal] = useState<DealDetail | null>(null);
   const [linkedDeals, setLinkedDeals] = useState<LinkedDeal[]>([]);
@@ -3379,17 +3380,14 @@ export default function DealDetailPage() {
   const canEdit = session?.user?.role === "operator" || session?.user?.role === "admin";
   const isOperator = canEdit;
 
-  // Linkage view when deal has a linkageCode and we found linked deals
-  if (deal.linkageCode && linkedDeals.length > 0) {
+  // Redirect to the canonical linkage view. There must be ONE view for a
+  // linkage, not two — the old "Linked Voyage" embedded in /deals/[id] caused
+  // confusion ("pmst seal on nüüd linkage ja linked voyage. Nagu mis asja").
+  if (deal.linkageId) {
+    router.replace(`/linkages/${deal.linkageId}`);
     return (
-      <div className="max-w-6xl space-y-6">
-        <LinkageView
-          deal={deal}
-          linkedDeals={linkedDeals}
-          linkage={linkage}
-          isOperator={isOperator ?? false}
-          fetchDeal={fetchDeal}
-        />
+      <div className="flex items-center justify-center py-24">
+        <div className="h-6 w-6 rounded-full border-2 border-[var(--color-accent)] border-t-transparent animate-spin" />
       </div>
     );
   }

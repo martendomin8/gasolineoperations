@@ -619,7 +619,7 @@ function AddDealMenu({ linkageId, linkageCode, side, variant }: {
           product: "Gasoline",
           quantityMt: 1,
           incoterm: "FOB",
-          loadport: isBuy ? (terminal.port ?? terminal.name) : "",
+          loadport: terminal.port ?? terminal.name,
           dischargePort: isBuy ? null : (terminal.port ?? terminal.name),
           laycanStart: today,
           laycanEnd: today,
