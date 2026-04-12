@@ -67,6 +67,7 @@ interface LinkageDetail {
   vesselImo: string | null;
   assignedOperatorId: string | null;
   secondaryOperatorId: string | null;
+  notes: string | null;
   status: string;
 }
 
@@ -2088,6 +2089,142 @@ function AddDealMenu({ side, linkageId, linkageCode, referenceDeal, onCreated }:
 }
 
 // ============================================================
+// LINKAGE NOTES — inline-editable notes below the voyage bar
+// ============================================================
+
+function LinkageNotesSection({ linkageId, notes, canEdit, onSaved }: {
+  linkageId: string;
+  notes: string | null;
+  canEdit: boolean;
+  onSaved: () => void;
+}) {
+  const [expanded, setExpanded] = useState(!!notes);
+  const [draft, setDraft] = useState(notes ?? "");
+  const [saving, setSaving] = useState(false);
+
+  const save = async () => {
+    if (draft === (notes ?? "")) return;
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/linkages/${linkageId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notes: draft.trim() || null }),
+      });
+      if (res.ok) {
+        onSaved();
+      } else {
+        toast.error("Failed to save notes");
+      }
+    } catch {
+      toast.error("Failed to save notes");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!expanded && !notes) {
+    return canEdit ? (
+      <button
+        type="button"
+        onClick={() => setExpanded(true)}
+        className="flex items-center gap-1.5 text-xs text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] transition-colors cursor-pointer"
+      >
+        <FileText className="h-3 w-3" />
+        Add notes
+      </button>
+    ) : null;
+  }
+
+  return (
+    <div className="rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-2)] px-4 py-2.5">
+      <div
+        className="flex items-center gap-1.5 mb-1 cursor-pointer"
+        onClick={() => setExpanded(!expanded)}
+      >
+        <FileText className="h-3 w-3 text-[var(--color-text-tertiary)]" />
+        <span className="text-[0.6875rem] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider">Notes</span>
+        {!expanded && notes && (
+          <span className="text-xs text-[var(--color-text-secondary)] ml-1 truncate max-w-md">{notes.split("\n")[0]}</span>
+        )}
+      </div>
+      {expanded && (
+        canEdit ? (
+          <textarea
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={save}
+            disabled={saving}
+            placeholder="Add notes about this voyage..."
+            rows={3}
+            className="w-full bg-transparent text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-tertiary)] outline-none resize-y min-h-[60px] disabled:opacity-60"
+          />
+        ) : (
+          <p className="text-sm text-[var(--color-text-secondary)] whitespace-pre-wrap">{notes || "No notes"}</p>
+        )
+      )}
+    </div>
+  );
+}
+
+// ============================================================
+// LINKAGE STATUS TOGGLE — active ↔ completed
+// ============================================================
+
+function LinkageStatusToggle({ linkageId, status, canEdit, onToggled }: {
+  linkageId: string;
+  status: string;
+  canEdit: boolean;
+  onToggled: () => void;
+}) {
+  const [toggling, setToggling] = useState(false);
+
+  const toggle = async () => {
+    if (!canEdit || toggling) return;
+    const newStatus = status === "active" ? "completed" : "active";
+    setToggling(true);
+    try {
+      const res = await fetch(`/api/linkages/${linkageId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      if (res.ok) {
+        toast.success(`Linkage marked ${newStatus}`);
+        onToggled();
+      } else {
+        toast.error("Failed to update status");
+      }
+    } catch {
+      toast.error("Failed to update status");
+    } finally {
+      setToggling(false);
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={canEdit ? toggle : undefined}
+      disabled={!canEdit || toggling}
+      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[0.625rem] font-medium transition-colors ${
+        status === "completed"
+          ? "bg-green-900/30 text-green-400 border border-green-700/40"
+          : "bg-[var(--color-surface-3)] text-[var(--color-text-secondary)] border border-[var(--color-border-subtle)]"
+      } ${canEdit ? "cursor-pointer hover:opacity-80" : "cursor-default"}`}
+      title={canEdit ? `Click to mark ${status === "active" ? "completed" : "active"}` : undefined}
+    >
+      {toggling ? (
+        <div className="h-2 w-2 rounded-full border border-current border-t-transparent animate-spin" />
+      ) : (
+        <span className={`h-1.5 w-1.5 rounded-full ${status === "completed" ? "bg-green-400" : "bg-[var(--color-text-tertiary)]"}`} />
+      )}
+      {status === "completed" ? "Completed" : "Active"}
+    </button>
+  );
+}
+
+// ============================================================
 // LINKAGE VIEW (two-column buy/sell layout)
 // ============================================================
 
@@ -2529,6 +2666,37 @@ function LinkageView({ deal, linkedDeals, linkage, isOperator, fetchDeal }: Link
         canEdit={isOperator}
         onVesselUpdated={fetchDeal}
       />
+
+      {/* Linkage notes — inline-editable */}
+      {deal.linkageId && linkage && (
+        <LinkageNotesSection linkageId={deal.linkageId} notes={linkage.notes} canEdit={isOperator} onSaved={fetchDeal} />
+      )}
+
+      {/* Qty summary bar */}
+      <div className="flex items-center gap-4 px-4 py-2 rounded-[var(--radius-md)] bg-[var(--color-surface-2)] border border-[var(--color-border-subtle)] text-xs font-mono">
+        {(() => {
+          const buyTotal = buyDeals.reduce((s, d) => s + parseFloat(d.quantityMt || "0"), 0);
+          const sellTotal = sellDeals.reduce((s, d) => s + parseFloat(d.quantityMt || "0"), 0);
+          const balance = buyTotal - sellTotal;
+          return (
+            <>
+              <span className="text-[var(--color-info)]">Buy: {buyTotal.toLocaleString()} MT</span>
+              <span className="text-[var(--color-border-subtle)]">|</span>
+              <span className="text-[var(--color-accent-text)]">Sell: {sellTotal.toLocaleString()} MT</span>
+              <span className="text-[var(--color-border-subtle)]">|</span>
+              <span className={balance >= 0 ? "text-[var(--color-text-secondary)]" : "text-[var(--color-danger)]"}>
+                Balance: ~{Math.abs(balance).toLocaleString()} MT {balance < 0 ? "(oversold)" : ""}
+              </span>
+              {linkage && (
+                <>
+                  <span className="flex-1" />
+                  <LinkageStatusToggle linkageId={deal.linkageId!} status={linkage.status} canEdit={isOperator} onToggled={fetchDeal} />
+                </>
+              )}
+            </>
+          );
+        })()}
+      </div>
 
       {/* Documents */}
       <DocumentsSection dealId={deal.id} />

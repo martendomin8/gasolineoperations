@@ -130,6 +130,7 @@ export const linkages = pgTable(
     // deals inside it inherit. `deals.secondary_operator_id` is deprecated.
     assignedOperatorId: uuid("assigned_operator_id").references(() => users.id),
     secondaryOperatorId: uuid("secondary_operator_id").references(() => users.id),
+    notes: text("notes"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },

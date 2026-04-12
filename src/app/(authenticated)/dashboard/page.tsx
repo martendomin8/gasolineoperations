@@ -532,8 +532,12 @@ export default function DashboardPage() {
         const err = await res.json().catch(() => ({}));
         throw new Error((err as { error?: string }).error ?? "Failed to create linkage");
       }
-      const created = (await res.json()) as { id: string };
-      router.push(`/deals/new?linkageId=${created.id}`);
+      const created = (await res.json()) as { id: string; tempName?: string };
+      // Stay on the dashboard — just refresh the linkage list. Arne says
+      // "vahel meil pole veel diili" (sometimes we don't have a deal yet),
+      // so navigating to /deals/new was premature.
+      toast.success(`Linkage ${created.tempName ?? "created"} — use the "+" menu inside to add deals`);
+      fetchAll();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to create linkage");
     } finally {

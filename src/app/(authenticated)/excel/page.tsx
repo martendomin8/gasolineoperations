@@ -292,12 +292,22 @@ function StatusCell({ value }: { value: string | null }) {
 // Section header and column headers
 // ---------------------------------------------------------------------------
 
-function SectionHeader({ title }: { title: string }) {
+type SectionVariant = "purchase" | "sale" | "linked" | "internal";
+
+const SECTION_COLORS: Record<SectionVariant, { bg: string; text: string; border: string }> = {
+  purchase: { bg: "bg-blue-900/20", text: "text-blue-200", border: "border-t-2 border-t-blue-700" },
+  sale:     { bg: "bg-amber-900/20", text: "text-amber-200", border: "border-t-2 border-t-amber-700" },
+  linked:   { bg: "bg-emerald-900/20", text: "text-emerald-200", border: "border-t-2 border-t-emerald-700" },
+  internal: { bg: "bg-amber-900/30", text: "text-amber-200", border: "border-t-2 border-t-amber-700" },
+};
+
+function SectionHeader({ title, variant = "purchase" }: { title: string; variant?: SectionVariant }) {
+  const c = SECTION_COLORS[variant];
   return (
     <tr>
       <td
         colSpan={COLUMNS.length}
-        className="bg-[var(--color-surface-3)] px-3 py-2 text-sm font-bold text-[var(--color-text-primary)] uppercase tracking-wide border-b border-[var(--color-border-subtle)]"
+        className={`${c.bg} ${c.border} px-3 py-2 text-sm font-bold ${c.text} uppercase tracking-wide border-b border-[var(--color-border-subtle)]`}
       >
         {title}
       </td>
@@ -383,16 +393,7 @@ function DealRowComponent({ deal, onUpdate, onDelete }: { deal: DealRow; onUpdat
 // ---------------------------------------------------------------------------
 
 function InternalSectionHeader() {
-  return (
-    <tr>
-      <td
-        colSpan={COLUMNS.length}
-        className="bg-amber-900/30 px-3 py-2 text-sm font-bold text-amber-200 uppercase tracking-wide border-t-2 border-t-amber-700 border-b border-[var(--color-border-subtle)]"
-      >
-        Internal / Terminal Operations
-      </td>
-    </tr>
-  );
+  return <SectionHeader title="Internal / Terminal Operations" variant="internal" />;
 }
 
 function InternalColumnHeaders() {
@@ -734,7 +735,7 @@ export default function ExcelPage() {
               <>
                 <tbody>
                   {/* PURCHASE section */}
-                  <SectionHeader title="PURCHASE" />
+                  <SectionHeader title="PURCHASE" variant="purchase" />
                   <ColumnHeaders />
                   {purchases.length > 0 ? (
                     purchases.map((d) => <DealRowComponent key={d.id} deal={d} onUpdate={refreshData} onDelete={requestDelete} />)
@@ -743,7 +744,7 @@ export default function ExcelPage() {
                   )}
 
                   {/* SALE section */}
-                  <SectionHeader title="SALE" />
+                  <SectionHeader title="SALE" variant="sale" />
                   <ColumnHeaders />
                   {sales.length > 0 ? (
                     sales.map((d) => <DealRowComponent key={d.id} deal={d} onUpdate={refreshData} onDelete={requestDelete} />)
@@ -752,7 +753,7 @@ export default function ExcelPage() {
                   )}
 
                   {/* PURCHASE + SALE section */}
-                  <SectionHeader title="PURCHASE + SALE" />
+                  <SectionHeader title="PURCHASE + SALE" variant="linked" />
                   <ColumnHeaders />
                   {linked.length > 0 ? (
                     linked.map((group) => (

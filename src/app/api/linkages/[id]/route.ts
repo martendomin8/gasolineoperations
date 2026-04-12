@@ -67,6 +67,7 @@ export const PUT = withAuth(
       if (updates.vesselImo !== undefined) updatePayload.vesselImo = updates.vesselImo;
       if (updates.assignedOperatorId !== undefined) updatePayload.assignedOperatorId = updates.assignedOperatorId;
       if (updates.secondaryOperatorId !== undefined) updatePayload.secondaryOperatorId = updates.secondaryOperatorId;
+      if (updates.notes !== undefined) updatePayload.notes = updates.notes;
 
       const [updated] = await db
         .update(linkages)

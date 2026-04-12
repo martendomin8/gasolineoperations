@@ -22,6 +22,7 @@ export const updateLinkageSchema = z.object({
   vesselImo: z.string().max(20).nullable().optional(),
   assignedOperatorId: optionalUuid,
   secondaryOperatorId: optionalUuid,
+  notes: z.string().nullable().optional(),
 });
 
 export type CreateLinkageInput = z.infer<typeof createLinkageSchema>;
