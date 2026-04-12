@@ -124,7 +124,7 @@ export async function POST() {
     const [created] = await db.insert(schema.workflowTemplates).values({
       tenantId: tenant.id,
       name: td.name,
-      incoterm: td.incoterm as "FOB" | "CIF" | "CFR" | "DAP" | "FCA" | undefined,
+      incoterm: td.incoterm as "FOB" | "CIF" | "CFR" | "DAP" | undefined,
       direction: td.direction as "buy" | "sell" | undefined,
       regionPattern: td.regionPattern ?? undefined,
       steps: td.steps,

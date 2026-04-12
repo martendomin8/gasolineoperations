@@ -16,7 +16,7 @@ export interface ParsedDealFields {
    * for calculations.
    */
   contracted_qty: string | null;
-  incoterm: "FOB" | "CIF" | "CFR" | "DAP" | "FCA" | null;
+  incoterm: "FOB" | "CIF" | "CFR" | "DAP" | null;
   loadport: string | null;
   discharge_port: string | null;
   laycan_start: string | null; // YYYY-MM-DD
@@ -66,7 +66,7 @@ const EXTRACTION_TOOL: Anthropic.Tool = {
       product: { type: "string", description: "Product grade (e.g. EBOB, RBOB, Eurobob Oxy, Light Naphtha, Reformate)" },
       quantity_mt: { type: "number", description: "Numeric middle/nominal quantity in metric tonnes (e.g. 18000 for '18000 MT +/-10%', 37000 for '37kt +/-5%')" },
       contracted_qty: { type: "string", description: "Full contracted quantity with tolerance, EXACTLY as written in the recap including units and tolerance notation. Examples: '18000 MT +/-10%', '37kt +/- 5%', '25,000 MT +/-10% in buyer's option'. If no tolerance is stated, the plain quantity string is fine." },
-      incoterm: { type: "string", enum: ["FOB", "CIF", "CFR", "DAP", "FCA"], description: "Incoterm" },
+      incoterm: { type: "string", enum: ["FOB", "CIF", "CFR", "DAP"], description: "Incoterm" },
       loadport: { type: "string", description: "Loading port or terminal city" },
       discharge_port: { type: "string", description: "Discharge port or terminal city" },
       laycan_start: { type: "string", description: "Laycan start date in YYYY-MM-DD format" },
@@ -299,7 +299,7 @@ export function parseDealDemo(rawText: string): ParsedDealResult {
   if (counterparty) counterparty = counterparty.replace(/[,:;.].*$/, "").trim();
 
   // ── Incoterm ─────────────────────────────────────────────────
-  const incotermMatch = rawText.match(/\b(FOB|CIF|CFR|DAP|FCA)\b/);
+  const incotermMatch = rawText.match(/\b(FOB|CIF|CFR|DAP)\b/);
   const incoterm = incotermMatch ? (incotermMatch[1] as ParsedDealFields["incoterm"]) : null;
   scores.incoterm = incoterm ? 0.95 : 0;
 
@@ -386,7 +386,7 @@ export function parseDealDemo(rawText: string): ParsedDealResult {
     if (portAfterInco) {
       const candidate = portAfterInco[1].trim();
       // For FOB: incoterm port is the loadport. For CIF/CFR/DAP: it's the discharge.
-      if (incoterm === "FOB" || incoterm === "FCA") {
+      if (incoterm === "FOB") {
         loadport = normalisePort(candidate);
         scores.loadport = 0.78;
       } else if (!discharge_port) {

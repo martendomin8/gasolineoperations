@@ -44,6 +44,10 @@ interface LinkageRow {
   tempName: string | null;
   status: string;
   dealCount: number;
+  assignedOperatorId: string | null;
+  assignedOperatorName: string | null;
+  secondaryOperatorId: string | null;
+  secondaryOperatorName: string | null;
 }
 
 interface LinkageCard {
@@ -57,6 +61,8 @@ interface LinkageCard {
   earliestLaycan: string | null;
   firstDealId: string | null;
   category: "sell_only" | "buy_only" | "purchase_sell" | "own_terminal" | "empty";
+  assignedOperatorId: string | null;
+  assignedOperatorName: string | null;
 }
 
 // ────────────────────────────────────────────────────
@@ -180,6 +186,8 @@ function buildLinkageCards(linkageRows: LinkageRow[], allDeals: DealItem[]): Lin
       earliestLaycan,
       firstDealId,
       category,
+      assignedOperatorId: row.assignedOperatorId ?? null,
+      assignedOperatorName: row.assignedOperatorName ?? null,
     });
   }
 
@@ -197,6 +205,8 @@ function buildLinkageCards(linkageRows: LinkageRow[], allDeals: DealItem[]): Lin
       earliestLaycan: d.laycanStart,
       firstDealId: d.id,
       category,
+      assignedOperatorId: null,
+      assignedOperatorName: null,
     });
   }
 
@@ -224,6 +234,8 @@ function buildLinkageCards(linkageRows: LinkageRow[], allDeals: DealItem[]): Lin
       earliestLaycan: laycans[0] ?? null,
       firstDealId: codeDeals[0]?.id ?? null,
       category,
+      assignedOperatorId: null,
+      assignedOperatorName: null,
     });
   }
 
@@ -451,18 +463,36 @@ export default function DashboardPage() {
     };
   }, [fetchAll]);
 
+  // Operator filter state — null = show all
+  const [operatorFilter, setOperatorFilter] = useState<string | null>(null);
+
   // Build cards
   const cards = buildLinkageCards(linkageRows, allDeals);
 
+  // Apply operator filter. CRITICAL SAFETY RULE: linkages with NO operator
+  // assigned must ALWAYS show regardless of which filter is active.
+  const filteredCards = operatorFilter
+    ? cards.filter((c) => !c.assignedOperatorId || c.assignedOperatorId === operatorFilter)
+    : cards;
+
+  // Unique operators for the dropdown (extracted from linkage rows)
+  const operatorOptions = Array.from(
+    new Map(
+      linkageRows
+        .filter((r) => r.assignedOperatorId && r.assignedOperatorName)
+        .map((r) => [r.assignedOperatorId!, r.assignedOperatorName!])
+    ).entries()
+  ).sort((a, b) => a[1].localeCompare(b[1]));
+
   // Split into columns
-  const sellOnly = cards.filter((c) => c.category === "sell_only");
-  const buyOnly = cards.filter((c) => c.category === "buy_only");
-  const purchaseSell = cards.filter((c) => c.category === "purchase_sell");
-  const ownTerminal = cards.filter((c) => c.category === "own_terminal");
-  const empty = cards.filter((c) => c.category === "empty");
+  const sellOnly = filteredCards.filter((c) => c.category === "sell_only");
+  const buyOnly = filteredCards.filter((c) => c.category === "buy_only");
+  const purchaseSell = filteredCards.filter((c) => c.category === "purchase_sell");
+  const ownTerminal = filteredCards.filter((c) => c.category === "own_terminal");
+  const empty = filteredCards.filter((c) => c.category === "empty");
 
   // Stats
-  const totalLinkages = cards.length;
+  const totalLinkages = filteredCards.length;
   const activeDeals = allDeals.length;
 
   const name = session?.user?.name?.split(" ")[0] ?? "there";
@@ -574,8 +604,8 @@ export default function DashboardPage() {
         </button>
       </div>
 
-      {/* Stats bar */}
-      <div className="flex items-center gap-3">
+      {/* Stats bar + operator filter */}
+      <div className="flex items-center gap-3 flex-wrap">
         <div className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium bg-[var(--color-surface-2)] rounded-[var(--radius-md)] text-[var(--color-text-secondary)]">
           <Anchor className="h-3.5 w-3.5" />
           {totalLinkages} linkages
@@ -588,6 +618,21 @@ export default function DashboardPage() {
           <div className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium bg-[var(--color-danger-muted,#3d1515)] rounded-[var(--radius-md)] text-[var(--color-danger)]">
             <AlertTriangle className="h-3.5 w-3.5" />
             {allDeals.filter((d) => daysUntil(d.laycanStart) <= 3 && daysUntil(d.laycanStart) >= 0).length} laycan &le;3d
+          </div>
+        )}
+        {/* Operator filter */}
+        {operatorOptions.length > 0 && (
+          <div className="ml-auto">
+            <select
+              value={operatorFilter ?? ""}
+              onChange={(e) => setOperatorFilter(e.target.value || null)}
+              className="bg-[var(--color-surface-2)] border border-[var(--color-border-default)] rounded-[var(--radius-md)] px-3 py-1.5 text-xs font-medium text-[var(--color-text-secondary)] outline-none cursor-pointer hover:border-[var(--color-border-strong)] transition-colors"
+            >
+              <option value="">All operators</option>
+              {operatorOptions.map(([id, name]) => (
+                <option key={id} value={id}>{name}</option>
+              ))}
+            </select>
           </div>
         )}
       </div>

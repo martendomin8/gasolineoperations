@@ -8,7 +8,7 @@ import { z } from "zod";
 const updateSchema = z.object({
   name: z.string().min(1).max(255).optional(),
   partyType: z.enum(["terminal", "agent", "inspector", "broker"]).optional(),
-  incoterm: z.enum(["FOB", "CIF", "CFR", "DAP", "FCA"]).nullable().optional(),
+  incoterm: z.enum(["FOB", "CIF", "CFR", "DAP"]).nullable().optional(),
   region: z.string().max(100).nullable().optional(),
   subjectTemplate: z.string().min(1).optional(),
   bodyTemplate: z.string().min(1).optional(),

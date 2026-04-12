@@ -198,7 +198,7 @@ Deal
   deal_type (regular|terminal_operation, default: regular),
   product, contracted_qty (text with tolerance), nominated_qty (decimal, nullable),
   loaded_quantity_mt (decimal, nullable — exact loaded qty, purchase deals only),
-  incoterm (FOB|CIF|CFR|DAP|FCA),
+  incoterm (FOB|CIF|CFR|DAP),
   loadport, discharge_port, laycan_start, laycan_end,
   vessel_name (nullable), vessel_imo (nullable),
   vessel_cleared (boolean), doc_instructions_received (boolean),

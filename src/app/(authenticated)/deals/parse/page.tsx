@@ -35,7 +35,7 @@ interface ParsedFields {
   product: string | null;
   quantity_mt: number | null;
   contracted_qty: string | null;
-  incoterm: "FOB" | "CIF" | "CFR" | "DAP" | "FCA" | null;
+  incoterm: "FOB" | "CIF" | "CFR" | "DAP" | null;
   loadport: string | null;
   discharge_port: string | null;
   laycan_start: string | null;
@@ -969,7 +969,7 @@ Price: Platts CIF NWE -$5/MT`}
                 <FieldRow label="Product"       fieldKey="product"       value={editedFields.product       ?? ""} score={result.confidenceScores.product       ?? 0} onChange={updateField} />
                 <FieldRow label="Quantity (MT)" fieldKey="quantity_mt"   value={editedFields.quantity_mt   ?? ""} score={result.confidenceScores.quantity_mt   ?? 0} onChange={updateField} type="number" />
                 <FieldRow label="Contracted Qty" fieldKey="contracted_qty" value={editedFields.contracted_qty ?? ""} score={result.confidenceScores.contracted_qty ?? 0} onChange={updateField} />
-                <FieldRow label="Incoterm"      fieldKey="incoterm"      value={editedFields.incoterm      ?? ""} score={result.confidenceScores.incoterm      ?? 0} onChange={updateField} type="select" options={["FOB", "CIF", "CFR", "DAP", "FCA"]} />
+                <FieldRow label="Incoterm"      fieldKey="incoterm"      value={editedFields.incoterm      ?? ""} score={result.confidenceScores.incoterm      ?? 0} onChange={updateField} type="select" options={["FOB", "CIF", "CFR", "DAP"]} />
 
                 <p className="text-[0.6875rem] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider mt-3 mb-1">Logistics</p>
                 <FieldRow label="Loadport"      fieldKey="loadport"      value={editedFields.loadport      ?? ""} score={result.confidenceScores.loadport      ?? 0} onChange={updateField} />

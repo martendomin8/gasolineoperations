@@ -2,7 +2,7 @@ import { z } from "zod";
 import type { DealStatus } from "@/lib/db/schema";
 
 const directions = ["buy", "sell"] as const;
-const incoterms = ["FOB", "CIF", "CFR", "DAP", "FCA"] as const;
+const incoterms = ["FOB", "CIF", "CFR", "DAP"] as const;
 const statuses = ["draft", "active", "loading", "sailing", "discharging", "completed", "cancelled"] as const;
 
 // === Status State Machine (Niles pattern) ===

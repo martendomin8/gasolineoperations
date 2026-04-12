@@ -21,7 +21,7 @@ import { relations } from "drizzle-orm";
 
 export const userRoleEnum = pgEnum("user_role", ["operator", "trader", "admin"]);
 export const dealDirectionEnum = pgEnum("deal_direction", ["buy", "sell"]);
-export const dealIncotermEnum = pgEnum("deal_incoterm", ["FOB", "CIF", "CFR", "DAP", "FCA"]);
+export const dealIncotermEnum = pgEnum("deal_incoterm", ["FOB", "CIF", "CFR", "DAP"]);
 export const dealStatusEnum = pgEnum("deal_status", [
   "draft",
   "active",
@@ -491,7 +491,7 @@ export type DealChangeLog = typeof dealChangeLogs.$inferSelect;
 
 export type UserRole = "operator" | "trader" | "admin";
 export type DealDirection = "buy" | "sell";
-export type DealIncoterm = "FOB" | "CIF" | "CFR" | "DAP" | "FCA";
+export type DealIncoterm = "FOB" | "CIF" | "CFR" | "DAP";
 export type DealStatus = "draft" | "active" | "loading" | "sailing" | "discharging" | "completed" | "cancelled";
 export type PartyType = "terminal" | "agent" | "inspector" | "broker";
 

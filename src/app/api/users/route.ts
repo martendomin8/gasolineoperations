@@ -5,7 +5,7 @@ import { users } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { z } from "zod";
 
-// GET /api/users — List all users in tenant (admin only)
+// GET /api/users — List all users in tenant (operators + admins can read)
 export const GET = withAuth(
   async (_req, _ctx, session) => {
     const result = await withTenantDb(session.user.tenantId, async (db) => {
@@ -27,7 +27,7 @@ export const GET = withAuth(
     response.headers.set("Cache-Control", "private, max-age=120, stale-while-revalidate=600");
     return response;
   },
-  { roles: ["admin"] }
+  { roles: ["operator", "admin"] }
 );
 
 const updateUserSchema = z.object({

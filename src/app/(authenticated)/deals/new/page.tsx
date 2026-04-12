@@ -33,7 +33,6 @@ const incotermOptions = [
   { value: "CIF", label: "CIF" },
   { value: "CFR", label: "CFR" },
   { value: "DAP", label: "DAP" },
-  { value: "FCA", label: "FCA" },
 ];
 
 export default function NewDealPage() {

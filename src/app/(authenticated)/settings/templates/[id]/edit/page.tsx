@@ -109,7 +109,7 @@ export default function EditTemplatePage() {
               options={[{ value: "terminal", label: "Terminal" }, { value: "agent", label: "Agent" }, { value: "inspector", label: "Inspector" }, { value: "broker", label: "Broker / Counterparty" }]} />
             <div className="grid grid-cols-2 gap-3">
               <Select label="Incoterm" value={form.incoterm} onChange={(e) => set("incoterm", e.target.value)}
-                options={[{ value: "", label: "Any" }, { value: "FOB", label: "FOB" }, { value: "CIF", label: "CIF" }, { value: "CFR", label: "CFR" }, { value: "DAP", label: "DAP" }, { value: "FCA", label: "FCA" }]} />
+                options={[{ value: "", label: "Any" }, { value: "FOB", label: "FOB" }, { value: "CIF", label: "CIF" }, { value: "CFR", label: "CFR" }, { value: "DAP", label: "DAP" }]} />
               <Input label="Region" value={form.region} onChange={(e) => set("region", e.target.value)} placeholder="e.g. ARA" />
             </div>
             <Input label="Subject Template" value={form.subjectTemplate} onChange={(e) => set("subjectTemplate", e.target.value)} />

@@ -854,7 +854,7 @@ EuroGas Trading BV — Operations`,
   // --- Workflow Templates ---
   const workflowTemplatesData: Array<{
     name: string;
-    incoterm: "FOB" | "CIF" | "CFR" | "DAP" | "FCA" | null;
+    incoterm: "FOB" | "CIF" | "CFR" | "DAP" | null;
     direction: "buy" | "sell" | null;
     regionPattern: string | null;
     steps: schema.WorkflowTemplateStep[];

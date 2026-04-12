@@ -113,6 +113,8 @@ Manages operations function. Configures templates, onboards operators, oversees 
 
 **DM-11**: **Terminal operation deal type is set at creation.** Any code path that creates an "own terminal loading/discharge" deal MUST set `deal_type = "terminal_operation"` on the API payload. The Zod schema defaults to `"regular"`, so omitting the field silently corrupts the categorization (terminal ops show up under PURCHASE in the Excel view instead of INTERNAL/TERMINAL OPERATIONS). The "+ Discharge to own terminal" / "+ Load from own terminal" buttons in the linkage view's `AddDealMenu` must always pass `dealType: "terminal_operation"`.
 
+**DM-13**: **FCA incoterm removed.** The operator confirmed FCA is not used. Removed from schema enum, all type definitions, AI parser, deal forms, template forms, and seed data. Supported incoterms are: FOB, CIF, CFR, DAP.
+
 **DM-12**: **POST `/api/deals` accepts `linkageCode` as a fallback when `linkageId` is missing.** Historically the endpoint silently auto-created a fresh TEMP-NNN linkage whenever `linkageId` was absent — even when the caller passed a valid `linkageCode`. That made stale closures and omitted props silently spawn duplicate linkages. The endpoint now resolves `linkageCode` → `linkage_id` (within the tenant) before falling back to auto-create. If the lookup succeeds, the new deal joins the existing linkage. Auto-create only fires when BOTH `linkageId` and `linkageCode` are missing.
 
 ### 4.4 Deal Linking (Cargo Chains)
@@ -212,6 +214,8 @@ Manages operations function. Configures templates, onboards operators, oversees 
 **XL-5**: **Section grouping uses `linkage_id` (UUID FK), never `linkage_code` string.** The Excel view's PURCHASE / SALE / PURCHASE+SALE / INTERNAL TERMINAL OPERATIONS sections must group deals by `linkage_id`. Grouping by `linkage_code` (the cached display string) is forbidden because the string changes whenever an operator renames a linkage and any unpropagated row would split a single voyage across two cards.
 
 **XL-6**: **Excel and dashboard pages auto-refetch on focus.** Both the `/excel` page and the `/dashboard` page register a `visibilitychange` listener and refetch their data whenever the document becomes visible. They also refetch when the route becomes active again (return navigation). Without this, renaming a linkage in another tab leaves the user staring at stale linkage codes.
+
+**XL-8**: **Operator name filter.** Both the Excel view and the Dashboard have an "All operators" dropdown that filters linkages/deals by assigned operator. When a specific operator is selected, only linkages assigned to that operator are shown. **Critical safety rule:** linkages and deals with NO operator assigned must ALWAYS be visible regardless of filter — otherwise unassigned work disappears from everyone's screen. This is a VIEW FILTER only — it does NOT restrict access. Every operator can always see and edit all linkages.
 
 **XL-7**: **Inline delete affordance on Excel and dashboard rows.** Each row in the Excel view's PURCHASE / SALE / PURCHASE+SALE / INTERNAL sections has a small trash icon (visible on hover, hard-to-click-by-accident). The dashboard linkage cards also expose a trash button. Both fire the standard "Delete this deal? This cannot be undone." confirmation modal before calling `DELETE /api/deals/:id`. Operators must never have to navigate down to the deal detail page just to delete a misplaced deal.
 
@@ -369,6 +373,9 @@ Built in a single evening as proof of concept. Demonstrated:
 - Open drafts directly in Outlook
 - Push notifications via Teams for new deal recaps
 - Auto-ingest incoming emails
+
+### V2.1.1 — Tolerance Mismatch Warning
+- When a linkage contains deals with mismatched tolerances (e.g. purchase ±10%, sale ±5%), warn the operator. This means more cargo could be loaded than sold under the sales contract. Requires parsing tolerance from `contracted_qty` free text.
 
 ### V2.2 — Pricing Alerts & Deadline Engine
 - Popup notification 1 day before BL/NOR pricing dates

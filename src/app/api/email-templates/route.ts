@@ -8,7 +8,7 @@ import { z } from "zod";
 const createTemplateSchema = z.object({
   name: z.string().min(1).max(255),
   partyType: z.enum(["terminal", "agent", "inspector", "broker"]),
-  incoterm: z.enum(["FOB", "CIF", "CFR", "DAP", "FCA"]).optional(),
+  incoterm: z.enum(["FOB", "CIF", "CFR", "DAP"]).optional(),
   region: z.string().max(100).optional(),
   subjectTemplate: z.string().min(1),
   bodyTemplate: z.string().min(1),

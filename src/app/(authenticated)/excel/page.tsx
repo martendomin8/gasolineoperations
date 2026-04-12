@@ -654,15 +654,36 @@ export default function ExcelPage() {
     }
   }, [dealToDelete, fetchDeals]);
 
+  // Operator filter state — null = show all
+  const [operatorFilter, setOperatorFilter] = useState<string | null>(null);
+
+  // Extract unique operators for the dropdown (from deal data)
+  const operatorOptions = Array.from(
+    new Map(
+      deals
+        .filter((d) => d.assignedOperatorId && d.operatorName)
+        .map((d) => [d.assignedOperatorId!, d.operatorName!])
+    ).entries()
+  ).sort((a, b) => a[1].localeCompare(b[1]));
+
   const ongoing = deals.filter((d) => d.status !== "completed" && d.status !== "cancelled");
   const completed = deals.filter((d) => d.status === "completed");
+
+  // Apply operator filter. CRITICAL SAFETY RULE: deals with NO operator
+  // assigned must ALWAYS show regardless of which filter is active.
+  const filteredOngoing = operatorFilter
+    ? ongoing.filter((d) => !d.assignedOperatorId || d.assignedOperatorId === operatorFilter)
+    : ongoing;
+  const filteredCompleted = operatorFilter
+    ? completed.filter((d) => !d.assignedOperatorId || d.assignedOperatorId === operatorFilter)
+    : completed;
 
   // Separate regular deals from terminal operation deals.
   // CRITICAL: All grouping below uses `linkageId` (UUID FK), NEVER `linkageCode` (string).
   // The linkage_code is volatile — renaming a linkage cascades to deals async, so a
   // string-based grouping splits a single voyage across two cards. linkage_id is stable.
-  const mainDeals = ongoing.filter((d) => d.dealType !== "terminal_operation");
-  const terminalDeals = ongoing.filter((d) => d.dealType === "terminal_operation");
+  const mainDeals = filteredOngoing.filter((d) => d.dealType !== "terminal_operation");
+  const terminalDeals = filteredOngoing.filter((d) => d.dealType === "terminal_operation");
 
   // Find linkage IDs that have at least one regular deal
   const linkageIdsWithRegular = new Set<string>();
@@ -718,6 +739,19 @@ export default function ExcelPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold text-[var(--color-text-primary)]">Gasoline Vessels List</h1>
         <div className="flex items-center gap-3">
+        {/* Operator filter */}
+        {operatorOptions.length > 0 && (
+          <select
+            value={operatorFilter ?? ""}
+            onChange={(e) => setOperatorFilter(e.target.value || null)}
+            className="bg-[var(--color-surface-2)] border border-[var(--color-border-default)] rounded-[var(--radius-md)] px-3 py-1.5 text-xs font-medium text-[var(--color-text-secondary)] outline-none cursor-pointer hover:border-[var(--color-border-strong)] transition-colors"
+          >
+            <option value="">All operators</option>
+            {operatorOptions.map(([id, name]) => (
+              <option key={id} value={id}>{name}</option>
+            ))}
+          </select>
+        )}
         <ExportDropdown />
         <div className="flex gap-1 bg-[var(--color-surface-2)] rounded-[var(--radius-md)] p-0.5">
           <button
@@ -798,8 +832,8 @@ export default function ExcelPage() {
             ) : (
               <tbody>
                 <ColumnHeaders />
-                {completed.length > 0 ? (
-                  completed.map((d) => <DealRowComponent key={d.id} deal={d} onUpdate={refreshData} onDelete={requestDelete} />)
+                {filteredCompleted.length > 0 ? (
+                  filteredCompleted.map((d) => <DealRowComponent key={d.id} deal={d} onUpdate={refreshData} onDelete={requestDelete} />)
                 ) : (
                   <tr><td colSpan={COLUMNS.length} className="px-3 py-4 text-xs text-center text-[var(--color-text-tertiary)]">No completed deals</td></tr>
                 )}

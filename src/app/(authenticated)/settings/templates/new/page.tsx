@@ -46,7 +46,7 @@ export default function NewTemplatePage() {
   const [form, setForm] = useState({
     name: "",
     partyType: "terminal" as "terminal" | "agent" | "inspector" | "broker",
-    incoterm: "" as "" | "FOB" | "CIF" | "CFR" | "DAP" | "FCA",
+    incoterm: "" as "" | "FOB" | "CIF" | "CFR" | "DAP",
     region: "",
     subjectTemplate: "",
     bodyTemplate: "",
@@ -141,7 +141,6 @@ export default function NewTemplatePage() {
                   { value: "CIF", label: "CIF" },
                   { value: "CFR", label: "CFR" },
                   { value: "DAP", label: "DAP" },
-                  { value: "FCA", label: "FCA" },
                 ]}
               />
               <Input
