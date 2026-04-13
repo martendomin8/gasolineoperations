@@ -29,6 +29,10 @@ import {
   X,
   FileText,
   Trash2,
+  Upload,
+  ChevronDown,
+  ChevronUp,
+  Anchor,
 } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
@@ -69,6 +73,31 @@ interface DealSummary {
   vesselName: string | null;
 }
 
+interface WorkflowStep {
+  id: string;
+  stepName: string;
+  status: string;
+  stepType: string;
+  recipientPartyType: string | null;
+}
+
+interface LinkageStepData {
+  id: string;
+  stepName: string;
+  stepType: string;
+  status: string;
+  recipientPartyType: string | null;
+  description: string | null;
+  sentAt: string | null;
+}
+
+interface LinkageDoc {
+  id: string;
+  filename: string;
+  fileType: string;
+  createdAt: string;
+}
+
 // ── Page ─────────────────────────────────────────────────────
 
 export default function LinkageDetailPage() {
@@ -79,6 +108,9 @@ export default function LinkageDetailPage() {
 
   const [linkage, setLinkage] = useState<LinkageData | null>(null);
   const [deals, setDeals] = useState<DealSummary[]>([]);
+  const [workflows, setWorkflows] = useState<Record<string, WorkflowStep[]>>({});
+  const [linkageSteps, setLinkageSteps] = useState<LinkageStepData[]>([]);
+  const [linkageDocs, setLinkageDocs] = useState<LinkageDoc[]>([]);
   const [operators, setOperators] = useState<Array<{ id: string; name: string }>>([]);
   const [loading, setLoading] = useState(true);
 
@@ -91,10 +123,34 @@ export default function LinkageDetailPage() {
       fetch(`/api/deals?linkageId=${id}&perPage=50&_t=${t}`, { cache: "no-store" }).then((r) =>
         r.ok ? r.json() : { items: [] }
       ),
+      fetch(`/api/linkages/${id}/steps?_t=${t}`, { cache: "no-store" }).then((r) =>
+        r.ok ? r.json() : { steps: [] }
+      ),
+      fetch(`/api/linkages/${id}/documents?_t=${t}`, { cache: "no-store" }).then((r) =>
+        r.ok ? r.json() : { documents: [] }
+      ),
     ])
-      .then(([linkageData, dealsData]) => {
+      .then(async ([linkageData, dealsData, stepsData, docsData]) => {
         setLinkage(linkageData);
-        setDeals(dealsData.items ?? []);
+        const dealItems: DealSummary[] = dealsData.items ?? [];
+        setDeals(dealItems);
+        setLinkageSteps(stepsData.steps ?? []);
+        setLinkageDocs(docsData.documents ?? []);
+
+        // Fetch workflows for all deals in parallel
+        const wfEntries = await Promise.all(
+          dealItems.map(async (d) => {
+            try {
+              const res = await fetch(`/api/deals/${d.id}/workflow?_t=${t}`, { cache: "no-store" });
+              if (!res.ok) return [d.id, []] as const;
+              const data = await res.json();
+              return [d.id, data.workflow?.steps ?? []] as const;
+            } catch {
+              return [d.id, []] as const;
+            }
+          })
+        );
+        setWorkflows(Object.fromEntries(wfEntries));
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -143,9 +199,8 @@ export default function LinkageDetailPage() {
   }
 
   const displayName = linkage.linkageNumber ?? linkage.tempName;
-  const buyDeals = deals.filter((d) => d.direction === "buy" && d.dealType !== "terminal_operation");
-  const sellDeals = deals.filter((d) => d.direction === "sell" && d.dealType !== "terminal_operation");
-  const terminalDeals = deals.filter((d) => d.dealType === "terminal_operation");
+  const buyDeals = deals.filter((d) => d.direction === "buy");
+  const sellDeals = deals.filter((d) => d.direction === "sell");
   const buyTotal = deals.filter((d) => d.direction === "buy").reduce((s, d) => s + parseFloat(d.quantityMt || "0"), 0);
   const sellTotal = deals.filter((d) => d.direction === "sell").reduce((s, d) => s + parseFloat(d.quantityMt || "0"), 0);
 
@@ -208,13 +263,22 @@ export default function LinkageDetailPage() {
         </div>
       )}
 
+      {/* Vessel section */}
+      <VesselSection
+        linkage={linkage}
+        steps={linkageSteps}
+        docs={linkageDocs}
+        canEdit={isOperator}
+        onUpdated={fetchData}
+      />
+
       {/* Two-column grid: Buy + Sell */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Buy side */}
         <div className="space-y-3">
           <h2 className="text-sm font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide flex items-center gap-2">
             <span className="h-2 w-2 rounded-full bg-blue-500/60" />
-            Buy Side
+            Purchase / Load
             <span className="text-xs font-normal text-[var(--color-text-tertiary)] ml-1">
               ({buyDeals.length})
             </span>
@@ -229,7 +293,7 @@ export default function LinkageDetailPage() {
             )
           ) : (
             <>
-              {buyDeals.map((d) => <DealCard key={d.id} deal={d} onDeleted={fetchData} canDelete={isOperator} />)}
+              {buyDeals.map((d) => <DealCard key={d.id} deal={d} steps={workflows[d.id] ?? []} onDeleted={fetchData} canDelete={isOperator} />)}
               {isOperator && (
                 <AddDealMenu linkageId={linkage.id} linkageCode={displayName} variant="compact" side="buy" />
               )}
@@ -241,7 +305,7 @@ export default function LinkageDetailPage() {
         <div className="space-y-3">
           <h2 className="text-sm font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide flex items-center gap-2">
             <span className="h-2 w-2 rounded-full bg-amber-500/60" />
-            Sell Side
+            Sale / Discharge
             <span className="text-xs font-normal text-[var(--color-text-tertiary)] ml-1">
               ({sellDeals.length})
             </span>
@@ -256,7 +320,7 @@ export default function LinkageDetailPage() {
             )
           ) : (
             <>
-              {sellDeals.map((d) => <DealCard key={d.id} deal={d} onDeleted={fetchData} canDelete={isOperator} />)}
+              {sellDeals.map((d) => <DealCard key={d.id} deal={d} steps={workflows[d.id] ?? []} onDeleted={fetchData} canDelete={isOperator} />)}
               {isOperator && (
                 <AddDealMenu linkageId={linkage.id} linkageCode={displayName} variant="compact" side="sell" />
               )}
@@ -265,19 +329,6 @@ export default function LinkageDetailPage() {
         </div>
       </div>
 
-      {/* Terminal operations */}
-      {terminalDeals.length > 0 && (
-        <div className="space-y-3">
-          <h2 className="text-sm font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide flex items-center gap-2">
-            <span className="h-2 w-2 rounded-full bg-teal-500/60" />
-            Terminal Operations
-            <span className="text-xs font-normal text-[var(--color-text-tertiary)] ml-1">
-              ({terminalDeals.length})
-            </span>
-          </h2>
-          {terminalDeals.map((d) => <DealCard key={d.id} deal={d} onDeleted={fetchData} canDelete={isOperator} />)}
-        </div>
-      )}
     </div>
   );
 }
@@ -489,9 +540,276 @@ function StatusToggle({ linkageId, status, canEdit, onToggled }: {
   );
 }
 
+// ── Vessel Section ──────────────────────────────────────────
+
+function VesselSection({ linkage, steps, docs, canEdit, onUpdated }: {
+  linkage: LinkageData;
+  steps: LinkageStepData[];
+  docs: LinkageDoc[];
+  canEdit: boolean;
+  onUpdated: () => void;
+}) {
+  const [expanded, setExpanded] = useState(true);
+  const [dragOver, setDragOver] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [addingStep, setAddingStep] = useState(false);
+  const [newStepName, setNewStepName] = useState("");
+
+  const vesselDisplay = linkage.vesselName || "TBN";
+  const imoDisplay = linkage.vesselImo || "—";
+  const q88Docs = docs.filter((d) => d.fileType === "q88");
+  const doneCount = steps.filter((s) => s.status === "sent" || s.status === "done").length;
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(false);
+    if (!canEdit) return;
+
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length === 0) return;
+
+    setUploading(true);
+    for (const file of files) {
+      try {
+        await fetch(`/api/linkages/${linkage.id}/documents`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ filename: file.name, fileType: "q88" }),
+        });
+      } catch { /* silent */ }
+    }
+    setUploading(false);
+    toast.success(`Q88 uploaded: ${files.map((f) => f.name).join(", ")}`);
+    onUpdated();
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(true);
+  };
+
+  const handleAddStep = async () => {
+    if (!newStepName.trim()) return;
+    setAddingStep(true);
+    try {
+      const res = await fetch(`/api/linkages/${linkage.id}/steps`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stepName: newStepName.trim(), stepType: "custom" }),
+      });
+      if (res.ok) {
+        toast.success("Step added");
+        setNewStepName("");
+        onUpdated();
+      } else {
+        toast.error("Failed to add step");
+      }
+    } catch {
+      toast.error("Failed to add step");
+    }
+    setAddingStep(false);
+  };
+
+  const handleStepStatusChange = async (stepId: string, newStatus: string) => {
+    try {
+      const res = await fetch(`/api/linkages/${linkage.id}/steps`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stepId, status: newStatus }),
+      });
+      if (res.ok) onUpdated();
+      else toast.error("Failed to update step");
+    } catch {
+      toast.error("Failed to update step");
+    }
+  };
+
+  return (
+    <Card className="border-l-[3px] border-l-cyan-500/60">
+      {/* Header — clickable to expand/collapse */}
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-[var(--color-surface-2)] transition-colors"
+      >
+        <div className="flex items-center gap-3">
+          <Anchor className="h-4 w-4 text-cyan-400" />
+          <div className="text-left">
+            <span className="text-sm font-semibold text-[var(--color-text-primary)]">
+              {vesselDisplay}
+            </span>
+            <span className="text-xs text-[var(--color-text-tertiary)] ml-2">
+              IMO {imoDisplay}
+            </span>
+          </div>
+          {q88Docs.length > 0 && (
+            <Badge variant="muted" className="text-[0.6rem]">Q88 ✓</Badge>
+          )}
+        </div>
+        <div className="flex items-center gap-3">
+          {steps.length > 0 && (
+            <span className="text-[0.65rem] text-[var(--color-text-tertiary)]">
+              {doneCount}/{steps.length} steps
+            </span>
+          )}
+          {expanded ? <ChevronUp className="h-3.5 w-3.5 text-[var(--color-text-tertiary)]" /> : <ChevronDown className="h-3.5 w-3.5 text-[var(--color-text-tertiary)]" />}
+        </div>
+      </button>
+
+      {expanded && (
+        <div className="px-4 pb-4 space-y-3 border-t border-[var(--color-border-subtle)]">
+          {/* Vessel details */}
+          <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-[var(--color-text-secondary)] pt-3">
+            <div><span className="text-[var(--color-text-tertiary)]">Vessel:</span> {vesselDisplay}</div>
+            <div><span className="text-[var(--color-text-tertiary)]">IMO:</span> {imoDisplay}</div>
+          </div>
+
+          {/* Q88 drop zone */}
+          <div
+            onDrop={handleDrop}
+            onDragOver={handleDragOver}
+            onDragLeave={() => setDragOver(false)}
+            className={`rounded-[var(--radius-md)] border-2 border-dashed py-3 px-4 text-center transition-colors ${
+              dragOver
+                ? "border-cyan-400 bg-cyan-400/5"
+                : "border-[var(--color-border-subtle)] hover:border-[var(--color-border-default)]"
+            }`}
+          >
+            {uploading ? (
+              <div className="flex items-center justify-center gap-2 text-xs text-[var(--color-text-tertiary)]">
+                <div className="h-3 w-3 rounded-full border border-current border-t-transparent animate-spin" />
+                Uploading...
+              </div>
+            ) : q88Docs.length > 0 ? (
+              <div className="space-y-1">
+                {q88Docs.map((d) => (
+                  <div key={d.id} className="flex items-center justify-center gap-2 text-xs text-cyan-400">
+                    <FileText className="h-3 w-3" />
+                    {d.filename}
+                  </div>
+                ))}
+                <p className="text-[0.65rem] text-[var(--color-text-tertiary)]">Drop to replace Q88</p>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center gap-1">
+                <Upload className="h-4 w-4 text-[var(--color-text-tertiary)]" />
+                <p className="text-xs text-[var(--color-text-tertiary)]">Drop Q88 here</p>
+              </div>
+            )}
+          </div>
+
+          {/* Workflow steps */}
+          {steps.length > 0 && (
+            <div className="space-y-1">
+              <p className="text-[0.65rem] font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wide mb-1.5">
+                Vessel Workflow — {doneCount}/{steps.length} done
+              </p>
+              {steps.map((s) => (
+                <div key={s.id} className="flex items-center justify-between gap-2">
+                  <span className="text-[0.7rem] text-[var(--color-text-secondary)] truncate">{s.stepName}</span>
+                  <div className="flex items-center gap-1">
+                    {canEdit && s.status !== "sent" && s.status !== "done" && (
+                      <button
+                        onClick={() => handleStepStatusChange(s.id, "sent")}
+                        className="px-1.5 py-0.5 text-[0.6rem] rounded bg-green-500/15 text-green-400 hover:bg-green-500/25 transition-colors cursor-pointer"
+                      >
+                        Mark Sent
+                      </button>
+                    )}
+                    {canEdit && s.status === "needs_update" && (
+                      <button
+                        onClick={() => handleStepStatusChange(s.id, "pending")}
+                        className="px-1.5 py-0.5 text-[0.6rem] rounded bg-blue-500/15 text-blue-400 hover:bg-blue-500/25 transition-colors cursor-pointer"
+                      >
+                        Reset
+                      </button>
+                    )}
+                    <StepStatusBadge status={s.status} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Add step */}
+          {canEdit && (
+            <div className="pt-1">
+              {addingStep || newStepName ? (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    placeholder="Step name (e.g. LOI, Discharge Orders)"
+                    value={newStepName}
+                    onChange={(e) => setNewStepName(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleAddStep()}
+                    className="flex-1 text-xs px-2 py-1.5 rounded-[var(--radius-md)] bg-[var(--color-surface-2)] border border-[var(--color-border-subtle)] text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] focus:outline-none focus:border-[var(--color-accent)]"
+                    autoFocus
+                  />
+                  <button
+                    onClick={handleAddStep}
+                    disabled={!newStepName.trim()}
+                    className="px-2 py-1.5 text-xs rounded-[var(--radius-md)] bg-[var(--color-accent)] text-black font-medium disabled:opacity-50 cursor-pointer"
+                  >
+                    Add
+                  </button>
+                  <button
+                    onClick={() => { setNewStepName(""); setAddingStep(false); }}
+                    className="p-1 text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] cursor-pointer"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setAddingStep(true)}
+                  className="flex items-center gap-1.5 text-xs text-[var(--color-text-tertiary)] hover:text-[var(--color-accent)] transition-colors cursor-pointer"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Add step
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+// ── Step Status Badge ────────────────────────────────────────
+
+function StepStatusBadge({ status }: { status: string }) {
+  const styles: Record<string, string> = {
+    pending: "bg-[var(--color-surface-3)] text-[var(--color-text-tertiary)]",
+    ready: "bg-blue-500/15 text-blue-400",
+    draft_generated: "bg-indigo-500/15 text-indigo-400",
+    sent: "bg-green-500/15 text-green-400",
+    received: "bg-emerald-500/15 text-emerald-400",
+    done: "bg-green-500/15 text-green-400",
+    needs_update: "bg-amber-500/15 text-amber-400",
+    cancelled: "bg-red-500/15 text-red-400/60",
+    na: "bg-[var(--color-surface-3)] text-[var(--color-text-tertiary)]",
+  };
+  const label: Record<string, string> = {
+    pending: "Pending",
+    ready: "Ready",
+    draft_generated: "Draft",
+    sent: "Sent",
+    received: "Received",
+    done: "Done",
+    needs_update: "Update",
+    cancelled: "Cancelled",
+    na: "N/A",
+  };
+  return (
+    <span className={`px-1.5 py-0.5 rounded text-[0.6rem] font-medium whitespace-nowrap ${styles[status] ?? styles.pending}`}>
+      {label[status] ?? status}
+    </span>
+  );
+}
+
 // ── Deal Card ────────────────────────────────────────────────
 
-function DealCard({ deal, onDeleted, canDelete }: { deal: DealSummary; onDeleted: () => void; canDelete: boolean }) {
+function DealCard({ deal, steps, onDeleted, canDelete }: { deal: DealSummary; steps: WorkflowStep[]; onDeleted: () => void; canDelete: boolean }) {
   const [deleting, setDeleting] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
 
@@ -531,6 +849,22 @@ function DealCard({ deal, onDeleted, canDelete }: { deal: DealSummary; onDeleted
           {deal.dischargePort && <div><span className="text-[var(--color-text-tertiary)]">Discharge:</span> {deal.dischargePort}</div>}
           <div><span className="text-[var(--color-text-tertiary)]">Laycan:</span> {deal.laycanStart} — {deal.laycanEnd}</div>
         </div>
+        {/* Workflow steps */}
+        {steps.length > 0 && (
+          <div className="px-4 pb-3 pt-1 border-t border-[var(--color-border-subtle)]">
+            <p className="text-[0.65rem] font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wide mb-1.5">
+              Workflow — {steps.filter((s) => s.status === "sent" || s.status === "done").length}/{steps.length} done
+            </p>
+            <div className="space-y-1">
+              {steps.map((s) => (
+                <div key={s.id} className="flex items-center justify-between gap-2">
+                  <span className="text-[0.7rem] text-[var(--color-text-secondary)] truncate">{s.stepName}</span>
+                  <StepStatusBadge status={s.status} />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </Card>
 
       {/* Delete confirmation */}

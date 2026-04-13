@@ -362,6 +362,34 @@ export const emailDrafts = pgTable("email_drafts", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
+// --- Linkage Steps (vessel-level workflow: voyage orders, discharge orders, ad-hoc tasks) ---
+export const linkageSteps = pgTable(
+  "linkage_steps",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .references(() => tenants.id, { onDelete: "cascade" })
+      .notNull(),
+    linkageId: uuid("linkage_id")
+      .references(() => linkages.id, { onDelete: "cascade" })
+      .notNull(),
+    stepName: varchar("step_name", { length: 255 }).notNull(),
+    stepType: varchar("step_type", { length: 50 }).notNull(), // order, appointment, custom
+    recipientPartyType: varchar("recipient_party_type", { length: 50 }), // broker, agent, etc.
+    description: text("description"),
+    status: varchar("status", { length: 50 }).default("pending").notNull(),
+    stepOrder: integer("step_order").default(0).notNull(),
+    assignedPartyId: uuid("assigned_party_id").references(() => parties.id),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("linkage_steps_linkage_idx").on(table.linkageId),
+    index("linkage_steps_tenant_idx").on(table.tenantId, table.linkageId),
+  ]
+);
+
 // --- Documents ---
 export const documents = pgTable(
   "documents",
@@ -371,8 +399,9 @@ export const documents = pgTable(
       .references(() => tenants.id, { onDelete: "cascade" })
       .notNull(),
     dealId: uuid("deal_id")
-      .references(() => deals.id, { onDelete: "cascade" })
-      .notNull(),
+      .references(() => deals.id, { onDelete: "cascade" }),
+    linkageId: uuid("linkage_id")
+      .references(() => linkages.id, { onDelete: "cascade" }),
     filename: varchar("filename", { length: 255 }).notNull(),
     fileType: varchar("file_type", { length: 50 }).notNull(), // q88, cp_recap, bl, coa, other
     storagePath: text("storage_path").notNull(),
@@ -381,6 +410,7 @@ export const documents = pgTable(
   },
   (table) => [
     index("documents_deal_idx").on(table.dealId),
+    index("documents_linkage_idx").on(table.linkageId),
   ]
 );
 
@@ -405,6 +435,7 @@ export const partiesRelations = relations(parties, ({ one }) => ({
 export const linkagesRelations = relations(linkages, ({ one, many }) => ({
   tenant: one(tenants, { fields: [linkages.tenantId], references: [tenants.id] }),
   deals: many(deals),
+  linkageSteps: many(linkageSteps),
 }));
 
 export const dealsRelations = relations(deals, ({ one, many }) => ({
@@ -454,9 +485,16 @@ export const workflowStepsRelations = relations(workflowSteps, ({ one, many }) =
   emailTemplate: one(emailTemplates, { fields: [workflowSteps.emailTemplateId], references: [emailTemplates.id] }),
 }));
 
+export const linkageStepsRelations = relations(linkageSteps, ({ one }) => ({
+  tenant: one(tenants, { fields: [linkageSteps.tenantId], references: [tenants.id] }),
+  linkage: one(linkages, { fields: [linkageSteps.linkageId], references: [linkages.id] }),
+  assignedParty: one(parties, { fields: [linkageSteps.assignedPartyId], references: [parties.id] }),
+}));
+
 export const documentsRelations = relations(documents, ({ one }) => ({
   tenant: one(tenants, { fields: [documents.tenantId], references: [tenants.id] }),
   deal: one(deals, { fields: [documents.dealId], references: [deals.id] }),
+  linkage: one(linkages, { fields: [documents.linkageId], references: [linkages.id] }),
   uploader: one(users, { fields: [documents.uploadedBy], references: [users.id] }),
 }));
 
@@ -503,6 +541,8 @@ export type EmailDraft = typeof emailDrafts.$inferSelect;
 
 export type Document = typeof documents.$inferSelect;
 export type NewDocument = typeof documents.$inferInsert;
+export type LinkageStep = typeof linkageSteps.$inferSelect;
+export type NewLinkageStep = typeof linkageSteps.$inferInsert;
 
 export type WorkflowStepStatus = "pending" | "blocked" | "ready" | "draft_generated" | "sent" | "acknowledged" | "needs_update" | "received" | "done" | "na" | "cancelled";
 export type WorkflowStepType = "nomination" | "instruction" | "order" | "appointment";

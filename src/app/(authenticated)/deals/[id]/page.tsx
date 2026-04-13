@@ -2707,7 +2707,7 @@ function LinkageView({ deal, linkedDeals, linkage, isOperator, fetchDeal }: Link
         <div className="space-y-4">
           <h2 className="text-sm font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide flex items-center gap-2">
             <span className="h-2 w-2 rounded-full bg-blue-500/60" />
-            Buy Side
+            Purchase / Load
             <span className="text-xs font-normal text-[var(--color-text-tertiary)] ml-1">
               ({buyDeals.length} deal{buyDeals.length !== 1 ? "s" : ""})
             </span>
@@ -2744,7 +2744,7 @@ function LinkageView({ deal, linkedDeals, linkage, isOperator, fetchDeal }: Link
         <div className="space-y-4">
           <h2 className="text-sm font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide flex items-center gap-2">
             <span className="h-2 w-2 rounded-full bg-amber-500/60" />
-            Sell Side
+            Sale / Discharge
             <span className="text-xs font-normal text-[var(--color-text-tertiary)] ml-1">
               ({sellDeals.length} deal{sellDeals.length !== 1 ? "s" : ""})
             </span>
@@ -3380,19 +3380,6 @@ export default function DealDetailPage() {
   const canEdit = session?.user?.role === "operator" || session?.user?.role === "admin";
   const isOperator = canEdit;
 
-  // Redirect to the canonical linkage view. There must be ONE view for a
-  // linkage, not two — the old "Linked Voyage" embedded in /deals/[id] caused
-  // confusion ("pmst seal on nüüd linkage ja linked voyage. Nagu mis asja").
-  if (deal.linkageId) {
-    router.replace(`/linkages/${deal.linkageId}`);
-    return (
-      <div className="flex items-center justify-center py-24">
-        <div className="h-6 w-6 rounded-full border-2 border-[var(--color-accent)] border-t-transparent animate-spin" />
-      </div>
-    );
-  }
-
-  // Single deal view (original)
   return (
     <SingleDealView
       deal={deal}

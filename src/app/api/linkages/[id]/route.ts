@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { withAuth } from "@/lib/middleware/with-auth";
 import { withTenantDb } from "@/lib/db";
-import { linkages, deals, auditLogs } from "@/lib/db/schema";
+import { linkages, deals, auditLogs, linkageSteps } from "@/lib/db/schema";
 import { updateLinkageSchema } from "@/lib/types/linkage";
 import { eq, and, sql } from "drizzle-orm";
 
@@ -92,6 +92,24 @@ export const PUT = withAuth(
             and(
               eq(deals.linkageId, id),
               eq(deals.tenantId, session.user.tenantId)
+            )
+          );
+      }
+
+      // Vessel changed → flag sent linkage steps as "needs_update"
+      const vesselChanged =
+        (updates.vesselName !== undefined && updates.vesselName !== current.vesselName) ||
+        (updates.vesselImo !== undefined && updates.vesselImo !== current.vesselImo);
+
+      if (vesselChanged) {
+        await db
+          .update(linkageSteps)
+          .set({ status: "needs_update", updatedAt: new Date() })
+          .where(
+            and(
+              eq(linkageSteps.linkageId, id),
+              eq(linkageSteps.tenantId, session.user.tenantId),
+              eq(linkageSteps.status, "sent")
             )
           );
       }
