@@ -1,9 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { withAuth } from "@/lib/middleware/with-auth";
 import { withTenantDb } from "@/lib/db";
-import { linkages, deals, users } from "@/lib/db/schema";
+import { linkages, deals, users, linkageSteps } from "@/lib/db/schema";
 import { createLinkageSchema } from "@/lib/types/linkage";
-import { eq, and, desc, sql, like } from "drizzle-orm";
+import { eq, and, desc, sql, like, ne } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 
 // GET /api/linkages — List all linkages for tenant (with deal counts)
@@ -13,7 +13,12 @@ export const GET = withAuth(async (req, _ctx, session) => {
 
   const result = await withTenantDb(session.user.tenantId, async (db) => {
     const conditions = [eq(linkages.tenantId, session.user.tenantId)];
-    if (status === "active" || status === "completed") {
+    if (status === "ongoing") {
+      // All non-completed linkages (active, loading, sailing, discharging)
+      conditions.push(ne(linkages.status, "completed"));
+    } else if (status === "completed") {
+      conditions.push(eq(linkages.status, "completed"));
+    } else if (status) {
       conditions.push(eq(linkages.status, status));
     }
 
@@ -100,6 +105,30 @@ export const POST = withAuth(async (req, _ctx, session) => {
         secondaryOperatorId: data.secondaryOperatorId ?? null,
       })
       .returning();
+
+    // Auto-create default vessel workflow steps (always visible)
+    await db.insert(linkageSteps).values([
+      {
+        tenantId: session.user.tenantId,
+        linkageId: created.id,
+        stepName: "Voyage Orders",
+        stepType: "order",
+        recipientPartyType: "broker",
+        description: "Issue voyage orders to chartering broker with load/discharge ports, cargo details, and vessel instructions.",
+        stepOrder: 1,
+        status: "pending",
+      },
+      {
+        tenantId: session.user.tenantId,
+        linkageId: created.id,
+        stepName: "Discharge Orders",
+        stepType: "order",
+        recipientPartyType: "agent",
+        description: "Issue discharge instructions to discharge port agent.",
+        stepOrder: 2,
+        status: "pending",
+      },
+    ]);
 
     return created;
   });

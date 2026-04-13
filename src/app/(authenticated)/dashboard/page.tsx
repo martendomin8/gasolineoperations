@@ -419,7 +419,7 @@ export default function DashboardPage() {
 
   const fetchAll = useCallback(() => {
     Promise.all([
-      fetch(`/api/linkages?status=active&_t=${Date.now()}`, { cache: "no-store" }).then((r) => {
+      fetch(`/api/linkages?status=ongoing&_t=${Date.now()}`, { cache: "no-store" }).then((r) => {
         if (!r.ok) throw new Error("Failed to load linkages");
         return r.json() as Promise<LinkageRow[]>;
       }),

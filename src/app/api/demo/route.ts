@@ -218,6 +218,31 @@ export async function POST() {
     assignedOperatorId: opLR.id, secondaryOperatorId: opKK.id, createdBy: adminUser.id,
   });
 
+  // --- Default vessel workflow steps for all linkages ---
+  const defaultVesselSteps = [linkSocar, linkVitol, linkHolborn, linkMercurius].flatMap((l) => [
+    {
+      tenantId: tenant.id,
+      linkageId: l.id,
+      stepName: "Voyage Orders",
+      stepType: "order",
+      recipientPartyType: "broker",
+      description: "Issue voyage orders to chartering broker with load/discharge ports, cargo details, and vessel instructions.",
+      stepOrder: 1,
+      status: "pending",
+    },
+    {
+      tenantId: tenant.id,
+      linkageId: l.id,
+      stepName: "Discharge Orders",
+      stepType: "order",
+      recipientPartyType: "agent",
+      description: "Issue discharge instructions to discharge port agent.",
+      stepOrder: 2,
+      status: "pending",
+    },
+  ]);
+  await db.insert(schema.linkageSteps).values(defaultVesselSteps);
+
   // --- Instantiate workflows for active/sailing deals ---
   const { matchTemplate, instantiateWorkflow } = await import("@/lib/workflow-engine");
   for (const deal of [dealSocar, dealVitol, dealHolborn, dealShell]) {

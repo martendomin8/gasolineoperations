@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { withAuth } from "@/lib/middleware/with-auth";
 import { withTenantDb } from "@/lib/db";
-import { linkages, deals, auditLogs, linkageSteps } from "@/lib/db/schema";
+import { linkages, deals, auditLogs, linkageSteps, workflowInstances, workflowSteps } from "@/lib/db/schema";
 import { updateLinkageSchema } from "@/lib/types/linkage";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, inArray } from "drizzle-orm";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -102,6 +102,7 @@ export const PUT = withAuth(
         (updates.vesselImo !== undefined && updates.vesselImo !== current.vesselImo);
 
       if (vesselChanged) {
+        // Flag sent linkage-level steps as needs_update
         await db
           .update(linkageSteps)
           .set({ status: "needs_update", updatedAt: new Date() })
@@ -112,6 +113,39 @@ export const PUT = withAuth(
               eq(linkageSteps.status, "sent")
             )
           );
+
+        // Flag sent deal-level workflow steps as needs_update
+        // Find all deals in this linkage, then their workflow instances, then update sent steps
+        const linkageDeals = await db
+          .select({ id: deals.id })
+          .from(deals)
+          .where(and(eq(deals.linkageId, id), eq(deals.tenantId, session.user.tenantId)));
+
+        if (linkageDeals.length > 0) {
+          const dealIds = linkageDeals.map((d) => d.id);
+          const instances = await db
+            .select({ id: workflowInstances.id })
+            .from(workflowInstances)
+            .where(
+              and(
+                inArray(workflowInstances.dealId, dealIds),
+                eq(workflowInstances.tenantId, session.user.tenantId)
+              )
+            );
+
+          if (instances.length > 0) {
+            const instanceIds = instances.map((i) => i.id);
+            await db
+              .update(workflowSteps)
+              .set({ status: "needs_update" })
+              .where(
+                and(
+                  inArray(workflowSteps.workflowInstanceId, instanceIds),
+                  eq(workflowSteps.status, "sent")
+                )
+              );
+          }
+        }
       }
 
       // Audit log the update

@@ -10,6 +10,7 @@ import {
   ChevronLeft,
   Fuel,
   Table2,
+  FileText,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -17,8 +18,9 @@ import { useState } from "react";
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { name: "Excel", href: "/excel", icon: Table2 },
+  { name: "Spreadsheet", href: "/excel", icon: Table2 },
   { name: "Parse Email", href: "/deals/parse", icon: Sparkles },
+  { name: "Deals", href: "/deals", icon: FileText },
   { name: "Parties", href: "/parties", icon: Users },
   { name: "Templates", href: "/settings/templates", icon: Mail },
   { name: "Settings", href: "/settings", icon: Settings },

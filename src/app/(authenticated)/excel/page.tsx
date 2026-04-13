@@ -114,9 +114,9 @@ const EDITABLE_CELL_IDLE = `${CELL_BASE} group/cell relative`;
 // LockedCell — read-only, no interaction
 // ---------------------------------------------------------------------------
 
-function LockedCell({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+function LockedCell({ children, className = "", rowSpan }: { children: React.ReactNode; className?: string; rowSpan?: number }) {
   return (
-    <td className={`${LOCKED_CELL} ${className}`}>
+    <td className={`${LOCKED_CELL} ${className}`} rowSpan={rowSpan}>
       {children}
     </td>
   );
@@ -296,22 +296,29 @@ type SectionVariant = "purchase" | "sale" | "linked" | "internal";
 
 const SECTION_COLORS: Record<SectionVariant, { bg: string; text: string; border: string }> = {
   purchase: { bg: "bg-blue-900/20", text: "text-blue-200", border: "border-t-2 border-t-blue-700" },
-  sale:     { bg: "bg-amber-900/20", text: "text-amber-200", border: "border-t-2 border-t-amber-700" },
-  linked:   { bg: "bg-emerald-900/20", text: "text-emerald-200", border: "border-t-2 border-t-emerald-700" },
-  internal: { bg: "bg-amber-900/30", text: "text-amber-200", border: "border-t-2 border-t-amber-700" },
+  sale:     { bg: "bg-blue-900/20", text: "text-blue-200", border: "border-t-2 border-t-blue-700" },
+  linked:   { bg: "bg-blue-900/20", text: "text-blue-200", border: "border-t-2 border-t-blue-700" },
+  internal: { bg: "bg-blue-900/20", text: "text-blue-200", border: "border-t-2 border-t-blue-700" },
 };
 
-function SectionHeader({ title, variant = "purchase" }: { title: string; variant?: SectionVariant }) {
+function SectionHeader({ title, variant = "purchase", first = false }: { title: string; variant?: SectionVariant; first?: boolean }) {
   const c = SECTION_COLORS[variant];
   return (
-    <tr>
-      <td
-        colSpan={COLUMNS.length}
-        className={`${c.bg} ${c.border} px-3 py-2 text-sm font-bold ${c.text} uppercase tracking-wide border-b border-[var(--color-border-subtle)]`}
-      >
-        {title}
-      </td>
-    </tr>
+    <>
+      {!first && (
+        <tr>
+          <td colSpan={COLUMNS.length} className="h-8 bg-transparent border-none" />
+        </tr>
+      )}
+      <tr>
+        <td
+          colSpan={COLUMNS.length}
+          className={`${c.bg} ${c.border} px-3 py-2 text-sm font-bold ${c.text} uppercase tracking-wide border-b border-[var(--color-border-subtle)]`}
+        >
+          {title}
+        </td>
+      </tr>
+    </>
   );
 }
 
@@ -335,28 +342,62 @@ function ColumnHeaders() {
 // DealRow — the main row component with editable and locked cells
 // ---------------------------------------------------------------------------
 
-// Stable color for each linkage — cycles through 6 tints
-const LINKAGE_TINTS = [
-  "border-l-emerald-500/50",
-  "border-l-blue-500/50",
-  "border-l-purple-500/50",
-  "border-l-pink-500/50",
-  "border-l-cyan-500/50",
-  "border-l-orange-500/50",
+// Stable color for each linkage — cycles through pairs of border + background tints
+const LINKAGE_TINTS: Array<{ border: string; bg: string }> = [
+  { border: "border-l-emerald-500/50", bg: "bg-emerald-500/[0.04]" },
+  { border: "border-l-blue-500/50",    bg: "bg-blue-500/[0.04]" },
+  { border: "border-l-purple-500/50",  bg: "bg-purple-500/[0.06]" },
+  { border: "border-l-pink-500/50",    bg: "bg-pink-500/[0.04]" },
+  { border: "border-l-cyan-500/50",    bg: "bg-cyan-500/[0.04]" },
+  { border: "border-l-orange-500/50",  bg: "bg-orange-500/[0.05]" },
 ];
 
-function linkageTint(linkageId: string | null): string {
-  if (!linkageId) return "";
+function linkageTint(linkageId: string | null): { border: string; bg: string } {
+  if (!linkageId) return { border: "", bg: "" };
   // Simple hash → index
   let hash = 0;
   for (let i = 0; i < linkageId.length; i++) hash = (hash * 31 + linkageId.charCodeAt(i)) | 0;
   return LINKAGE_TINTS[Math.abs(hash) % LINKAGE_TINTS.length];
 }
 
-function DealRowComponent({ deal, onUpdate, onDelete }: { deal: DealRow; onUpdate: () => void; onDelete: (deal: DealRow) => void }) {
+/** Annotate a list of deals with linkage group info for rowSpan merging */
+function withGroupInfo(deals: DealRow[]): Array<DealRow & { isFirstInGroup: boolean; groupSize: number }> {
+  const result: Array<DealRow & { isFirstInGroup: boolean; groupSize: number }> = [];
+  const seen = new Map<string, number>(); // linkageId → index of first deal in result
+
+  for (const deal of deals) {
+    const key = deal.linkageId;
+    if (key && seen.has(key)) {
+      // Not first in group — increment groupSize on the first deal
+      result[seen.get(key)!].groupSize++;
+      result.push({ ...deal, isFirstInGroup: false, groupSize: 1 });
+    } else {
+      if (key) seen.set(key, result.length);
+      result.push({ ...deal, isFirstInGroup: true, groupSize: 1 });
+    }
+  }
+  return result;
+}
+
+function DealRowComponent({
+  deal,
+  onUpdate,
+  onDelete,
+  isFirstInGroup = true,
+  groupSize = 1,
+}: {
+  deal: DealRow;
+  onUpdate: () => void;
+  onDelete: (deal: DealRow) => void;
+  isFirstInGroup?: boolean;
+  groupSize?: number;
+}) {
   const tint = linkageTint(deal.linkageId);
+  const spanProps = groupSize > 1 ? { rowSpan: groupSize } : {};
+  const spanCellClass = groupSize > 1 ? "align-middle border-b-2 border-b-[var(--color-border-default)]" : "";
+
   return (
-    <tr className={`hover:bg-[var(--color-surface-2)] transition-colors group relative ${tint ? `border-l-[3px] ${tint}` : ""}`}>
+    <tr className={`hover:bg-[var(--color-surface-2)] transition-colors group relative ${tint.border ? `border-l-[3px] ${tint.border}` : ""} ${tint.bg}`}>
       {/* Locked cells — system-populated, read-only */}
       <LockedCell className="font-mono whitespace-nowrap">
         <div className="flex items-center gap-1.5">
@@ -374,10 +415,21 @@ function DealRowComponent({ deal, onUpdate, onDelete }: { deal: DealRow; onUpdat
         </div>
       </LockedCell>
       <LockedCell>{deal.counterparty}</LockedCell>
-      <LockedCell className="font-mono">{deal.vesselName || "\u2014"}</LockedCell>
-      <LockedCell className="font-mono">{deal.linkageCode || "\u2014"}</LockedCell>
+
+      {/* Linkage-level columns: vessel, linkage code, OPS — merged across rows */}
+      {isFirstInGroup && (
+        <>
+          <LockedCell className={`font-mono ${spanCellClass}`} {...spanProps}>{deal.vesselName || "\u2014"}</LockedCell>
+          <LockedCell className={`font-mono ${spanCellClass}`} {...spanProps}>{deal.linkageCode || "\u2014"}</LockedCell>
+        </>
+      )}
+
       <LockedCell className="font-mono">{deal.externalRef || "\u2014"}</LockedCell>
-      <LockedCell>{formatOps(deal)}</LockedCell>
+
+      {/* OPS — linkage-level, merged */}
+      {isFirstInGroup && (
+        <LockedCell className={spanCellClass} {...spanProps}>{formatOps(deal)}</LockedCell>
+      )}
 
       {/* Pricing — special interactive cell */}
       <PricingCell deal={deal} onUpdate={onUpdate} />
@@ -424,7 +476,7 @@ function InternalColumnHeaders() {
           className={`px-2 py-1.5 text-[0.625rem] font-bold uppercase tracking-wider border-b border-r border-[var(--color-border-subtle)] whitespace-nowrap ${
             INTERNAL_GRAYED_KEYS.has(col.key)
               ? "bg-[var(--color-surface-3)] text-[var(--color-text-tertiary)] opacity-40"
-              : "bg-amber-900/15 text-[var(--color-text-secondary)]"
+              : "bg-[var(--color-surface-2)] text-[var(--color-text-secondary)]"
           }`}
           style={{ minWidth: col.width }}
         >
@@ -439,10 +491,25 @@ function GrayedCell() {
   return <td className="px-2 py-1.5 text-xs border-b border-r border-[var(--color-border-subtle)] bg-[var(--color-surface-3)] opacity-30" />;
 }
 
-function InternalDealRowComponent({ deal, onUpdate, onDelete }: { deal: DealRow; onUpdate: () => void; onDelete: (deal: DealRow) => void }) {
+function InternalDealRowComponent({
+  deal,
+  onUpdate,
+  onDelete,
+  isFirstInGroup = true,
+  groupSize = 1,
+}: {
+  deal: DealRow;
+  onUpdate: () => void;
+  onDelete: (deal: DealRow) => void;
+  isFirstInGroup?: boolean;
+  groupSize?: number;
+}) {
   const tint = linkageTint(deal.linkageId);
+  const spanProps = groupSize > 1 ? { rowSpan: groupSize } : {};
+  const spanCellClass = groupSize > 1 ? "align-middle border-b-2 border-b-[var(--color-border-default)]" : "";
+
   return (
-    <tr className={`hover:bg-[var(--color-surface-2)] transition-colors group relative ${tint ? `border-l-[3px] ${tint}` : ""}`}>
+    <tr className={`hover:bg-[var(--color-surface-2)] transition-colors group relative ${tint.border ? `border-l-[3px] ${tint.border}` : ""} ${tint.bg}`}>
       {/* Same columns as main table — grayed out where not applicable */}
       <LockedCell className="font-mono whitespace-nowrap">
         <div className="flex items-center gap-1.5">
@@ -460,10 +527,21 @@ function InternalDealRowComponent({ deal, onUpdate, onDelete }: { deal: DealRow;
         </div>
       </LockedCell>
       <LockedCell>{deal.counterparty}</LockedCell>
-      <LockedCell className="font-mono">{deal.vesselName || "\u2014"}</LockedCell>
-      <LockedCell className="font-mono">{deal.linkageCode || "\u2014"}</LockedCell>
+
+      {/* Linkage-level columns — merged across rows */}
+      {isFirstInGroup && (
+        <>
+          <LockedCell className={`font-mono ${spanCellClass}`} {...spanProps}>{deal.vesselName || "\u2014"}</LockedCell>
+          <LockedCell className={`font-mono ${spanCellClass}`} {...spanProps}>{deal.linkageCode || "\u2014"}</LockedCell>
+        </>
+      )}
+
       <LockedCell className="font-mono">{deal.externalRef || "\u2014"}</LockedCell>
-      <LockedCell>{formatOps(deal)}</LockedCell>
+
+      {isFirstInGroup && (
+        <LockedCell className={spanCellClass} {...spanProps}>{formatOps(deal)}</LockedCell>
+      )}
+
       <PricingCell deal={deal} onUpdate={onUpdate} />
       <LockedCell>{formatBLFigures(deal)}</LockedCell>
       <EditableStatusCell value={deal.docInstructions} dealId={deal.id} fieldName="docInstructions" onUpdate={onUpdate} />
@@ -789,10 +867,10 @@ export default function ExcelPage() {
               <>
                 <tbody>
                   {/* PURCHASE section */}
-                  <SectionHeader title="PURCHASE" variant="purchase" />
+                  <SectionHeader title="PURCHASE" variant="purchase" first />
                   <ColumnHeaders />
                   {purchases.length > 0 ? (
-                    purchases.map((d) => <DealRowComponent key={d.id} deal={d} onUpdate={refreshData} onDelete={requestDelete} />)
+                    withGroupInfo(purchases).map((d) => <DealRowComponent key={d.id} deal={d} onUpdate={refreshData} onDelete={requestDelete} isFirstInGroup={d.isFirstInGroup} groupSize={d.groupSize} />)
                   ) : (
                     <tr><td colSpan={COLUMNS.length} className="px-3 py-4 text-xs text-center text-[var(--color-text-tertiary)] border-b border-[var(--color-border-subtle)]">No standalone purchases</td></tr>
                   )}
@@ -801,7 +879,7 @@ export default function ExcelPage() {
                   <SectionHeader title="SALE" variant="sale" />
                   <ColumnHeaders />
                   {sales.length > 0 ? (
-                    sales.map((d) => <DealRowComponent key={d.id} deal={d} onUpdate={refreshData} onDelete={requestDelete} />)
+                    withGroupInfo(sales).map((d) => <DealRowComponent key={d.id} deal={d} onUpdate={refreshData} onDelete={requestDelete} isFirstInGroup={d.isFirstInGroup} groupSize={d.groupSize} />)
                   ) : (
                     <tr><td colSpan={COLUMNS.length} className="px-3 py-4 text-xs text-center text-[var(--color-text-tertiary)] border-b border-[var(--color-border-subtle)]">No standalone sales</td></tr>
                   )}
@@ -810,9 +888,10 @@ export default function ExcelPage() {
                   <SectionHeader title="PURCHASE + SALE" variant="linked" />
                   <ColumnHeaders />
                   {linked.length > 0 ? (
-                    linked.map((group) => (
-                      group.deals.map((d) => <DealRowComponent key={d.id} deal={d} onUpdate={refreshData} onDelete={requestDelete} />)
-                    ))
+                    linked.map((group) => {
+                      const annotated = withGroupInfo(group.deals);
+                      return annotated.map((d) => <DealRowComponent key={d.id} deal={d} onUpdate={refreshData} onDelete={requestDelete} isFirstInGroup={d.isFirstInGroup} groupSize={d.groupSize} />);
+                    })
                   ) : (
                     <tr><td colSpan={COLUMNS.length} className="px-3 py-4 text-xs text-center text-[var(--color-text-tertiary)]">No linked deals</td></tr>
                   )}
@@ -823,7 +902,7 @@ export default function ExcelPage() {
                   <InternalSectionHeader />
                   <InternalColumnHeaders />
                   {allInternalDeals.length > 0 ? (
-                    allInternalDeals.map((d) => <InternalDealRowComponent key={d.id} deal={d} onUpdate={refreshData} onDelete={requestDelete} />)
+                    withGroupInfo(allInternalDeals).map((d) => <InternalDealRowComponent key={d.id} deal={d} onUpdate={refreshData} onDelete={requestDelete} isFirstInGroup={d.isFirstInGroup} groupSize={d.groupSize} />)
                   ) : (
                     <tr><td colSpan={COLUMNS.length} className="px-3 py-4 text-xs text-center text-[var(--color-text-tertiary)]">No internal operations</td></tr>
                   )}
@@ -833,7 +912,7 @@ export default function ExcelPage() {
               <tbody>
                 <ColumnHeaders />
                 {filteredCompleted.length > 0 ? (
-                  filteredCompleted.map((d) => <DealRowComponent key={d.id} deal={d} onUpdate={refreshData} onDelete={requestDelete} />)
+                  withGroupInfo(filteredCompleted).map((d) => <DealRowComponent key={d.id} deal={d} onUpdate={refreshData} onDelete={requestDelete} isFirstInGroup={d.isFirstInGroup} groupSize={d.groupSize} />)
                 ) : (
                   <tr><td colSpan={COLUMNS.length} className="px-3 py-4 text-xs text-center text-[var(--color-text-tertiary)]">No completed deals</td></tr>
                 )}

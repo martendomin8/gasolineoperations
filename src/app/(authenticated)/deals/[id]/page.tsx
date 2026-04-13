@@ -559,22 +559,17 @@ function WorkflowStepCard({ step, allSteps, onAction, isOperator, loadport, disc
                       Draft
                     </Button>
                   )}
-                  {step.status === "draft_generated" && (
+                  {/* V1: Allow marking as sent directly — operator sends via Outlook outside the program */}
+                  {(step.status === "ready" || step.status === "draft_generated" || step.status === "needs_update") && (
                     <Button variant="primary" size="sm" onClick={() => handleAction("mark_sent")} disabled={loading}>
                       <Send className="h-3 w-3" />
-                      Sent
+                      {step.status === "needs_update" ? "Re-sent" : "Sent"}
                     </Button>
                   )}
                   {step.status === "sent" && step.isExternalWait && (
                     <Button variant="secondary" size="sm" onClick={() => handleAction("mark_acknowledged")} disabled={loading}>
                       <CheckCircle2 className="h-3 w-3" />
                       Received
-                    </Button>
-                  )}
-                  {step.status === "needs_update" && step.emailDraft && (
-                    <Button variant="primary" size="sm" onClick={() => handleAction("mark_sent")} disabled={loading}>
-                      <RefreshCw className="h-3 w-3" />
-                      Re-sent
                     </Button>
                   )}
                 </>
@@ -959,9 +954,6 @@ function WorkflowSection({ dealId, dealStatus, isOperator, loadport, dischargePo
         </div>
         <span className="text-xs font-mono text-[var(--color-text-tertiary)] flex-shrink-0">
           {completedCount}/{totalCount} steps
-        </span>
-        <span className="text-xs text-[var(--color-text-tertiary)] flex-shrink-0">
-          {workflow.templateName}
         </span>
       </div>
 
@@ -2393,7 +2385,7 @@ function LinkageView({ deal, linkedDeals, linkage, isOperator, fetchDeal }: Link
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Link
-            href="/deals"
+            href={deal.linkageId ? `/linkages/${deal.linkageId}` : "/deals"}
             className="p-1.5 rounded-[var(--radius-md)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-surface-3)] transition-colors"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -2827,7 +2819,7 @@ function SingleDealView({ deal, canEdit, isOperator, fetchDeal }: SingleDealView
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Link
-              href="/deals"
+              href={deal.linkageId ? `/linkages/${deal.linkageId}` : "/deals"}
               className="p-1.5 rounded-[var(--radius-md)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-surface-3)] transition-colors"
             >
               <ArrowLeft className="h-4 w-4" />
@@ -2870,16 +2862,7 @@ function SingleDealView({ deal, canEdit, isOperator, fetchDeal }: SingleDealView
           </div>
         </div>
 
-        {/* Status progression bar */}
-        <div className="pl-1">
-          <StatusStepper
-            status={deal.status}
-            version={deal.version}
-            dealId={deal.id}
-            canEdit={canEdit ?? false}
-            onAdvanced={fetchDeal}
-          />
-        </div>
+        {/* Status progression moved to linkage level */}
       </div>
 
       {/* Deal details */}

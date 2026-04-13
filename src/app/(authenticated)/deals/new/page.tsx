@@ -244,17 +244,19 @@ export default function NewDealPage() {
           </div>
         </Card>
 
-        {/* Vessel */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Vessel</CardTitle>
-            <Badge variant="muted">Optional</Badge>
-          </CardHeader>
-          <div className="grid grid-cols-2 gap-4">
-            <Input label="Vessel Name" name="vesselName" placeholder="e.g. MT Gannet" />
-            <Input label="Vessel IMO" name="vesselImo" placeholder="e.g. 9123456" />
-          </div>
-        </Card>
+        {/* Vessel — hidden when adding to an existing linkage (vessel is linkage-level) */}
+        {!prefillLinkageId && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Vessel</CardTitle>
+              <Badge variant="muted">Optional</Badge>
+            </CardHeader>
+            <div className="grid grid-cols-2 gap-4">
+              <Input label="Vessel Name" name="vesselName" placeholder="e.g. MT Gannet" />
+              <Input label="Vessel IMO" name="vesselImo" placeholder="e.g. 9123456" />
+            </div>
+          </Card>
+        )}
 
         {/* Notes */}
         <Card>

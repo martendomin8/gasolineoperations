@@ -35,11 +35,42 @@ export const GET = withAuth(async (_req: NextRequest, context: { params: Promise
     return NextResponse.json({ error: "Linkage not found" }, { status: 404 });
   }
 
-  const steps = await db
+  let steps = await db
     .select()
     .from(schema.linkageSteps)
     .where(and(eq(schema.linkageSteps.linkageId, id), eq(schema.linkageSteps.tenantId, tenantId)))
     .orderBy(schema.linkageSteps.stepOrder);
+
+  // Auto-create default vessel steps if none exist (backfill for pre-existing linkages)
+  if (steps.length === 0) {
+    await db.insert(schema.linkageSteps).values([
+      {
+        tenantId,
+        linkageId: id,
+        stepName: "Voyage Orders",
+        stepType: "order",
+        recipientPartyType: "broker",
+        description: "Issue voyage orders to chartering broker with load/discharge ports, cargo details, and vessel instructions.",
+        stepOrder: 1,
+        status: "pending",
+      },
+      {
+        tenantId,
+        linkageId: id,
+        stepName: "Discharge Orders",
+        stepType: "order",
+        recipientPartyType: "agent",
+        description: "Issue discharge instructions to discharge port agent.",
+        stepOrder: 2,
+        status: "pending",
+      },
+    ]);
+    steps = await db
+      .select()
+      .from(schema.linkageSteps)
+      .where(and(eq(schema.linkageSteps.linkageId, id), eq(schema.linkageSteps.tenantId, tenantId)))
+      .orderBy(schema.linkageSteps.stepOrder);
+  }
 
   return NextResponse.json({ steps });
 });

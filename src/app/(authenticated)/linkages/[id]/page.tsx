@@ -33,6 +33,11 @@ import {
   ChevronDown,
   ChevronUp,
   Anchor,
+  Play,
+  Waves,
+  CircleDot,
+  CheckCircle2,
+  ChevronRight,
 } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
@@ -259,7 +264,7 @@ export default function LinkageDetailPage() {
             Balance: ~{Math.abs(buyTotal - sellTotal).toLocaleString()} MT
           </span>
           <span className="flex-1" />
-          <StatusToggle linkageId={linkage.id} status={linkage.status} canEdit={isOperator} onToggled={fetchData} />
+          <LinkageStatusStepper linkageId={linkage.id} status={linkage.status} canEdit={isOperator} onUpdated={fetchData} />
         </div>
       )}
 
@@ -511,32 +516,91 @@ function NotesSection({ linkageId, notes, canEdit, onSaved }: {
 
 // ── Status Toggle ────────────────────────────────────────────
 
-function StatusToggle({ linkageId, status, canEdit, onToggled }: {
-  linkageId: string; status: string; canEdit: boolean; onToggled: () => void;
+const LINKAGE_STATUS_STEPS: Array<{ status: string; label: string; icon: React.ElementType }> = [
+  { status: "active",      label: "Active",      icon: Play },
+  { status: "loading",     label: "Loading",     icon: Package },
+  { status: "sailing",     label: "Sailing",     icon: Ship },
+  { status: "discharging", label: "Discharging", icon: Waves },
+  { status: "completed",   label: "Completed",   icon: CheckCircle2 },
+];
+
+const NEXT_LINKAGE_STATUS: Record<string, string> = {
+  active:      "loading",
+  loading:     "sailing",
+  sailing:     "discharging",
+  discharging: "completed",
+};
+
+const PREV_LINKAGE_STATUS: Record<string, string> = {
+  loading:     "active",
+  sailing:     "loading",
+  discharging: "sailing",
+  completed:   "discharging",
+};
+
+function LinkageStatusStepper({ linkageId, status, canEdit, onUpdated }: {
+  linkageId: string; status: string; canEdit: boolean; onUpdated: () => void;
 }) {
-  const [toggling, setToggling] = useState(false);
-  const toggle = async () => {
-    if (!canEdit || toggling) return;
-    setToggling(true);
+  const [advancing, setAdvancing] = useState(false);
+  const currentIdx = LINKAGE_STATUS_STEPS.findIndex((s) => s.status === status);
+  const nextStatus = NEXT_LINKAGE_STATUS[status];
+  const prevStatus = PREV_LINKAGE_STATUS[status];
+
+  const handleSetStatus = async (newStatus: string) => {
+    if (!canEdit || advancing) return;
+    setAdvancing(true);
     const res = await fetch(`/api/linkages/${linkageId}`, {
-      method: "PUT", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: status === "active" ? "completed" : "active" }),
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: newStatus }),
     });
-    setToggling(false);
-    if (res.ok) { toast.success(`Linkage marked ${status === "active" ? "completed" : "active"}`); onToggled(); }
-    else toast.error("Failed to update status");
+    setAdvancing(false);
+    if (res.ok) {
+      toast.success(`Voyage status: ${newStatus}`);
+      onUpdated();
+    } else {
+      toast.error("Failed to update status");
+    }
   };
 
   return (
-    <button onClick={canEdit ? toggle : undefined} disabled={!canEdit || toggling}
-      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[0.625rem] font-medium transition-colors ${
-        status === "completed" ? "bg-green-900/30 text-green-400 border border-green-700/40" : "bg-[var(--color-surface-3)] text-[var(--color-text-secondary)] border border-[var(--color-border-subtle)]"
-      } ${canEdit ? "cursor-pointer hover:opacity-80" : "cursor-default"}`}
-      title={canEdit ? `Click to mark ${status === "active" ? "completed" : "active"}` : undefined}>
-      {toggling ? <div className="h-2 w-2 rounded-full border border-current border-t-transparent animate-spin" /> :
-        <span className={`h-1.5 w-1.5 rounded-full ${status === "completed" ? "bg-green-400" : "bg-[var(--color-text-tertiary)]"}`} />}
-      {status === "completed" ? "Completed" : "Active"}
-    </button>
+    <div className="flex items-center gap-1.5 flex-wrap">
+      {LINKAGE_STATUS_STEPS.map((step, idx) => {
+        const Icon = step.icon;
+        const isPast = idx < currentIdx;
+        const isCurrent = idx === currentIdx;
+        const isNext = nextStatus === step.status;
+        const isPrev = prevStatus === step.status;
+
+        return (
+          <div key={step.status} className="flex items-center gap-1.5">
+            {idx > 0 && (
+              <ChevronRight className={`h-3 w-3 flex-shrink-0 ${isPast || isCurrent ? "text-[var(--color-accent)]" : "text-[var(--color-border-subtle)]"}`} />
+            )}
+            <button
+              onClick={(isNext || isPrev) && canEdit ? () => handleSetStatus(step.status) : undefined}
+              disabled={(!isNext && !isPrev) || !canEdit || advancing}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-all ${
+                isCurrent
+                  ? "bg-[var(--color-accent)] text-[var(--color-text-inverse)] shadow-sm"
+                  : isPast
+                  ? "bg-[var(--color-success-muted)] text-[var(--color-success)] cursor-pointer hover:opacity-80"
+                  : isNext && canEdit
+                  ? "bg-[var(--color-surface-3)] text-[var(--color-text-secondary)] hover:bg-[var(--color-accent-muted)] hover:text-[var(--color-accent-text)] cursor-pointer border border-dashed border-[var(--color-border-default)]"
+                  : "bg-[var(--color-surface-2)] text-[var(--color-text-tertiary)] cursor-default opacity-50"
+              }`}
+            >
+              {isCurrent && advancing ? (
+                <div className="h-3 w-3 rounded-full border-2 border-current border-t-transparent animate-spin" />
+              ) : (
+                <Icon className="h-3 w-3" />
+              )}
+              {step.label}
+            </button>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
@@ -551,13 +615,17 @@ function VesselSection({ linkage, steps, docs, canEdit, onUpdated }: {
 }) {
   const [expanded, setExpanded] = useState(true);
   const [dragOver, setDragOver] = useState(false);
+  const [dragOverCp, setDragOverCp] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [uploadingCp, setUploadingCp] = useState(false);
   const [addingStep, setAddingStep] = useState(false);
   const [newStepName, setNewStepName] = useState("");
 
   const vesselDisplay = linkage.vesselName || "TBN";
   const imoDisplay = linkage.vesselImo || "—";
+  const hasVessel = Boolean(linkage.vesselName);
   const q88Docs = docs.filter((d) => d.fileType === "q88");
+  const cpDocs = docs.filter((d) => d.fileType === "cp_recap");
   const doneCount = steps.filter((s) => s.status === "sent" || s.status === "done").length;
 
   const handleDrop = async (e: React.DragEvent) => {
@@ -586,6 +654,29 @@ function VesselSection({ linkage, steps, docs, canEdit, onUpdated }: {
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     setDragOver(true);
+  };
+
+  const handleDropCp = async (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOverCp(false);
+    if (!canEdit) return;
+
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length === 0) return;
+
+    setUploadingCp(true);
+    for (const file of files) {
+      try {
+        await fetch(`/api/linkages/${linkage.id}/documents`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ filename: file.name, fileType: "cp_recap" }),
+        });
+      } catch { /* silent */ }
+    }
+    setUploadingCp(false);
+    toast.success(`CP Recap uploaded: ${files.map((f) => f.name).join(", ")}`);
+    onUpdated();
   };
 
   const handleAddStep = async () => {
@@ -644,6 +735,9 @@ function VesselSection({ linkage, steps, docs, canEdit, onUpdated }: {
           {q88Docs.length > 0 && (
             <Badge variant="muted" className="text-[0.6rem]">Q88 ✓</Badge>
           )}
+          {cpDocs.length > 0 && (
+            <Badge variant="muted" className="text-[0.6rem]">CP Recap ✓</Badge>
+          )}
         </div>
         <div className="flex items-center gap-3">
           {steps.length > 0 && (
@@ -697,17 +791,58 @@ function VesselSection({ linkage, steps, docs, canEdit, onUpdated }: {
             )}
           </div>
 
-          {/* Workflow steps */}
+          {/* CP Recap drop zone */}
+          <div
+            onDrop={handleDropCp}
+            onDragOver={(e) => { e.preventDefault(); setDragOverCp(true); }}
+            onDragLeave={() => setDragOverCp(false)}
+            className={`rounded-[var(--radius-md)] border-2 border-dashed py-3 px-4 text-center transition-colors ${
+              dragOverCp
+                ? "border-amber-400 bg-amber-400/5"
+                : "border-[var(--color-border-subtle)] hover:border-[var(--color-border-default)]"
+            }`}
+          >
+            {uploadingCp ? (
+              <div className="flex items-center justify-center gap-2 text-xs text-[var(--color-text-tertiary)]">
+                <div className="h-3 w-3 rounded-full border border-current border-t-transparent animate-spin" />
+                Uploading...
+              </div>
+            ) : cpDocs.length > 0 ? (
+              <div className="space-y-1">
+                {cpDocs.map((d) => (
+                  <div key={d.id} className="flex items-center justify-center gap-2 text-xs text-amber-400">
+                    <FileText className="h-3 w-3" />
+                    {d.filename}
+                  </div>
+                ))}
+                <p className="text-[0.65rem] text-[var(--color-text-tertiary)]">Drop to replace CP Recap</p>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center gap-1">
+                <Upload className="h-4 w-4 text-[var(--color-text-tertiary)]" />
+                <p className="text-xs text-[var(--color-text-tertiary)]">Drop CP Recap here</p>
+              </div>
+            )}
+          </div>
+
+          {/* Workflow steps — always visible, disabled when no vessel */}
           {steps.length > 0 && (
-            <div className="space-y-1">
-              <p className="text-[0.65rem] font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wide mb-1.5">
-                Vessel Workflow — {doneCount}/{steps.length} done
-              </p>
+            <div className={`space-y-1 ${!hasVessel ? "opacity-50" : ""}`}>
+              <div className="flex items-center gap-2 mb-1.5">
+                <p className="text-[0.65rem] font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wide">
+                  Vessel Workflow — {doneCount}/{steps.length} done
+                </p>
+                {!hasVessel && (
+                  <span className="text-[0.6rem] text-amber-400/80 italic">
+                    Vessel required to send
+                  </span>
+                )}
+              </div>
               {steps.map((s) => (
                 <div key={s.id} className="flex items-center justify-between gap-2">
-                  <span className="text-[0.7rem] text-[var(--color-text-secondary)] truncate">{s.stepName}</span>
+                  <span className={`text-[0.7rem] truncate ${hasVessel ? "text-[var(--color-text-secondary)]" : "text-[var(--color-text-tertiary)]"}`}>{s.stepName}</span>
                   <div className="flex items-center gap-1">
-                    {canEdit && s.status !== "sent" && s.status !== "done" && (
+                    {canEdit && hasVessel && s.status !== "sent" && s.status !== "done" && (
                       <button
                         onClick={() => handleStepStatusChange(s.id, "sent")}
                         className="px-1.5 py-0.5 text-[0.6rem] rounded bg-green-500/15 text-green-400 hover:bg-green-500/25 transition-colors cursor-pointer"
@@ -715,7 +850,7 @@ function VesselSection({ linkage, steps, docs, canEdit, onUpdated }: {
                         Mark Sent
                       </button>
                     )}
-                    {canEdit && s.status === "needs_update" && (
+                    {canEdit && hasVessel && s.status === "needs_update" && (
                       <button
                         onClick={() => handleStepStatusChange(s.id, "pending")}
                         className="px-1.5 py-0.5 text-[0.6rem] rounded bg-blue-500/15 text-blue-400 hover:bg-blue-500/25 transition-colors cursor-pointer"
@@ -777,16 +912,16 @@ function VesselSection({ linkage, steps, docs, canEdit, onUpdated }: {
 
 // ── Step Status Badge ────────────────────────────────────────
 
-function StepStatusBadge({ status }: { status: string }) {
+function StepStatusBadge({ status, label: customLabel }: { status: string; label?: string }) {
   const styles: Record<string, string> = {
     pending: "bg-[var(--color-surface-3)] text-[var(--color-text-tertiary)]",
-    ready: "bg-blue-500/15 text-blue-400",
-    draft_generated: "bg-indigo-500/15 text-indigo-400",
-    sent: "bg-green-500/15 text-green-400",
-    received: "bg-emerald-500/15 text-emerald-400",
-    done: "bg-green-500/15 text-green-400",
-    needs_update: "bg-amber-500/15 text-amber-400",
-    cancelled: "bg-red-500/15 text-red-400/60",
+    ready: "bg-blue-500/15 text-blue-400 border border-blue-500/30",
+    draft_generated: "bg-indigo-500/15 text-indigo-400 border border-indigo-500/30",
+    sent: "bg-green-500/15 text-green-400 border border-green-500/30",
+    received: "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30",
+    done: "bg-green-500/15 text-green-400 border border-green-500/30",
+    needs_update: "bg-red-500/15 text-red-400 border border-red-500/30",
+    cancelled: "bg-red-500/10 text-red-400/60 line-through",
     na: "bg-[var(--color-surface-3)] text-[var(--color-text-tertiary)]",
   };
   const label: Record<string, string> = {
@@ -796,13 +931,14 @@ function StepStatusBadge({ status }: { status: string }) {
     sent: "Sent",
     received: "Received",
     done: "Done",
-    needs_update: "Update",
+    needs_update: "Re-send!",
     cancelled: "Cancelled",
     na: "N/A",
   };
+  const displayLabel = customLabel ?? label[status] ?? status;
   return (
-    <span className={`px-1.5 py-0.5 rounded text-[0.6rem] font-medium whitespace-nowrap ${styles[status] ?? styles.pending}`}>
-      {label[status] ?? status}
+    <span className={`px-2 py-1 rounded-[var(--radius-sm)] text-xs font-medium whitespace-nowrap ${styles[status] ?? styles.pending}`}>
+      {displayLabel}
     </span>
   );
 }
@@ -850,21 +986,44 @@ function DealCard({ deal, steps, onDeleted, canDelete }: { deal: DealSummary; st
           <div><span className="text-[var(--color-text-tertiary)]">Laycan:</span> {deal.laycanStart} — {deal.laycanEnd}</div>
         </div>
         {/* Workflow steps */}
-        {steps.length > 0 && (
-          <div className="px-4 pb-3 pt-1 border-t border-[var(--color-border-subtle)]">
-            <p className="text-[0.65rem] font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wide mb-1.5">
-              Workflow — {steps.filter((s) => s.status === "sent" || s.status === "done").length}/{steps.length} done
-            </p>
-            <div className="space-y-1">
-              {steps.map((s) => (
-                <div key={s.id} className="flex items-center justify-between gap-2">
-                  <span className="text-[0.7rem] text-[var(--color-text-secondary)] truncate">{s.stepName}</span>
-                  <StepStatusBadge status={s.status} />
+        {steps.length > 0 && (() => {
+          const doneCount = steps.filter((s) => s.status === "sent" || s.status === "done" || s.status === "received").length;
+          const needsUpdateCount = steps.filter((s) => s.status === "needs_update").length;
+          const pct = Math.round((doneCount / steps.length) * 100);
+          return (
+            <div className="px-4 pb-3 pt-2 border-t border-[var(--color-border-subtle)]">
+              {/* Progress header */}
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide">
+                  Workflow
+                </span>
+                <div className="flex items-center gap-2">
+                  {needsUpdateCount > 0 && (
+                    <span className="text-xs font-medium text-red-400">
+                      {needsUpdateCount} needs re-send
+                    </span>
+                  )}
+                  <span className="text-xs font-mono text-[var(--color-text-tertiary)]">
+                    {doneCount}/{steps.length}
+                  </span>
                 </div>
-              ))}
+              </div>
+              {/* Progress bar */}
+              <div className="h-1.5 rounded-full bg-[var(--color-surface-3)] mb-3 overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all duration-500 ${needsUpdateCount > 0 ? "bg-red-500" : "bg-green-500"}`}
+                  style={{ width: `${pct}%` }}
+                />
+              </div>
+              {/* Step chips */}
+              <div className="flex flex-wrap gap-1.5">
+                {steps.map((s) => (
+                  <StepStatusBadge key={s.id} status={s.status} label={s.stepName} />
+                ))}
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
       </Card>
 
       {/* Delete confirmation */}
@@ -963,8 +1122,6 @@ function AddDealMenu({ linkageId, linkageCode, side, variant }: {
         }),
       });
       if (res.ok) {
-        const newDeal = await res.json();
-        await fetch(`/api/deals/${newDeal.id}/workflow`, { method: "POST" });
         toast.success(`${isBuy ? "Load from" : "Discharge to"} ${terminal.name} created`);
         closeAll();
         // Trigger parent refetch

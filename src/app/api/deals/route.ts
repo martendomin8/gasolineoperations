@@ -1,7 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { withAuth } from "@/lib/middleware/with-auth";
 import { withTenantDb } from "@/lib/db";
-import { deals, linkages, auditLogs, users, workflowInstances, workflowSteps } from "@/lib/db/schema";
+import { deals, linkages, auditLogs, users, workflowInstances, workflowSteps, type Deal } from "@/lib/db/schema";
+import { matchTemplate, instantiateWorkflow } from "@/lib/workflow-engine";
 import { createDealSchema, dealFilterSchema } from "@/lib/types/deal";
 import { eq, and, ilike, or, desc, sql, like } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
@@ -460,6 +461,17 @@ export const POST = withAuth(
           product: deal.product,
         },
       });
+
+      // Auto-instantiate workflow if a matching template exists.
+      // No operator action needed — the workflow appears immediately.
+      try {
+        const template = await matchTemplate(deal as Deal, db);
+        if (template) {
+          await instantiateWorkflow(deal as Deal, template.id, db);
+        }
+      } catch {
+        // Non-fatal: deal is created even if workflow instantiation fails
+      }
 
       return deal;
     });
