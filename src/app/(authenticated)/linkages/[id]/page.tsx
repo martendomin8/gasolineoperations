@@ -359,6 +359,12 @@ function VoyageBar({ linkage, operators, canEdit, onUpdated }: {
   const [imoDraft, setImoDraft] = useState(linkage.vesselImo ?? "");
   const [savingVessel, setSavingVessel] = useState(false);
 
+  // Operator editor
+  const [editingOps, setEditingOps] = useState(false);
+  const [primaryDraft, setPrimaryDraft] = useState(linkage.assignedOperatorId ?? "");
+  const [secondaryDraft, setSecondaryDraft] = useState(linkage.secondaryOperatorId ?? "");
+  const [savingOps, setSavingOps] = useState(false);
+
   const saveName = async () => {
     if (!nameDraft.trim()) { toast.error("Linkage number cannot be empty"); return; }
     setSavingName(true);
@@ -380,6 +386,20 @@ function VoyageBar({ linkage, operators, canEdit, onUpdated }: {
     setSavingVessel(false);
     if (res.ok) { toast.success("Vessel updated"); setEditingVessel(false); onUpdated(); }
     else toast.error("Failed to update");
+  };
+
+  const saveOps = async () => {
+    setSavingOps(true);
+    const res = await fetch(`/api/linkages/${linkage.id}`, {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        assignedOperatorId: primaryDraft || null,
+        secondaryOperatorId: secondaryDraft || null,
+      }),
+    });
+    setSavingOps(false);
+    if (res.ok) { toast.success("Operators updated"); setEditingOps(false); onUpdated(); }
+    else toast.error("Failed to update operators");
   };
 
   const operatorInitials = (opId: string | null) => {
@@ -446,22 +466,55 @@ function VoyageBar({ linkage, operators, canEdit, onUpdated }: {
         <div className="h-5 w-px bg-[var(--color-border-subtle)]" />
 
         {/* Operators */}
-        <div className="flex items-center gap-1.5">
-          <Users className="h-3.5 w-3.5 text-[var(--color-text-tertiary)]" />
-          {linkage.assignedOperatorId && (
-            <span className="h-6 w-6 rounded-full bg-[var(--color-accent)] text-[var(--color-text-inverse)] text-[0.625rem] font-bold flex items-center justify-center">
-              {operatorInitials(linkage.assignedOperatorId)}
-            </span>
-          )}
-          {linkage.secondaryOperatorId && (
-            <span className="h-6 w-6 rounded-full bg-[var(--color-surface-3)] text-[var(--color-text-secondary)] text-[0.625rem] font-bold flex items-center justify-center border border-[var(--color-border-subtle)]">
-              {operatorInitials(linkage.secondaryOperatorId)}
-            </span>
-          )}
-          {!linkage.assignedOperatorId && !linkage.secondaryOperatorId && (
-            <span className="text-xs text-[var(--color-text-tertiary)]">Unassigned</span>
-          )}
-        </div>
+        {editingOps ? (
+          <div className="flex items-center gap-2">
+            <Users className="h-3.5 w-3.5 text-[var(--color-text-tertiary)]" />
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-center gap-2">
+                <span className="text-[0.625rem] text-[var(--color-text-tertiary)] w-16">Primary:</span>
+                <select value={primaryDraft} onChange={(e) => setPrimaryDraft(e.target.value)} disabled={savingOps}
+                  className="rounded-[var(--radius-sm)] border border-[var(--color-border-default)] bg-[var(--color-surface-1)] px-2 py-1 text-xs text-[var(--color-text-primary)] min-w-[140px]">
+                  <option value="">— None —</option>
+                  {operators.map((op) => <option key={op.id} value={op.id}>{op.name}</option>)}
+                </select>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-[0.625rem] text-[var(--color-text-tertiary)] w-16">Secondary:</span>
+                <select value={secondaryDraft} onChange={(e) => setSecondaryDraft(e.target.value)} disabled={savingOps}
+                  className="rounded-[var(--radius-sm)] border border-[var(--color-border-default)] bg-[var(--color-surface-1)] px-2 py-1 text-xs text-[var(--color-text-primary)] min-w-[140px]">
+                  <option value="">— None —</option>
+                  {operators.map((op) => <option key={op.id} value={op.id}>{op.name}</option>)}
+                </select>
+              </div>
+            </div>
+            <button onClick={saveOps} disabled={savingOps} className="p-1 text-[var(--color-success)] hover:bg-[var(--color-surface-3)] rounded cursor-pointer disabled:opacity-50">
+              {savingOps ? <div className="h-3.5 w-3.5 rounded-full border-2 border-current border-t-transparent animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+            </button>
+            <button onClick={() => setEditingOps(false)} disabled={savingOps} className="p-1 text-[var(--color-text-tertiary)] hover:bg-[var(--color-surface-3)] rounded cursor-pointer disabled:opacity-50">
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        ) : (
+          <button onClick={canEdit ? () => { setPrimaryDraft(linkage.assignedOperatorId ?? ""); setSecondaryDraft(linkage.secondaryOperatorId ?? ""); setEditingOps(true); } : undefined} disabled={!canEdit}
+            className={`flex items-center gap-1.5 ${canEdit ? "cursor-pointer hover:bg-[var(--color-surface-3)] rounded-[var(--radius-sm)] px-2 py-1 -mx-2 -my-1 transition-colors" : "cursor-default"}`}
+            title={canEdit ? "Click to assign operators" : undefined}>
+            <Users className="h-3.5 w-3.5 text-[var(--color-text-tertiary)]" />
+            {linkage.assignedOperatorId && (
+              <span className="h-6 w-6 rounded-full bg-[var(--color-accent)] text-[var(--color-text-inverse)] text-[0.625rem] font-bold flex items-center justify-center">
+                {operatorInitials(linkage.assignedOperatorId)}
+              </span>
+            )}
+            {linkage.secondaryOperatorId && (
+              <span className="h-6 w-6 rounded-full bg-[var(--color-surface-3)] text-[var(--color-text-secondary)] text-[0.625rem] font-bold flex items-center justify-center border border-[var(--color-border-subtle)]">
+                {operatorInitials(linkage.secondaryOperatorId)}
+              </span>
+            )}
+            {!linkage.assignedOperatorId && !linkage.secondaryOperatorId && (
+              <span className="text-xs text-[var(--color-text-tertiary)]">Unassigned</span>
+            )}
+            {canEdit && <Pencil className="h-3 w-3 text-[var(--color-text-tertiary)] opacity-60" />}
+          </button>
+        )}
       </div>
     </div>
   );
@@ -827,41 +880,83 @@ function VesselSection({ linkage, steps, docs, canEdit, onUpdated }: {
 
           {/* Workflow steps — always visible, disabled when no vessel */}
           {steps.length > 0 && (
-            <div className={`space-y-1 ${!hasVessel ? "opacity-50" : ""}`}>
-              <div className="flex items-center gap-2 mb-1.5">
-                <p className="text-[0.65rem] font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wide">
-                  Vessel Workflow — {doneCount}/{steps.length} done
+            <div className={`${!hasVessel ? "opacity-50" : ""}`}>
+              <div className="flex items-center gap-3 mb-3">
+                <Ship className="h-4 w-4 text-cyan-400" />
+                <p className="text-sm font-semibold text-[var(--color-text-primary)] uppercase tracking-wide">
+                  Vessel Workflow
                 </p>
+                <span className="text-xs text-[var(--color-text-tertiary)]">
+                  {doneCount}/{steps.length}
+                </span>
+                {/* Progress bar */}
+                <div className="flex-1 h-1.5 rounded-full bg-[var(--color-surface-2)] overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-cyan-500 transition-all"
+                    style={{ width: `${steps.length > 0 ? (doneCount / steps.length) * 100 : 0}%` }}
+                  />
+                </div>
                 {!hasVessel && (
-                  <span className="text-[0.6rem] text-amber-400/80 italic">
-                    Vessel required to send
+                  <span className="text-xs text-amber-400/80 italic">
+                    Vessel required
                   </span>
                 )}
               </div>
-              {steps.map((s) => (
-                <div key={s.id} className="flex items-center justify-between gap-2">
-                  <span className={`text-[0.7rem] truncate ${hasVessel ? "text-[var(--color-text-secondary)]" : "text-[var(--color-text-tertiary)]"}`}>{s.stepName}</span>
-                  <div className="flex items-center gap-1">
-                    {canEdit && hasVessel && s.status !== "sent" && s.status !== "done" && (
-                      <button
-                        onClick={() => handleStepStatusChange(s.id, "sent")}
-                        className="px-1.5 py-0.5 text-[0.6rem] rounded bg-green-500/15 text-green-400 hover:bg-green-500/25 transition-colors cursor-pointer"
-                      >
-                        Mark Sent
-                      </button>
-                    )}
-                    {canEdit && hasVessel && s.status === "needs_update" && (
-                      <button
-                        onClick={() => handleStepStatusChange(s.id, "pending")}
-                        className="px-1.5 py-0.5 text-[0.6rem] rounded bg-blue-500/15 text-blue-400 hover:bg-blue-500/25 transition-colors cursor-pointer"
-                      >
-                        Reset
-                      </button>
-                    )}
-                    <StepStatusBadge status={s.status} />
-                  </div>
-                </div>
-              ))}
+              <div className="space-y-2">
+                {steps.map((s) => {
+                  const isSent = s.status === "sent" || s.status === "done";
+                  const isNeedsUpdate = s.status === "needs_update";
+                  const borderColor = isSent
+                    ? "border-green-500/40 bg-green-500/[0.06]"
+                    : isNeedsUpdate
+                    ? "border-red-500/40 bg-red-500/[0.06]"
+                    : "border-cyan-500/30 bg-cyan-500/[0.04]";
+                  const textColor = isSent
+                    ? "text-green-400"
+                    : isNeedsUpdate
+                    ? "text-red-400"
+                    : "text-[var(--color-text-secondary)]";
+
+                  return (
+                    <div
+                      key={s.id}
+                      className={`flex items-center justify-between gap-3 px-4 py-2.5 rounded-lg border ${borderColor} transition-colors`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <CircleDot className={`h-4 w-4 ${textColor}`} />
+                        <span className={`text-sm font-medium ${textColor}`}>{s.stepName}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {canEdit && hasVessel && !isSent && !isNeedsUpdate && (
+                          <button
+                            onClick={() => handleStepStatusChange(s.id, "sent")}
+                            className="px-3 py-1.5 text-xs font-medium rounded-md bg-green-500/20 text-green-400 hover:bg-green-500/30 border border-green-500/30 transition-colors cursor-pointer"
+                          >
+                            Mark Sent
+                          </button>
+                        )}
+                        {canEdit && hasVessel && isNeedsUpdate && (
+                          <>
+                            <button
+                              onClick={() => handleStepStatusChange(s.id, "sent")}
+                              className="px-3 py-1.5 text-xs font-medium rounded-md bg-red-500/20 text-red-400 hover:bg-red-500/30 border border-red-500/30 transition-colors cursor-pointer"
+                            >
+                              Re-sent
+                            </button>
+                            <button
+                              onClick={() => handleStepStatusChange(s.id, "pending")}
+                              className="px-3 py-1.5 text-xs font-medium rounded-md bg-[var(--color-surface-2)] text-[var(--color-text-tertiary)] hover:bg-[var(--color-surface-3)] border border-[var(--color-border-subtle)] transition-colors cursor-pointer"
+                            >
+                              Reset
+                            </button>
+                          </>
+                        )}
+                        <StepStatusBadge status={s.status} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
 
