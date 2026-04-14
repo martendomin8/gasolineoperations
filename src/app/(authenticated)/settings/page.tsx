@@ -7,12 +7,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Users,
-  ShieldCheck,
   UserX,
   UserCheck,
   ChevronDown,
   Trash2,
   AlertTriangle,
+  Plus,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -39,43 +40,27 @@ function RoleBadge({ role }: { role: UserRecord["role"] }) {
 function UserRow({
   user,
   currentUserId,
-  onUpdate,
+  onClick,
 }: {
   user: UserRecord;
   currentUserId: string;
-  onUpdate: (userId: string, patch: Partial<Pick<UserRecord, "role" | "isActive">>) => Promise<void>;
+  onClick: () => void;
 }) {
-  const [saving, setSaving] = useState(false);
   const isSelf = user.id === currentUserId;
 
-  const handleRole = async (role: UserRecord["role"]) => {
-    if (saving || isSelf) return;
-    setSaving(true);
-    await onUpdate(user.id, { role });
-    setSaving(false);
-  };
-
-  const handleToggleActive = async () => {
-    if (saving || isSelf) return;
-    setSaving(true);
-    await onUpdate(user.id, { isActive: !user.isActive });
-    setSaving(false);
-  };
-
   return (
-    <div
-      className={`flex items-center gap-4 py-3 border-b border-[var(--color-border-subtle)] last:border-0 ${
+    <button
+      type="button"
+      onClick={onClick}
+      className={`w-full text-left flex items-center gap-4 py-3 px-2 -mx-2 border-b border-[var(--color-border-subtle)] last:border-0 hover:bg-[var(--color-surface-3)] transition-colors rounded ${
         !user.isActive ? "opacity-50" : ""
       }`}
     >
-      {/* Avatar */}
       <div className="h-8 w-8 rounded-full bg-[var(--color-accent-muted)] flex items-center justify-center flex-shrink-0">
         <span className="text-xs font-bold text-[var(--color-accent-text)]">
           {user.name.charAt(0).toUpperCase()}
         </span>
       </div>
-
-      {/* Name + email */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium text-[var(--color-text-primary)]">{user.name}</span>
@@ -92,46 +77,314 @@ function UserRow({
         </div>
         <p className="text-xs text-[var(--color-text-tertiary)] font-mono truncate">{user.email}</p>
       </div>
-
-      {/* Role selector */}
       <div className="flex-shrink-0">
-        {isSelf ? (
-          <RoleBadge role={user.role} />
-        ) : (
+        <RoleBadge role={user.role} />
+      </div>
+    </button>
+  );
+}
+
+function UserDetailModal({
+  user,
+  currentUserId,
+  onClose,
+  onUpdate,
+  onDelete,
+}: {
+  user: UserRecord;
+  currentUserId: string;
+  onClose: () => void;
+  onUpdate: (userId: string, patch: Partial<UserRecord> & { password?: string }) => Promise<boolean>;
+  onDelete: (userId: string) => Promise<boolean>;
+}) {
+  const [name, setName] = useState(user.name);
+  const [email, setEmail] = useState(user.email);
+  const [role, setRole] = useState<UserRecord["role"]>(user.role);
+  const [isActive, setIsActive] = useState(user.isActive);
+  const [password, setPassword] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const isSelf = user.id === currentUserId;
+
+  const dirty =
+    name.trim() !== user.name ||
+    email.trim().toLowerCase() !== user.email ||
+    role !== user.role ||
+    isActive !== user.isActive ||
+    password.length > 0;
+
+  const handleSave = async () => {
+    if (!dirty || saving) return;
+    setSaving(true);
+    const patch: Partial<UserRecord> & { password?: string } = {};
+    if (name.trim() !== user.name) patch.name = name.trim();
+    if (email.trim().toLowerCase() !== user.email) patch.email = email.trim().toLowerCase();
+    if (role !== user.role) patch.role = role;
+    if (isActive !== user.isActive) patch.isActive = isActive;
+    if (password.length >= 8) patch.password = password;
+    else if (password.length > 0) {
+      toast.error("Password must be at least 8 characters");
+      setSaving(false);
+      return;
+    }
+    const ok = await onUpdate(user.id, patch);
+    setSaving(false);
+    if (ok) onClose();
+  };
+
+  const handleDelete = async () => {
+    if (deleting) return;
+    setDeleting(true);
+    const ok = await onDelete(user.id);
+    setDeleting(false);
+    if (ok) onClose();
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-md rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-2)] shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between p-4 border-b border-[var(--color-border-subtle)]">
+          <div className="flex items-center gap-3">
+            <div className="h-9 w-9 rounded-full bg-[var(--color-accent-muted)] flex items-center justify-center">
+              <span className="text-sm font-bold text-[var(--color-accent-text)]">
+                {user.name.charAt(0).toUpperCase()}
+              </span>
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-[var(--color-text-primary)]">Edit user</h2>
+              <p className="text-xs text-[var(--color-text-tertiary)] font-mono">{user.email}</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1 rounded hover:bg-[var(--color-surface-3)] text-[var(--color-text-tertiary)]"
+            aria-label="Close"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="p-4 space-y-4">
+          <div>
+            <label className="text-[0.6875rem] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wide block mb-1">
+              First name
+            </label>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              disabled={saving || deleting}
+              className="w-full text-sm h-9 px-2.5 rounded-[var(--radius-sm)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-1)] text-[var(--color-text-primary)] outline-none focus:border-[var(--color-accent)]"
+            />
+          </div>
+
+          <div>
+            <label className="text-[0.6875rem] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wide block mb-1">
+              Email
+            </label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              disabled={saving || deleting}
+              className="w-full text-sm h-9 px-2.5 rounded-[var(--radius-sm)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-1)] text-[var(--color-text-primary)] outline-none focus:border-[var(--color-accent)] font-mono"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-[0.6875rem] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wide block mb-1">
+                Role
+              </label>
+              <div className="relative">
+                <select
+                  value={role}
+                  onChange={(e) => setRole(e.target.value as UserRecord["role"])}
+                  disabled={saving || deleting}
+                  className="w-full appearance-none text-sm h-9 pl-2.5 pr-7 rounded-[var(--radius-sm)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-1)] text-[var(--color-text-primary)] outline-none focus:border-[var(--color-accent)] cursor-pointer"
+                >
+                  {ROLE_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 text-[var(--color-text-tertiary)] pointer-events-none" />
+              </div>
+            </div>
+            <div>
+              <label className="text-[0.6875rem] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wide block mb-1">
+                Status
+              </label>
+              <button
+                type="button"
+                onClick={() => setIsActive((s) => !s)}
+                disabled={saving || deleting}
+                className="w-full text-sm h-9 px-2.5 rounded-[var(--radius-sm)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-1)] text-[var(--color-text-primary)] hover:bg-[var(--color-surface-3)] flex items-center gap-2 justify-center"
+              >
+                {isActive ? (
+                  <><UserCheck className="h-3.5 w-3.5 text-[var(--color-accent-text)]" /> Active</>
+                ) : (
+                  <><UserX className="h-3.5 w-3.5 text-[var(--color-danger)]" /> Inactive</>
+                )}
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label className="text-[0.6875rem] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wide block mb-1">
+              New password <span className="normal-case text-[var(--color-text-tertiary)]">(leave empty to keep current, min 8 chars)</span>
+            </label>
+            <input
+              type="text"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+              disabled={saving || deleting}
+              className="w-full text-sm h-9 px-2.5 rounded-[var(--radius-sm)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-1)] text-[var(--color-text-primary)] outline-none focus:border-[var(--color-accent)] font-mono"
+            />
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between gap-2 p-4 border-t border-[var(--color-border-subtle)]">
+          {!isSelf && (
+            confirmDelete ? (
+              <div className="flex items-center gap-2 flex-1">
+                <span className="text-xs text-[var(--color-danger)] font-medium">Delete permanently?</span>
+                <Button variant="danger" size="sm" onClick={handleDelete} disabled={deleting}>
+                  {deleting ? "Deleting..." : "Yes, delete"}
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => setConfirmDelete(false)} disabled={deleting}>
+                  Cancel
+                </Button>
+              </div>
+            ) : (
+              <Button variant="danger" size="sm" onClick={() => setConfirmDelete(true)} disabled={saving || deleting}>
+                <Trash2 className="h-3 w-3" /> Delete user
+              </Button>
+            )
+          )}
+          {isSelf && <span className="text-xs text-[var(--color-text-tertiary)] italic">Can't delete your own account</span>}
+          {!confirmDelete && (
+            <div className="flex items-center gap-2 ml-auto">
+              <Button variant="ghost" size="sm" onClick={onClose} disabled={saving || deleting}>
+                Cancel
+              </Button>
+              <Button variant="primary" size="sm" onClick={handleSave} disabled={!dirty || saving || deleting}>
+                {saving ? "Saving..." : "Save changes"}
+              </Button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AddUserForm({
+  onCreate,
+  onCancel,
+}: {
+  onCreate: (payload: { name: string; email: string; role: UserRecord["role"]; password?: string }) => Promise<boolean>;
+  onCancel: () => void;
+}) {
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [role, setRole] = useState<UserRecord["role"]>("operator");
+  const [password, setPassword] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim() || !email.trim()) return;
+    setSaving(true);
+    const ok = await onCreate({
+      name: name.trim(),
+      email: email.trim(),
+      role,
+      password: password.trim() || undefined,
+    });
+    setSaving(false);
+    if (ok) onCancel();
+  };
+
+  return (
+    <form
+      onSubmit={handleSubmit}
+      className="p-3 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-1)] space-y-3"
+    >
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="text-[0.6875rem] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wide block mb-1">
+            First name
+          </label>
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            required
+            autoFocus
+            placeholder="Lauri"
+            className="w-full text-sm h-8 px-2 rounded-[var(--radius-sm)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-2)] text-[var(--color-text-primary)] outline-none focus:border-[var(--color-accent)]"
+          />
+        </div>
+        <div>
+          <label className="text-[0.6875rem] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wide block mb-1">
+            Email
+          </label>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+            placeholder="lauri@nefgo.com"
+            className="w-full text-sm h-8 px-2 rounded-[var(--radius-sm)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-2)] text-[var(--color-text-primary)] outline-none focus:border-[var(--color-accent)] font-mono"
+          />
+        </div>
+        <div>
+          <label className="text-[0.6875rem] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wide block mb-1">
+            Role
+          </label>
           <div className="relative">
             <select
-              value={user.role}
-              onChange={(e) => handleRole(e.target.value as UserRecord["role"])}
-              disabled={saving || isSelf}
-              className="appearance-none text-xs h-7 pl-2.5 pr-6 rounded-[var(--radius-sm)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-1)] text-[var(--color-text-primary)] outline-none focus:border-[var(--color-border-default)] transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              value={role}
+              onChange={(e) => setRole(e.target.value as UserRecord["role"])}
+              className="w-full appearance-none text-sm h-8 pl-2 pr-7 rounded-[var(--radius-sm)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-2)] text-[var(--color-text-primary)] outline-none focus:border-[var(--color-accent)] cursor-pointer"
             >
               {ROLE_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
               ))}
             </select>
-            <ChevronDown className="absolute right-1.5 top-1/2 -translate-y-1/2 h-3 w-3 text-[var(--color-text-tertiary)] pointer-events-none" />
+            <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 text-[var(--color-text-tertiary)] pointer-events-none" />
           </div>
-        )}
+        </div>
+        <div>
+          <label className="text-[0.6875rem] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wide block mb-1">
+            Password <span className="text-[var(--color-text-tertiary)] normal-case">(optional, min 8)</span>
+          </label>
+          <input
+            type="text"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="default: password123"
+            className="w-full text-sm h-8 px-2 rounded-[var(--radius-sm)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-2)] text-[var(--color-text-primary)] outline-none focus:border-[var(--color-accent)] font-mono"
+          />
+        </div>
       </div>
-
-      {/* Active toggle */}
-      {!isSelf && (
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={handleToggleActive}
-          disabled={saving}
-        >
-          {user.isActive ? (
-            <><UserX className="h-3 w-3" /> Deactivate</>
-          ) : (
-            <><UserCheck className="h-3 w-3" /> Activate</>
-          )}
+      <div className="flex items-center gap-2 justify-end">
+        <Button type="button" variant="ghost" size="sm" onClick={onCancel} disabled={saving}>
+          Cancel
         </Button>
-      )}
-    </div>
+        <Button type="submit" variant="primary" size="sm" disabled={saving || !name.trim() || !email.trim()}>
+          {saving ? "Creating..." : "Create user"}
+        </Button>
+      </div>
+    </form>
   );
 }
 
@@ -153,7 +406,6 @@ function CleanSlateCard() {
           description: `${data.deleted.deals} deals, ${data.deleted.linkages} linkages, ${data.deleted.workflowInstances} workflows cleared.`,
         });
         setConfirming(false);
-        // Reload after a short delay so session + dashboard refresh
         setTimeout(() => window.location.href = "/dashboard", 1500);
       } else {
         toast.error(data.error || "Failed to wipe data");
@@ -212,18 +464,17 @@ export default function SettingsPage() {
   const { data: session } = useSession();
   const [users, setUsers] = useState<UserRecord[]>([]);
   const [loading, setLoading] = useState(true);
-
-  const isAdmin = session?.user?.role === "admin";
+  const [adding, setAdding] = useState(false);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!isAdmin) { setLoading(false); return; }
     fetch("/api/users")
       .then((r) => r.json())
       .then((data) => { setUsers(data.users ?? []); setLoading(false); })
       .catch(() => setLoading(false));
-  }, [isAdmin]);
+  }, []);
 
-  const handleUpdate = async (userId: string, patch: Partial<Pick<UserRecord, "role" | "isActive">>) => {
+  const handleUpdate = async (userId: string, patch: Partial<UserRecord> & { password?: string }): Promise<boolean> => {
     const res = await fetch(`/api/users?id=${userId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -232,8 +483,47 @@ export default function SettingsPage() {
     if (res.ok) {
       const updated: UserRecord = await res.json();
       setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, ...updated } : u)));
+      toast.success("User updated");
+      return true;
+    } else {
+      const data = await res.json().catch(() => ({}));
+      toast.error(typeof data.error === "string" ? data.error : "Failed to update user");
+      return false;
     }
   };
+
+  const handleDelete = async (userId: string): Promise<boolean> => {
+    const res = await fetch(`/api/users?id=${userId}`, { method: "DELETE" });
+    if (res.ok) {
+      setUsers((prev) => prev.filter((u) => u.id !== userId));
+      toast.success("User deleted");
+      return true;
+    } else {
+      const data = await res.json().catch(() => ({}));
+      toast.error(typeof data.error === "string" ? data.error : "Failed to delete user");
+      return false;
+    }
+  };
+
+  const handleCreate = async (payload: { name: string; email: string; role: UserRecord["role"]; password?: string }): Promise<boolean> => {
+    const res = await fetch("/api/users", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (res.ok) {
+      const created: UserRecord = await res.json();
+      setUsers((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
+      toast.success(`User "${created.name}" created`);
+      return true;
+    } else {
+      const data = await res.json().catch(() => ({}));
+      toast.error(typeof data.error === "string" ? data.error : "Failed to create user");
+      return false;
+    }
+  };
+
+  const selectedUser = users.find((u) => u.id === selectedUserId) ?? null;
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -244,57 +534,50 @@ export default function SettingsPage() {
         </p>
       </div>
 
-      {/* User management — admin only */}
-      {isAdmin ? (
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Users className="h-4 w-4 text-[var(--color-text-tertiary)]" />
-              <CardTitle>Users</CardTitle>
-            </div>
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Users className="h-4 w-4 text-[var(--color-text-tertiary)]" />
+            <CardTitle>Users</CardTitle>
+          </div>
+          <div className="flex items-center gap-3">
             <span className="text-xs text-[var(--color-text-tertiary)]">
               {users.filter((u) => u.isActive).length} active
             </span>
-          </CardHeader>
-          {loading ? (
-            <div className="flex items-center justify-center py-10">
-              <div className="h-5 w-5 rounded-full border-2 border-[var(--color-accent)] border-t-transparent animate-spin" />
-            </div>
-          ) : users.length === 0 ? (
-            <p className="text-sm text-[var(--color-text-tertiary)] py-6 text-center">No users found</p>
-          ) : (
-            <div>
-              {users.map((user) => (
-                <UserRow
-                  key={user.id}
-                  user={user}
-                  currentUserId={session?.user?.id ?? ""}
-                  onUpdate={handleUpdate}
-                />
-              ))}
-            </div>
-          )}
-        </Card>
-      ) : (
-        <Card>
-          <CardHeader>
-            <CardTitle>Access Restricted</CardTitle>
-          </CardHeader>
-          <div className="flex flex-col items-center justify-center py-12 text-center gap-3">
-            <div className="h-10 w-10 rounded-full bg-[var(--color-surface-3)] flex items-center justify-center">
-              <ShieldCheck className="h-5 w-5 text-[var(--color-text-tertiary)]" />
-            </div>
-            <p className="text-sm text-[var(--color-text-secondary)]">
-              User management is available to administrators only.
-            </p>
+            {!adding && (
+              <Button variant="primary" size="sm" onClick={() => setAdding(true)}>
+                <Plus className="h-3 w-3" /> Add user
+              </Button>
+            )}
           </div>
-        </Card>
-      )}
+        </CardHeader>
+        {adding && (
+          <div className="mb-3">
+            <AddUserForm onCreate={handleCreate} onCancel={() => setAdding(false)} />
+          </div>
+        )}
+        {loading ? (
+          <div className="flex items-center justify-center py-10">
+            <div className="h-5 w-5 rounded-full border-2 border-[var(--color-accent)] border-t-transparent animate-spin" />
+          </div>
+        ) : users.length === 0 ? (
+          <p className="text-sm text-[var(--color-text-tertiary)] py-6 text-center">No users found</p>
+        ) : (
+          <div>
+            {users.map((user) => (
+              <UserRow
+                key={user.id}
+                user={user}
+                currentUserId={session?.user?.id ?? ""}
+                onClick={() => setSelectedUserId(user.id)}
+              />
+            ))}
+          </div>
+        )}
+      </Card>
 
-      {/* Clean slate — admin only, destructive */}
-      {isAdmin && <CleanSlateCard />}
+      <CleanSlateCard />
 
-      {/* Tenant info (read-only for all) */}
       <Card>
         <CardHeader>
           <CardTitle>Your Account</CardTitle>
@@ -316,6 +599,16 @@ export default function SettingsPage() {
           </div>
         </dl>
       </Card>
+
+      {selectedUser && (
+        <UserDetailModal
+          user={selectedUser}
+          currentUserId={session?.user?.id ?? ""}
+          onClose={() => setSelectedUserId(null)}
+          onUpdate={handleUpdate}
+          onDelete={handleDelete}
+        />
+      )}
     </div>
   );
 }

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import Link from "next/link";
-import { Trash2 } from "lucide-react";
+import { Trash2, Pencil } from "lucide-react";
 
 interface DealRow {
   id: string;
@@ -96,6 +96,66 @@ function formatBLFigures(deal: DealRow): string {
   return deal.contractedQty || `${deal.quantityMt} MT`;
 }
 
+// ---------------------------------------------------------------------------
+// Save helpers — used by the editable Reference / Linkage / B/L Figures cells
+// Both endpoints cascade changes to deal and linkage detail pages automatically
+// via the usual fetchData() refresh triggered by onUpdate().
+// ---------------------------------------------------------------------------
+
+async function saveDealField(
+  dealId: string,
+  field: "externalRef" | "contractedQty",
+  value: string,
+  onUpdate: () => void
+): Promise<boolean> {
+  try {
+    const payload: Record<string, string | null> = { [field]: value.trim() === "" ? null : value.trim() };
+    const res = await fetch(`/api/deals/${dealId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      toast.error(err.error || `Failed to update ${field}`);
+      return false;
+    }
+    onUpdate();
+    return true;
+  } catch {
+    toast.error("Network error");
+    return false;
+  }
+}
+
+async function saveLinkageNumber(
+  linkageId: string | null,
+  value: string,
+  onUpdate: () => void
+): Promise<boolean> {
+  if (!linkageId) {
+    toast.error("This deal is not attached to a linkage");
+    return false;
+  }
+  try {
+    const res = await fetch(`/api/linkages/${linkageId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ linkageNumber: value.trim() === "" ? null : value.trim() }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      toast.error(err.error || "Failed to update linkage number");
+      return false;
+    }
+    onUpdate();
+    return true;
+  } catch {
+    toast.error("Network error");
+    return false;
+  }
+}
+
 function formatOps(deal: DealRow): string {
   const primary = deal.operatorName || "\u2014";
   const secondary = deal.secondaryOperatorName || "";
@@ -182,12 +242,221 @@ function EditableStatusCell({
 }
 
 // ---------------------------------------------------------------------------
+// EditableTextCell — inline text editor with click-to-edit, Enter to save, Esc to cancel
+// ---------------------------------------------------------------------------
+
+function EditableTextCell({
+  value,
+  onSave,
+  className = "",
+  rowSpan,
+  placeholder = "\u2014",
+  monospace = false,
+  title,
+}: {
+  value: string | null;
+  onSave: (newValue: string) => Promise<boolean>;
+  className?: string;
+  rowSpan?: number;
+  placeholder?: string;
+  monospace?: boolean;
+  title?: string;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value ?? "");
+  const [saving, setSaving] = useState(false);
+
+  const startEdit = () => {
+    setDraft(value ?? "");
+    setEditing(true);
+  };
+
+  const commit = async () => {
+    const next = draft.trim();
+    const prev = value ?? "";
+    if (next === prev) { setEditing(false); return; }
+    setSaving(true);
+    const ok = await onSave(next);
+    setSaving(false);
+    if (ok) setEditing(false);
+  };
+
+  const cancel = () => {
+    setDraft(value ?? "");
+    setEditing(false);
+  };
+
+  const baseClass = `${CELL_BASE} group/cell relative cursor-text ${monospace ? "font-mono" : ""} ${className}`;
+
+  if (editing) {
+    return (
+      <td className={baseClass} rowSpan={rowSpan}>
+        <input
+          type="text"
+          autoFocus
+          value={draft}
+          disabled={saving}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") { e.preventDefault(); (e.currentTarget as HTMLInputElement).blur(); }
+            else if (e.key === "Escape") { e.preventDefault(); cancel(); }
+          }}
+          className={`w-full bg-[var(--color-surface-1)] border border-[var(--color-accent)] rounded px-1 py-0 text-xs outline-none ${monospace ? "font-mono" : ""}`}
+        />
+      </td>
+    );
+  }
+
+  return (
+    <td className={baseClass} rowSpan={rowSpan} onClick={startEdit} title={title ?? "Click to edit"}>
+      <span className={value ? "" : "text-[var(--color-text-tertiary)]"}>
+        {value || placeholder}
+      </span>
+      {/* Pencil indicator on hover */}
+      <Pencil className="absolute right-1 top-1/2 -translate-y-1/2 h-2.5 w-2.5 text-[var(--color-text-tertiary)] opacity-0 group-hover/cell:opacity-60 pointer-events-none" />
+    </td>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// EditableOpsCell — click to assign primary + secondary operator (linkage-level)
+// Opens an inline popover with two dropdowns.
+// ---------------------------------------------------------------------------
+
+function EditableOpsCell({
+  deal,
+  operators,
+  className = "",
+  rowSpan,
+  onUpdate,
+}: {
+  deal: DealRow;
+  operators: Array<{ id: string; name: string }>;
+  className?: string;
+  rowSpan?: number;
+  onUpdate: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [primaryDraft, setPrimaryDraft] = useState(deal.assignedOperatorId ?? "");
+  const [secondaryDraft, setSecondaryDraft] = useState(deal.secondaryOperatorId ?? "");
+  const [saving, setSaving] = useState(false);
+  const popoverRef = useRef<HTMLDivElement>(null);
+
+  // Close on outside click
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  const startEdit = () => {
+    setPrimaryDraft(deal.assignedOperatorId ?? "");
+    setSecondaryDraft(deal.secondaryOperatorId ?? "");
+    setOpen(true);
+  };
+
+  const save = async () => {
+    if (!deal.linkageId) {
+      toast.error("Deal has no linkage — cannot assign operators");
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/linkages/${deal.linkageId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          assignedOperatorId: primaryDraft || null,
+          secondaryOperatorId: secondaryDraft || null,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.error || "Failed to assign operators");
+      } else {
+        setOpen(false);
+        onUpdate();
+      }
+    } catch {
+      toast.error("Network error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const display = formatOps(deal);
+
+  return (
+    <td className={`${CELL_BASE} group/cell relative cursor-pointer ${className}`} rowSpan={rowSpan} onClick={startEdit} title="Click to assign operators">
+      <span className={display === "\u2014" ? "text-[var(--color-text-tertiary)]" : ""}>{display}</span>
+      <Pencil className="absolute right-1 top-1/2 -translate-y-1/2 h-2.5 w-2.5 text-[var(--color-text-tertiary)] opacity-0 group-hover/cell:opacity-60 pointer-events-none" />
+
+      {open && (
+        <div
+          ref={popoverRef}
+          onClick={(e) => e.stopPropagation()}
+          className="absolute z-50 top-full left-0 mt-1 w-56 rounded-md border border-[var(--color-border-default)] bg-[var(--color-surface-1)] shadow-lg p-2 space-y-2 text-left cursor-default"
+        >
+          <div>
+            <label className="block text-[0.6rem] uppercase tracking-wide text-[var(--color-text-tertiary)] mb-0.5">Primary</label>
+            <select
+              value={primaryDraft}
+              onChange={(e) => setPrimaryDraft(e.target.value)}
+              disabled={saving}
+              className="w-full text-xs px-1.5 py-1 rounded border border-[var(--color-border-default)] bg-[var(--color-surface-2)] text-[var(--color-text-primary)] outline-none"
+            >
+              <option value="">— None —</option>
+              {operators.map((op) => <option key={op.id} value={op.id}>{op.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-[0.6rem] uppercase tracking-wide text-[var(--color-text-tertiary)] mb-0.5">Secondary</label>
+            <select
+              value={secondaryDraft}
+              onChange={(e) => setSecondaryDraft(e.target.value)}
+              disabled={saving}
+              className="w-full text-xs px-1.5 py-1 rounded border border-[var(--color-border-default)] bg-[var(--color-surface-2)] text-[var(--color-text-primary)] outline-none"
+            >
+              <option value="">— None —</option>
+              {operators.map((op) => <option key={op.id} value={op.id}>{op.name}</option>)}
+            </select>
+          </div>
+          <div className="flex justify-end gap-1.5 pt-1">
+            <button
+              onClick={() => setOpen(false)}
+              disabled={saving}
+              className="text-[0.65rem] px-2 py-0.5 rounded text-[var(--color-text-tertiary)] hover:bg-[var(--color-surface-3)] cursor-pointer disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={save}
+              disabled={saving}
+              className="text-[0.65rem] px-2 py-0.5 rounded bg-[var(--color-accent)] text-[var(--color-text-inverse)] font-medium cursor-pointer disabled:opacity-50"
+            >
+              {saving ? "Saving…" : "Save"}
+            </button>
+          </div>
+        </div>
+      )}
+    </td>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // PricingCell — pricing period display with confirm and date
 // ---------------------------------------------------------------------------
 
 function PricingCell({ deal, onUpdate }: { deal: DealRow; onUpdate: () => void }) {
   const [savingDate, setSavingDate] = useState(false);
   const [savingConfirm, setSavingConfirm] = useState(false);
+  const dateInputRef = useRef<HTMLInputElement>(null);
   const periodType = deal.pricingPeriodType;
   const periodValue = deal.pricingPeriodValue;
   const confirmed = deal.pricingConfirmed;
@@ -197,13 +466,23 @@ function PricingCell({ deal, onUpdate }: { deal: DealRow; onUpdate: () => void }
   if (periodType === "Fixed" || periodType === "EFP") {
     bgColor = "bg-green-900/30";
   } else if (periodType === "BL" || periodType === "NOR") {
-    bgColor = confirmed ? "bg-green-900/30" : "bg-yellow-900/30";
+    bgColor = confirmed ? "bg-green-900/30" : "bg-yellow-400/60";
   }
 
   const displayText =
-    periodType && periodValue
+    periodType === "Fixed" || periodType === "EFP"
+      ? periodType
+      : periodType && periodValue
       ? `${periodType} ${periodValue}`
       : periodType || deal.pricingFormula || "\u2014";
+
+  // Format date as "4 Feb" (no year)
+  const formatShortDate = (iso: string | null): string => {
+    if (!iso) return "";
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return "";
+    return d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+  };
 
   const handleDateChange = async (newDate: string) => {
     setSavingDate(true);
@@ -222,15 +501,15 @@ function PricingCell({ deal, onUpdate }: { deal: DealRow; onUpdate: () => void }
     }
   };
 
-  const handleConfirm = async () => {
+  const handleToggleConfirm = async () => {
     setSavingConfirm(true);
     try {
       const res = await fetch(`/api/deals/${deal.id}/status-field`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ field: "pricingConfirmed", value: "true" }),
+        body: JSON.stringify({ field: "pricingConfirmed", value: confirmed ? "false" : "true" }),
       });
-      if (!res.ok) toast.error("Failed to confirm pricing");
+      if (!res.ok) toast.error("Failed to update pricing");
     } catch {
       toast.error("Network error");
     } finally {
@@ -239,29 +518,65 @@ function PricingCell({ deal, onUpdate }: { deal: DealRow; onUpdate: () => void }
     }
   };
 
+  const openDatePicker = () => {
+    const input = dateInputRef.current;
+    if (!input) return;
+    // showPicker() is the modern, reliable way to open the native date picker
+    if (typeof input.showPicker === "function") {
+      input.showPicker();
+    } else {
+      input.focus();
+      input.click();
+    }
+  };
+
+  const formattedDate = formatShortDate(deal.estimatedBlNorDate);
+
+  const showDateControls = periodType === "BL" || periodType === "NOR";
+  const needsAttention = (periodType === "BL" || periodType === "NOR") && !confirmed;
+
   return (
     <td className={`${CELL_BASE} ${bgColor}`}>
-      <div className="flex flex-col gap-0.5">
+      <div className="flex items-center gap-1.5 flex-wrap">
         <span className="font-mono">{displayText}</span>
-        {(periodType === "BL" || periodType === "NOR") && (
-          <div className="flex items-center gap-1">
-            <input
-              type="date"
-              className="bg-transparent text-[0.6rem] w-24 outline-none"
-              value={deal.estimatedBlNorDate || ""}
+        {showDateControls && (
+          <>
+            <button
+              type="button"
+              onClick={openDatePicker}
               disabled={savingDate}
+              className={`text-[0.65rem] px-1 py-0 rounded cursor-pointer disabled:opacity-50 transition-colors ${
+                needsAttention
+                  ? "text-red-700 font-semibold hover:bg-red-900/20"
+                  : "text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-3)]"
+              }`}
+              title="Click to set estimated BL/NOR date"
+            >
+              {formattedDate || "set date"}
+            </button>
+            {/* Hidden native date input driven by the button above */}
+            <input
+              ref={dateInputRef}
+              type="date"
+              className="sr-only"
+              tabIndex={-1}
+              aria-hidden="true"
+              value={deal.estimatedBlNorDate || ""}
               onChange={(e) => handleDateChange(e.target.value)}
             />
-            {!confirmed && (
-              <button
-                onClick={handleConfirm}
-                disabled={savingConfirm}
-                className="text-[0.5rem] px-1 bg-green-800/50 rounded text-green-300 hover:bg-green-700/50 cursor-pointer disabled:opacity-50"
-              >
-                {"\u2713"}
-              </button>
-            )}
-          </div>
+            <button
+              onClick={handleToggleConfirm}
+              disabled={savingConfirm}
+              className={`text-[0.6rem] px-1 py-0 rounded cursor-pointer disabled:opacity-50 transition-colors ${
+                confirmed
+                  ? "text-green-300 hover:bg-green-800/40"
+                  : "text-black font-semibold hover:bg-black/10"
+              }`}
+              title={confirmed ? "Click to un-confirm pricing" : "Click to confirm pricing settled"}
+            >
+              {confirmed ? "\u2713" : "confirm"}
+            </button>
+          </>
         )}
       </div>
     </td>
@@ -383,12 +698,14 @@ function DealRowComponent({
   deal,
   onUpdate,
   onDelete,
+  operators,
   isFirstInGroup = true,
   groupSize = 1,
 }: {
   deal: DealRow;
   onUpdate: () => void;
   onDelete: (deal: DealRow) => void;
+  operators: Array<{ id: string; name: string }>;
   isFirstInGroup?: boolean;
   groupSize?: number;
 }) {
@@ -420,22 +737,44 @@ function DealRowComponent({
       {isFirstInGroup && (
         <>
           <LockedCell className={`font-mono ${spanCellClass}`} {...spanProps}>{deal.vesselName || "\u2014"}</LockedCell>
-          <LockedCell className={`font-mono ${spanCellClass}`} {...spanProps}>{deal.linkageCode || "\u2014"}</LockedCell>
+          <EditableTextCell
+            value={deal.linkageCode}
+            monospace
+            className={spanCellClass}
+            rowSpan={groupSize > 1 ? groupSize : undefined}
+            title="Edit linkage number (syncs to all deals in linkage)"
+            onSave={async (next) => saveLinkageNumber(deal.linkageId, next, onUpdate)}
+          />
         </>
       )}
 
-      <LockedCell className="font-mono">{deal.externalRef || "\u2014"}</LockedCell>
+      <EditableTextCell
+        value={deal.externalRef}
+        monospace
+        title="Edit reference (external_ref)"
+        onSave={async (next) => saveDealField(deal.id, "externalRef", next, onUpdate)}
+      />
 
-      {/* OPS — linkage-level, merged */}
+      {/* OPS — linkage-level, merged, click to assign */}
       {isFirstInGroup && (
-        <LockedCell className={spanCellClass} {...spanProps}>{formatOps(deal)}</LockedCell>
+        <EditableOpsCell
+          deal={deal}
+          operators={operators}
+          className={spanCellClass}
+          rowSpan={groupSize > 1 ? groupSize : undefined}
+          onUpdate={onUpdate}
+        />
       )}
 
       {/* Pricing — special interactive cell */}
       <PricingCell deal={deal} onUpdate={onUpdate} />
 
-      {/* B/L Figures — locked */}
-      <LockedCell>{formatBLFigures(deal)}</LockedCell>
+      {/* B/L Figures — editable contracted qty text */}
+      <EditableTextCell
+        value={deal.contractedQty || formatBLFigures(deal)}
+        title="Edit B/L figures (contracted qty)"
+        onSave={async (next) => saveDealField(deal.id, "contractedQty", next, onUpdate)}
+      />
 
       {/* Editable workflow step cells */}
       <EditableStatusCell value={deal.docInstructions} dealId={deal.id} fieldName="docInstructions" onUpdate={onUpdate} />
@@ -495,12 +834,14 @@ function InternalDealRowComponent({
   deal,
   onUpdate,
   onDelete,
+  operators,
   isFirstInGroup = true,
   groupSize = 1,
 }: {
   deal: DealRow;
   onUpdate: () => void;
   onDelete: (deal: DealRow) => void;
+  operators: Array<{ id: string; name: string }>;
   isFirstInGroup?: boolean;
   groupSize?: number;
 }) {
@@ -532,18 +873,40 @@ function InternalDealRowComponent({
       {isFirstInGroup && (
         <>
           <LockedCell className={`font-mono ${spanCellClass}`} {...spanProps}>{deal.vesselName || "\u2014"}</LockedCell>
-          <LockedCell className={`font-mono ${spanCellClass}`} {...spanProps}>{deal.linkageCode || "\u2014"}</LockedCell>
+          <EditableTextCell
+            value={deal.linkageCode}
+            monospace
+            className={spanCellClass}
+            rowSpan={groupSize > 1 ? groupSize : undefined}
+            title="Edit linkage number (syncs to all deals in linkage)"
+            onSave={async (next) => saveLinkageNumber(deal.linkageId, next, onUpdate)}
+          />
         </>
       )}
 
-      <LockedCell className="font-mono">{deal.externalRef || "\u2014"}</LockedCell>
+      <EditableTextCell
+        value={deal.externalRef}
+        monospace
+        title="Edit reference (external_ref)"
+        onSave={async (next) => saveDealField(deal.id, "externalRef", next, onUpdate)}
+      />
 
       {isFirstInGroup && (
-        <LockedCell className={spanCellClass} {...spanProps}>{formatOps(deal)}</LockedCell>
+        <EditableOpsCell
+          deal={deal}
+          operators={operators}
+          className={spanCellClass}
+          rowSpan={groupSize > 1 ? groupSize : undefined}
+          onUpdate={onUpdate}
+        />
       )}
 
       <PricingCell deal={deal} onUpdate={onUpdate} />
-      <LockedCell>{formatBLFigures(deal)}</LockedCell>
+      <EditableTextCell
+        value={deal.contractedQty || formatBLFigures(deal)}
+        title="Edit B/L figures (contracted qty)"
+        onSave={async (next) => saveDealField(deal.id, "contractedQty", next, onUpdate)}
+      />
       <EditableStatusCell value={deal.docInstructions} dealId={deal.id} fieldName="docInstructions" onUpdate={onUpdate} />
       <EditableStatusCell value={deal.voyOrders} dealId={deal.id} fieldName="voyOrders" onUpdate={onUpdate} />
       <EditableStatusCell value={deal.disOrders} dealId={deal.id} fieldName="disOrders" onUpdate={onUpdate} />
@@ -651,6 +1014,24 @@ export default function ExcelPage() {
   const [activeTab, setActiveTab] = useState<"ongoing" | "completed">("ongoing");
   const [dealToDelete, setDealToDelete] = useState<DealRow | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [allOperators, setAllOperators] = useState<Array<{ id: string; name: string }>>([]);
+
+  // Fetch list of all operators once — used by the inline OPS cell editor
+  useEffect(() => {
+    fetch("/api/users?role=operator")
+      .then((r) => (r.ok ? r.json() : { users: [] }))
+      .then((data) => {
+        const list: Array<{ id: string; name: string; role: string }> = Array.isArray(data)
+          ? data
+          : data.users ?? data.items ?? [];
+        setAllOperators(
+          list
+            .filter((u) => u.role === "operator" || u.role === "admin")
+            .map((u) => ({ id: u.id, name: u.name }))
+        );
+      })
+      .catch(() => { /* non-fatal: ops cell falls back to read-only */ });
+  }, []);
 
   const fetchDeals = useCallback(() => {
     // Cache-bust to ensure we get fresh data after inline edits
@@ -870,7 +1251,7 @@ export default function ExcelPage() {
                   <SectionHeader title="PURCHASE" variant="purchase" first />
                   <ColumnHeaders />
                   {purchases.length > 0 ? (
-                    withGroupInfo(purchases).map((d) => <DealRowComponent key={d.id} deal={d} onUpdate={refreshData} onDelete={requestDelete} isFirstInGroup={d.isFirstInGroup} groupSize={d.groupSize} />)
+                    withGroupInfo(purchases).map((d) => <DealRowComponent key={d.id} deal={d} onUpdate={refreshData} onDelete={requestDelete} operators={allOperators} isFirstInGroup={d.isFirstInGroup} groupSize={d.groupSize} />)
                   ) : (
                     <tr><td colSpan={COLUMNS.length} className="px-3 py-4 text-xs text-center text-[var(--color-text-tertiary)] border-b border-[var(--color-border-subtle)]">No standalone purchases</td></tr>
                   )}
@@ -879,7 +1260,7 @@ export default function ExcelPage() {
                   <SectionHeader title="SALE" variant="sale" />
                   <ColumnHeaders />
                   {sales.length > 0 ? (
-                    withGroupInfo(sales).map((d) => <DealRowComponent key={d.id} deal={d} onUpdate={refreshData} onDelete={requestDelete} isFirstInGroup={d.isFirstInGroup} groupSize={d.groupSize} />)
+                    withGroupInfo(sales).map((d) => <DealRowComponent key={d.id} deal={d} onUpdate={refreshData} onDelete={requestDelete} operators={allOperators} isFirstInGroup={d.isFirstInGroup} groupSize={d.groupSize} />)
                   ) : (
                     <tr><td colSpan={COLUMNS.length} className="px-3 py-4 text-xs text-center text-[var(--color-text-tertiary)] border-b border-[var(--color-border-subtle)]">No standalone sales</td></tr>
                   )}
@@ -890,7 +1271,7 @@ export default function ExcelPage() {
                   {linked.length > 0 ? (
                     linked.map((group) => {
                       const annotated = withGroupInfo(group.deals);
-                      return annotated.map((d) => <DealRowComponent key={d.id} deal={d} onUpdate={refreshData} onDelete={requestDelete} isFirstInGroup={d.isFirstInGroup} groupSize={d.groupSize} />);
+                      return annotated.map((d) => <DealRowComponent key={d.id} deal={d} onUpdate={refreshData} onDelete={requestDelete} operators={allOperators} isFirstInGroup={d.isFirstInGroup} groupSize={d.groupSize} />);
                     })
                   ) : (
                     <tr><td colSpan={COLUMNS.length} className="px-3 py-4 text-xs text-center text-[var(--color-text-tertiary)]">No linked deals</td></tr>
@@ -902,7 +1283,7 @@ export default function ExcelPage() {
                   <InternalSectionHeader />
                   <InternalColumnHeaders />
                   {allInternalDeals.length > 0 ? (
-                    withGroupInfo(allInternalDeals).map((d) => <InternalDealRowComponent key={d.id} deal={d} onUpdate={refreshData} onDelete={requestDelete} isFirstInGroup={d.isFirstInGroup} groupSize={d.groupSize} />)
+                    withGroupInfo(allInternalDeals).map((d) => <InternalDealRowComponent key={d.id} deal={d} onUpdate={refreshData} onDelete={requestDelete} operators={allOperators} isFirstInGroup={d.isFirstInGroup} groupSize={d.groupSize} />)
                   ) : (
                     <tr><td colSpan={COLUMNS.length} className="px-3 py-4 text-xs text-center text-[var(--color-text-tertiary)]">No internal operations</td></tr>
                   )}
@@ -912,7 +1293,7 @@ export default function ExcelPage() {
               <tbody>
                 <ColumnHeaders />
                 {filteredCompleted.length > 0 ? (
-                  withGroupInfo(filteredCompleted).map((d) => <DealRowComponent key={d.id} deal={d} onUpdate={refreshData} onDelete={requestDelete} isFirstInGroup={d.isFirstInGroup} groupSize={d.groupSize} />)
+                  withGroupInfo(filteredCompleted).map((d) => <DealRowComponent key={d.id} deal={d} onUpdate={refreshData} onDelete={requestDelete} operators={allOperators} isFirstInGroup={d.isFirstInGroup} groupSize={d.groupSize} />)
                 ) : (
                   <tr><td colSpan={COLUMNS.length} className="px-3 py-4 text-xs text-center text-[var(--color-text-tertiary)]">No completed deals</td></tr>
                 )}

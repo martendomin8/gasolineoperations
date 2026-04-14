@@ -80,8 +80,14 @@ export const GET = withAuth(async (req, _ctx, session) => {
     }
 
     const offset = (filters.page - 1) * filters.perPage;
+    // Operators can live on either the deal OR the linkage. Per the architecture,
+    // operators should live on the linkage (a voyage-level assignment), but legacy
+    // deals may still carry them directly. Join both and COALESCE so the listing
+    // works regardless of where the IDs are stored.
     const primaryOp = alias(users, "primaryOp");
     const secondaryOp = alias(users, "secondaryOp");
+    const linkagePrimaryOp = alias(users, "linkagePrimaryOp");
+    const linkageSecondaryOp = alias(users, "linkageSecondaryOp");
 
     const [rawItems, [{ count }]] = await Promise.all([
       db
@@ -112,19 +118,21 @@ export const GET = withAuth(async (req, _ctx, session) => {
           pricingPeriodValue: deals.pricingPeriodValue,
           pricingConfirmed: deals.pricingConfirmed,
           estimatedBlNorDate: deals.estimatedBlNorDate,
-          assignedOperatorId: deals.assignedOperatorId,
-          secondaryOperatorId: deals.secondaryOperatorId,
+          assignedOperatorId: sql<string | null>`coalesce(${linkages.assignedOperatorId}, ${deals.assignedOperatorId})`,
+          secondaryOperatorId: sql<string | null>`coalesce(${linkages.secondaryOperatorId}, ${deals.secondaryOperatorId})`,
           loadedQuantityMt: deals.loadedQuantityMt,
           version: deals.version,
           excelStatuses: deals.excelStatuses,
-          operatorName: primaryOp.name,
-          secondaryOperatorName: secondaryOp.name,
+          operatorName: sql<string | null>`coalesce(${linkagePrimaryOp.name}, ${primaryOp.name})`,
+          secondaryOperatorName: sql<string | null>`coalesce(${linkageSecondaryOp.name}, ${secondaryOp.name})`,
           createdAt: deals.createdAt,
         })
         .from(deals)
         .leftJoin(primaryOp, eq(deals.assignedOperatorId, primaryOp.id))
         .leftJoin(secondaryOp, eq(deals.secondaryOperatorId, secondaryOp.id))
         .leftJoin(linkages, eq(deals.linkageId, linkages.id))
+        .leftJoin(linkagePrimaryOp, eq(linkages.assignedOperatorId, linkagePrimaryOp.id))
+        .leftJoin(linkageSecondaryOp, eq(linkages.secondaryOperatorId, linkageSecondaryOp.id))
         .where(and(...conditions))
         .orderBy(desc(deals.createdAt))
         .limit(filters.perPage)
