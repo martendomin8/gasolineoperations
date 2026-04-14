@@ -470,8 +470,10 @@ function PricingCell({ deal, onUpdate }: { deal: DealRow; onUpdate: () => void }
   }
 
   const displayText =
-    periodType === "Fixed" || periodType === "EFP"
-      ? periodType
+    periodType === "Fixed"
+      ? periodValue ? `Fixed: ${periodValue}` : "Fixed"
+      : periodType === "EFP"
+      ? periodValue ? `EFP: ${periodValue}` : "EFP"
       : periodType && periodValue
       ? `${periodType} ${periodValue}`
       : periodType || deal.pricingFormula || "\u2014";
