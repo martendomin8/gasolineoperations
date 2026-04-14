@@ -80,28 +80,36 @@ export default function EditDealPage() {
       counterparty: fd.get("counterparty"),
       direction: fd.get("direction"),
       product: fd.get("product"),
-      contractedQty: fd.get("contractedQty") || null,
-      nominatedQty: fd.get("nominatedQty") ? Number(fd.get("nominatedQty")) : null,
-      incoterm: fd.get("incoterm"),
-      loadport: fd.get("loadport"),
-      dischargePort: fd.get("dischargePort") || null,
-      laycanStart: fd.get("laycanStart"),
-      laycanEnd: fd.get("laycanEnd"),
       vesselCleared: fd.get("vesselCleared") === "on",
       docInstructionsReceived: fd.get("docInstructionsReceived") === "on",
-      status: fd.get("status"),
-      pricingFormula: fd.get("pricingFormula") || null,
-      pricingPeriodType: fd.get("pricingPeriodType") || null,
-      pricingPeriodValue: fd.get("pricingPeriodValue") || null,
-      pricingType: fd.get("pricingPeriodType") || null,
-      pricingEstimatedDate: fd.get("pricingEstimatedDate") || null,
       specialInstructions: fd.get("specialInstructions") || null,
     };
-    // quantityMt: terminal operation deals use the loadedQuantityMt inline editor in the
-    // linkage view. Never overwrite quantityMt from this form for terminal ops — that wiped
-    // Arne's terminal operation qty in round 4 testing.
-    if (!isTerminalOp) {
+
+    if (isTerminalOp) {
+      // Terminal ops are own-stock loading/discharging. No status/incoterm/laycan/pricing —
+      // those are physical-cargo concepts. The single Quantity (MT) field updates BOTH
+      // quantityMt (used by deal detail/linkage card displays) and loadedQuantityMt
+      // (linkage-level loaded qty). Keeping them in sync avoids stale "1 MT" displays.
+      const qty = fd.get("quantityMt");
+      if (qty) {
+        updates.quantityMt = Number(qty);
+        updates.loadedQuantityMt = Number(qty);
+      }
+    } else {
       updates.quantityMt = fd.get("quantityMt");
+      updates.contractedQty = fd.get("contractedQty") || null;
+      updates.nominatedQty = fd.get("nominatedQty") ? Number(fd.get("nominatedQty")) : null;
+      updates.incoterm = fd.get("incoterm");
+      updates.loadport = fd.get("loadport");
+      updates.dischargePort = fd.get("dischargePort") || null;
+      updates.laycanStart = fd.get("laycanStart");
+      updates.laycanEnd = fd.get("laycanEnd");
+      updates.status = fd.get("status");
+      updates.pricingFormula = fd.get("pricingFormula") || null;
+      updates.pricingPeriodType = fd.get("pricingPeriodType") || null;
+      updates.pricingPeriodValue = fd.get("pricingPeriodValue") || null;
+      updates.pricingType = fd.get("pricingPeriodType") || null;
+      updates.pricingEstimatedDate = fd.get("pricingEstimatedDate") || null;
     }
     // Secondary operator is managed at the linkage level when the deal belongs to a linkage.
     if (!hasLinkage) {
@@ -150,6 +158,13 @@ export default function EditDealPage() {
 
   if (!deal) return <p className="text-[var(--color-text-secondary)]">Deal not found</p>;
 
+  const isTerminalOp = deal.dealType === "terminal_operation";
+  // Terminal-op direction labels: buy = loading from own terminal, sell = discharging to own.
+  const terminalDirectionOptions = [
+    { value: "buy", label: "Load (from own terminal)" },
+    { value: "sell", label: "Discharge (to own terminal)" },
+  ];
+
   return (
     <div className="max-w-3xl space-y-6">
       <div className="flex items-center gap-3">
@@ -174,10 +189,14 @@ export default function EditDealPage() {
             <Badge variant={deal.status} dot>{deal.status}</Badge>
           </CardHeader>
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            {isTerminalOp ? (
               <Input label="Counterparty" name="counterparty" required defaultValue={deal.counterparty} />
-              <Select label="Status" name="status" options={statusOptions} defaultValue={deal.status} />
-            </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-4">
+                <Input label="Counterparty" name="counterparty" required defaultValue={deal.counterparty} />
+                <Select label="Status" name="status" options={statusOptions} defaultValue={deal.status} />
+              </div>
+            )}
             {deal.linkageId && (
               <div className="rounded-[var(--radius-md)] border border-dashed border-[var(--color-border-default)] bg-[var(--color-surface-2)] px-4 py-3 text-sm text-[var(--color-text-secondary)]">
                 Linkage:{" "}
@@ -194,29 +213,33 @@ export default function EditDealPage() {
                 to change the linkage number.
               </div>
             )}
-            {deal.dealType === "terminal_operation" ? (
-              <div className="grid grid-cols-2 gap-4">
-                <Select label="Direction" name="direction" options={directionOptions} defaultValue={deal.direction} />
+            {isTerminalOp ? (
+              <div className="grid grid-cols-3 gap-4">
+                <Select label="Action" name="direction" options={terminalDirectionOptions} defaultValue={deal.direction} />
                 <Input label="Product" name="product" required defaultValue={deal.product} />
+                <Input
+                  label="Quantity (MT)"
+                  name="quantityMt"
+                  type="number"
+                  step="0.001"
+                  defaultValue={deal.loadedQuantityMt ?? deal.quantityMt ?? ""}
+                  placeholder="Loaded / discharged qty"
+                />
               </div>
             ) : (
-              <div className="grid grid-cols-3 gap-4">
-                <Select label="Direction" name="direction" options={directionOptions} defaultValue={deal.direction} />
-                <Input label="Product" name="product" required defaultValue={deal.product} />
-                <Input label="Quantity (MT)" name="quantityMt" type="number" step="0.001" required defaultValue={deal.quantityMt} />
-              </div>
+              <>
+                <div className="grid grid-cols-3 gap-4">
+                  <Select label="Direction" name="direction" options={directionOptions} defaultValue={deal.direction} />
+                  <Input label="Product" name="product" required defaultValue={deal.product} />
+                  <Input label="Quantity (MT)" name="quantityMt" type="number" step="0.001" required defaultValue={deal.quantityMt} />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <Input label="Contracted Qty" name="contractedQty" defaultValue={deal.contractedQty || ""} placeholder="e.g. 18000 MT +/-10%" />
+                  <Input label="Nominated Qty" name="nominatedQty" type="number" step="0.001" defaultValue={deal.nominatedQty || ""} placeholder="Exact nominated quantity" />
+                </div>
+                <Select label="Incoterm" name="incoterm" options={incotermOptions} defaultValue={deal.incoterm} />
+              </>
             )}
-            {deal.dealType === "terminal_operation" && (
-              <div className="rounded-[var(--radius-md)] border border-dashed border-[var(--color-border-default)] bg-[var(--color-surface-2)] px-4 py-3 text-xs text-[var(--color-text-tertiary)]">
-                Quantity for terminal operations is managed via the linkage view (loaded qty
-                inline editor). It is not editable from this form.
-              </div>
-            )}
-            <div className="grid grid-cols-2 gap-4">
-              <Input label="Contracted Qty" name="contractedQty" defaultValue={deal.contractedQty || ""} placeholder="e.g. 18000 MT +/-10%" />
-              <Input label="Nominated Qty" name="nominatedQty" type="number" step="0.001" defaultValue={deal.nominatedQty || ""} placeholder="Exact nominated quantity" />
-            </div>
-            <Select label="Incoterm" name="incoterm" options={incotermOptions} defaultValue={deal.incoterm} />
             {deal.linkageId ? (
               <div className="rounded-[var(--radius-md)] border border-dashed border-[var(--color-border-default)] bg-[var(--color-surface-2)] px-4 py-3 text-xs text-[var(--color-text-tertiary)]">
                 Secondary operator is managed at the linkage level.{" "}
@@ -239,19 +262,21 @@ export default function EditDealPage() {
           </div>
         </Card>
 
-        <Card>
-          <CardHeader><CardTitle>Logistics</CardTitle></CardHeader>
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <Input label="Loadport" name="loadport" required defaultValue={deal.loadport} />
-              <Input label="Discharge Port" name="dischargePort" defaultValue={deal.dischargePort || ""} />
+        {!isTerminalOp && (
+          <Card>
+            <CardHeader><CardTitle>Logistics</CardTitle></CardHeader>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <Input label="Loadport" name="loadport" required defaultValue={deal.loadport} />
+                <Input label="Discharge Port" name="dischargePort" defaultValue={deal.dischargePort || ""} />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <Input label="Laycan Start" name="laycanStart" type="date" required defaultValue={deal.laycanStart} />
+                <Input label="Laycan End" name="laycanEnd" type="date" required defaultValue={deal.laycanEnd} />
+              </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <Input label="Laycan Start" name="laycanStart" type="date" required defaultValue={deal.laycanStart} />
-              <Input label="Laycan End" name="laycanEnd" type="date" required defaultValue={deal.laycanEnd} />
-            </div>
-          </div>
-        </Card>
+          </Card>
+        )}
 
         <Card>
           <CardHeader><CardTitle>Vessel</CardTitle></CardHeader>
@@ -288,26 +313,35 @@ export default function EditDealPage() {
           </div>
         </Card>
 
-        <Card>
-          <CardHeader><CardTitle>Additional</CardTitle></CardHeader>
-          <div className="space-y-4">
-            <Input label="Pricing Formula" name="pricingFormula" defaultValue={deal.pricingFormula || ""} />
-            <div className="grid grid-cols-3 gap-4">
-              <Select
-                label="Pricing Period Type"
-                name="pricingPeriodType"
-                options={pricingPeriodTypeOptions}
-                defaultValue={deal.pricingPeriodType || deal.pricingType || ""}
-                onChange={(e) => setPricingPeriodType(e.target.value)}
-              />
-              <Input label="Pricing Period Value" name="pricingPeriodValue" defaultValue={deal.pricingPeriodValue || ""} placeholder="e.g. 0-1-5 or 1-15 Mar" />
-              {(pricingPeriodType === "BL" || pricingPeriodType === "NOR") && (
-                <Input label="Est. BL/NOR Date" name="pricingEstimatedDate" type="date" defaultValue={deal.pricingEstimatedDate || ""} />
-              )}
+        {isTerminalOp ? (
+          <Card>
+            <CardHeader><CardTitle>Notes</CardTitle></CardHeader>
+            <div className="space-y-4">
+              <Textarea label="Special Instructions" name="specialInstructions" defaultValue={deal.specialInstructions || ""} rows={3} />
             </div>
-            <Textarea label="Special Instructions" name="specialInstructions" defaultValue={deal.specialInstructions || ""} rows={3} />
-          </div>
-        </Card>
+          </Card>
+        ) : (
+          <Card>
+            <CardHeader><CardTitle>Additional</CardTitle></CardHeader>
+            <div className="space-y-4">
+              <Input label="Pricing Formula" name="pricingFormula" defaultValue={deal.pricingFormula || ""} />
+              <div className="grid grid-cols-3 gap-4">
+                <Select
+                  label="Pricing Period Type"
+                  name="pricingPeriodType"
+                  options={pricingPeriodTypeOptions}
+                  defaultValue={deal.pricingPeriodType || deal.pricingType || ""}
+                  onChange={(e) => setPricingPeriodType(e.target.value)}
+                />
+                <Input label="Pricing Period Value" name="pricingPeriodValue" defaultValue={deal.pricingPeriodValue || ""} placeholder="e.g. 0-1-5 or 1-15 Mar" />
+                {(pricingPeriodType === "BL" || pricingPeriodType === "NOR") && (
+                  <Input label="Est. BL/NOR Date" name="pricingEstimatedDate" type="date" defaultValue={deal.pricingEstimatedDate || ""} />
+                )}
+              </div>
+              <Textarea label="Special Instructions" name="specialInstructions" defaultValue={deal.specialInstructions || ""} rows={3} />
+            </div>
+          </Card>
+        )}
 
         <div className="flex gap-3">
           <Button type="submit" loading={saving} size="lg">Save Changes</Button>
