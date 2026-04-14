@@ -49,6 +49,7 @@ interface DealRow {
   demurrage: string | null;
   tax: string | null;
   invoiceToCp: string | null;
+  version: number;
 }
 
 // Column definitions matching Arne's Excel exactly
@@ -106,10 +107,14 @@ async function saveDealField(
   dealId: string,
   field: "externalRef" | "contractedQty",
   value: string,
+  version: number,
   onUpdate: () => void
 ): Promise<boolean> {
   try {
-    const payload: Record<string, string | null> = { [field]: value.trim() === "" ? null : value.trim() };
+    const payload: Record<string, string | number | null> = {
+      [field]: value.trim() === "" ? null : value.trim(),
+      version,
+    };
     const res = await fetch(`/api/deals/${dealId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -219,21 +224,257 @@ function EditableStatusCell({
     }
   };
 
-  const isDone = value === "Done" || value === "DONE" || value === "done";
-  const bgColor = isDone ? "bg-green-800/40" : "";
+  const normalized = value?.toLowerCase() ?? "";
+  const isDone = normalized === "done";
+  const isNA = normalized === "n/a" || normalized === "na";
+  const isGreen = isDone || isNA;
+  const bgColor = isGreen ? "bg-green-800/40" : "";
+  const selectValue = isDone ? "Done" : isNA ? "N/A" : "";
 
   return (
     <td className={`${EDITABLE_CELL_IDLE} ${bgColor}`}>
       <select
-        value={isDone ? "Done" : ""}
+        value={selectValue}
         onChange={(e) => handleChange(e.target.value)}
         disabled={saving}
-        className={`bg-transparent text-xs cursor-pointer w-full outline-none appearance-none ${isDone ? "text-[var(--color-success)] font-medium" : ""}`}
+        className={`bg-transparent text-xs cursor-pointer w-full outline-none appearance-none ${isGreen ? "text-[var(--color-success)] font-medium" : ""}`}
       >
         <option value="">{"\u2014"}</option>
         <option value="Done">Done</option>
+        <option value="N/A">N/A</option>
       </select>
       {/* Dropdown arrow indicator on hover */}
+      <span className="absolute right-1 top-1/2 -translate-y-1/2 text-[0.5rem] text-[var(--color-text-tertiary)] opacity-0 group-hover/cell:opacity-100 pointer-events-none select-none">
+        {"\u25BE"}
+      </span>
+    </td>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// DragScrollContainer — horizontal scroll wrapper with click-and-drag panning
+// and an oversized, always-visible scrollbar. Ignores drags that start on
+// interactive controls (select, input, textarea, button, a, [contenteditable])
+// so cell edits keep working.
+// ---------------------------------------------------------------------------
+
+function DragScrollContainer({ children }: { children: React.ReactNode }) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const trackRef = useRef<HTMLDivElement>(null);
+  const thumbRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    const track = trackRef.current;
+    const thumb = thumbRef.current;
+    if (!el || !track || !thumb) return;
+
+    // ---- Sync thumb position + size to container scroll ----
+    const sync = () => {
+      const visible = el.clientWidth;
+      const total = el.scrollWidth;
+      const trackW = track.clientWidth;
+      if (total <= visible) {
+        thumb.style.width = "0px";
+        return;
+      }
+      const thumbW = Math.max(60, (visible / total) * trackW);
+      const maxThumbLeft = trackW - thumbW;
+      const thumbLeft = (el.scrollLeft / (total - visible)) * maxThumbLeft;
+      thumb.style.width = `${thumbW}px`;
+      thumb.style.transform = `translateX(${thumbLeft}px)`;
+    };
+    sync();
+
+    el.addEventListener("scroll", sync, { passive: true });
+    const resizeObs = new ResizeObserver(sync);
+    resizeObs.observe(el);
+    if (el.firstElementChild) resizeObs.observe(el.firstElementChild);
+
+    // ---- Drag-to-pan on the content area ----
+    let panning = false;
+    let panStartX = 0;
+    let panStartScroll = 0;
+    let panMoved = false;
+    const INTERACTIVE = "select, input, textarea, button, a, [contenteditable='true']";
+
+    const onContentDown = (e: MouseEvent) => {
+      if (e.button !== 0) return;
+      const target = e.target as HTMLElement;
+      if (target.closest(INTERACTIVE)) return;
+      panning = true;
+      panMoved = false;
+      panStartX = e.pageX;
+      panStartScroll = el.scrollLeft;
+      el.style.cursor = "grabbing";
+      el.style.userSelect = "none";
+    };
+    const onContentMove = (e: MouseEvent) => {
+      if (!panning) return;
+      const dx = e.pageX - panStartX;
+      if (Math.abs(dx) > 3) panMoved = true;
+      el.scrollLeft = panStartScroll - dx;
+    };
+    const onContentUp = () => {
+      if (!panning) return;
+      panning = false;
+      el.style.cursor = "";
+      el.style.userSelect = "";
+    };
+    const onContentClick = (e: MouseEvent) => {
+      if (panMoved) { e.stopPropagation(); e.preventDefault(); panMoved = false; }
+    };
+
+    el.addEventListener("mousedown", onContentDown);
+    window.addEventListener("mousemove", onContentMove);
+    window.addEventListener("mouseup", onContentUp);
+    el.addEventListener("click", onContentClick, true);
+
+    // ---- Custom scrollbar: drag the thumb ----
+    let thumbDown = false;
+    let thumbStartX = 0;
+    let thumbStartScroll = 0;
+
+    const onThumbDown = (e: MouseEvent) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      thumbDown = true;
+      thumbStartX = e.pageX;
+      thumbStartScroll = el.scrollLeft;
+      document.body.style.userSelect = "none";
+    };
+    const onThumbMove = (e: MouseEvent) => {
+      if (!thumbDown) return;
+      const dx = e.pageX - thumbStartX;
+      const trackW = track.clientWidth;
+      const thumbW = thumb.clientWidth;
+      const scrollable = el.scrollWidth - el.clientWidth;
+      const maxThumbLeft = trackW - thumbW;
+      if (maxThumbLeft <= 0) return;
+      el.scrollLeft = thumbStartScroll + (dx / maxThumbLeft) * scrollable;
+    };
+    const onThumbUp = () => {
+      thumbDown = false;
+      document.body.style.userSelect = "";
+    };
+
+    thumb.addEventListener("mousedown", onThumbDown);
+    window.addEventListener("mousemove", onThumbMove);
+    window.addEventListener("mouseup", onThumbUp);
+
+    // ---- Click on track to jump ----
+    const onTrackDown = (e: MouseEvent) => {
+      if (e.target === thumb) return;
+      const rect = track.getBoundingClientRect();
+      const clickX = e.clientX - rect.left;
+      const thumbW = thumb.clientWidth;
+      const trackW = track.clientWidth;
+      const scrollable = el.scrollWidth - el.clientWidth;
+      const targetThumbLeft = Math.max(0, Math.min(trackW - thumbW, clickX - thumbW / 2));
+      el.scrollLeft = (targetThumbLeft / (trackW - thumbW)) * scrollable;
+    };
+    track.addEventListener("mousedown", onTrackDown);
+
+    return () => {
+      el.removeEventListener("scroll", sync);
+      resizeObs.disconnect();
+      el.removeEventListener("mousedown", onContentDown);
+      window.removeEventListener("mousemove", onContentMove);
+      window.removeEventListener("mouseup", onContentUp);
+      el.removeEventListener("click", onContentClick, true);
+      thumb.removeEventListener("mousedown", onThumbDown);
+      window.removeEventListener("mousemove", onThumbMove);
+      window.removeEventListener("mouseup", onThumbUp);
+      track.removeEventListener("mousedown", onTrackDown);
+    };
+  }, []);
+
+  return (
+    <div className="border border-[var(--color-border-subtle)] rounded-[var(--radius-md)] overflow-hidden">
+      <style jsx>{`
+        .drag-scroll {
+          cursor: grab;
+          overflow-x: scroll;
+          scrollbar-width: none;
+        }
+        .drag-scroll::-webkit-scrollbar {
+          display: none;
+        }
+      `}</style>
+      <div ref={scrollRef} className="drag-scroll">
+        {children}
+      </div>
+      {/* Custom fat scrollbar */}
+      <div
+        ref={trackRef}
+        className="relative h-7 bg-[var(--color-surface-2)] border-t border-[var(--color-border-subtle)] cursor-pointer select-none"
+      >
+        <div
+          ref={thumbRef}
+          className="absolute top-1 bottom-1 left-0 rounded-full bg-[var(--color-border-default,#6b7280)] hover:bg-[var(--color-accent,#888)] transition-colors cursor-grab active:cursor-grabbing"
+          style={{ width: 0 }}
+        />
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// EditableChoiceCell — dropdown with a caller-provided list of options.
+// Green background when any non-empty value is selected. Used for Tax (T1/T2).
+// ---------------------------------------------------------------------------
+
+function EditableChoiceCell({
+  value,
+  dealId,
+  fieldName,
+  options,
+  onUpdate,
+}: {
+  value: string | null;
+  dealId: string;
+  fieldName: string;
+  options: string[];
+  onUpdate: () => void;
+}) {
+  const [saving, setSaving] = useState(false);
+
+  const handleChange = async (newValue: string) => {
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/deals/${dealId}/status-field`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ field: fieldName, value: newValue }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.error || "Failed to update");
+      }
+    } catch {
+      toast.error("Network error");
+    } finally {
+      setSaving(false);
+      onUpdate();
+    }
+  };
+
+  const hasValue = !!value && options.includes(value);
+  const bgColor = hasValue ? "bg-green-800/40" : "";
+
+  return (
+    <td className={`${EDITABLE_CELL_IDLE} ${bgColor}`}>
+      <select
+        value={hasValue ? value! : ""}
+        onChange={(e) => handleChange(e.target.value)}
+        disabled={saving}
+        className={`bg-transparent text-xs cursor-pointer w-full outline-none appearance-none ${hasValue ? "text-[var(--color-success)] font-medium" : ""}`}
+      >
+        <option value="">{"\u2014"}</option>
+        {options.map((opt) => (
+          <option key={opt} value={opt}>{opt}</option>
+        ))}
+      </select>
       <span className="absolute right-1 top-1/2 -translate-y-1/2 text-[0.5rem] text-[var(--color-text-tertiary)] opacity-0 group-hover/cell:opacity-100 pointer-events-none select-none">
         {"\u25BE"}
       </span>
@@ -754,7 +995,7 @@ function DealRowComponent({
         value={deal.externalRef}
         monospace
         title="Edit reference (external_ref)"
-        onSave={async (next) => saveDealField(deal.id, "externalRef", next, onUpdate)}
+        onSave={async (next) => saveDealField(deal.id, "externalRef", next, deal.version, onUpdate)}
       />
 
       {/* OPS — linkage-level, merged, click to assign */}
@@ -775,7 +1016,7 @@ function DealRowComponent({
       <EditableTextCell
         value={deal.contractedQty || formatBLFigures(deal)}
         title="Edit B/L figures (contracted qty)"
-        onSave={async (next) => saveDealField(deal.id, "contractedQty", next, onUpdate)}
+        onSave={async (next) => saveDealField(deal.id, "contractedQty", next, deal.version, onUpdate)}
       />
 
       {/* Editable workflow step cells */}
@@ -791,8 +1032,8 @@ function DealRowComponent({
       <EditableStatusCell value={deal.outturn} dealId={deal.id} fieldName="outturn" onUpdate={onUpdate} />
       <EditableStatusCell value={deal.freightInvoice} dealId={deal.id} fieldName="freightInvoice" onUpdate={onUpdate} />
 
-      {/* Tax — locked (system-derived from region) */}
-      <LockedCell>{deal.tax || "\u2014"}</LockedCell>
+      {/* Tax — operator picks T1 or T2 */}
+      <EditableChoiceCell value={deal.tax} dealId={deal.id} fieldName="tax" options={["T1", "T2"]} onUpdate={onUpdate} />
 
       {/* Invoice to CP — editable operator-managed */}
       <EditableStatusCell value={deal.invoiceToCp} dealId={deal.id} fieldName="invoiceToCp" onUpdate={onUpdate} />
@@ -890,7 +1131,7 @@ function InternalDealRowComponent({
         value={deal.externalRef}
         monospace
         title="Edit reference (external_ref)"
-        onSave={async (next) => saveDealField(deal.id, "externalRef", next, onUpdate)}
+        onSave={async (next) => saveDealField(deal.id, "externalRef", next, deal.version, onUpdate)}
       />
 
       {isFirstInGroup && (
@@ -907,7 +1148,7 @@ function InternalDealRowComponent({
       <EditableTextCell
         value={deal.contractedQty || formatBLFigures(deal)}
         title="Edit B/L figures (contracted qty)"
-        onSave={async (next) => saveDealField(deal.id, "contractedQty", next, onUpdate)}
+        onSave={async (next) => saveDealField(deal.id, "contractedQty", next, deal.version, onUpdate)}
       />
       <EditableStatusCell value={deal.docInstructions} dealId={deal.id} fieldName="docInstructions" onUpdate={onUpdate} />
       <EditableStatusCell value={deal.voyOrders} dealId={deal.id} fieldName="voyOrders" onUpdate={onUpdate} />
@@ -1244,7 +1485,7 @@ export default function ExcelPage() {
           <div className="h-5 w-5 rounded-full border-2 border-[var(--color-accent)] border-t-transparent animate-spin" />
         </div>
       ) : (
-        <div className="overflow-x-auto border border-[var(--color-border-subtle)] rounded-[var(--radius-md)]">
+        <DragScrollContainer>
           <table className="w-full border-collapse">
             {activeTab === "ongoing" ? (
               <>
@@ -1302,7 +1543,7 @@ export default function ExcelPage() {
               </tbody>
             )}
           </table>
-        </div>
+        </DragScrollContainer>
       )}
 
       {/* Delete confirmation modal */}

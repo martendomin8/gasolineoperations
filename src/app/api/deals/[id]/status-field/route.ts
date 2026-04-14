@@ -201,7 +201,8 @@ export const PUT = withAuth(
       }
 
       // Map display value to step status
-      const newStepStatus = value === "Done" ? "done" : "ready";
+      const newStepStatus =
+        value === "Done" ? "done" : value === "N/A" ? "na" : "ready";
 
       await db
         .update(workflowSteps)
