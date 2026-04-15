@@ -112,7 +112,7 @@ export default function NewPartyPage() {
               label="Name"
               name="name"
               required
-              placeholder="e.g. Klaipeda Terminal"
+              placeholder="e.g. Lavera Terminal"
               error={errors.name}
             />
           </div>
@@ -121,7 +121,7 @@ export default function NewPartyPage() {
             <Input
               label="Port"
               name="port"
-              placeholder="e.g. Klaipeda"
+              placeholder="e.g. Lavera"
               error={errors.port}
             />
             <Input

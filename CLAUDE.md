@@ -80,7 +80,7 @@ Universal rule: **the receiver always nominates the discharge terminal**.
 ### Terminals
 
 Three core terminals with fixed contacts:
-1. **Klaipeda, Lithuania** — Baltic hub, blending operations
+1. **Lavera, France** — Mediterranean hub, blending operations
 2. **Antwerp, Belgium** — ARA hub
 3. **Amsterdam, Netherlands** — ARA hub, global gasoline blending center
 
@@ -375,7 +375,7 @@ When the operator opens a cargo chain, the screen is divided into three sections
 ### Right Section — Sell Side
 - **"+" button always visible** at bottom with two options:
   - **"Add sale"** — creates a new sale deal block (counterparty, qty, destination, full sell-side workflow)
-  - **"Discharge to own terminal"** — operator selects from company's own terminal list (Amsterdam, Klaipeda, Antwerp). Creates a discharge block with: terminal nomination + agent nomination + inspector nomination. No counterparty, no doc instructions — just discharge logistics.
+  - **"Discharge to own terminal"** — operator selects from company's own terminal list (Amsterdam, Antwerp, Lavera). Creates a discharge block with: terminal nomination + agent nomination + inspector nomination. No counterparty, no doc instructions — just discharge logistics.
   - **CRITICAL**: Both "+" actions MUST attach the new deal to the CURRENT linkage (`linkageId` from the deal being viewed). The terminal-operation creation MUST include `dealType: "terminal_operation"` in the API payload — otherwise the deal is treated as a regular buy and lands in the wrong section of the Excel view. The POST `/api/deals` endpoint also accepts `linkageCode` lookup as a fallback when `linkageId` is missing, so a stale closure or omitted prop never silently spawns a fresh TEMP linkage.
 - Each block is independent and collapsible
 - If the operator later sells the remaining balance, the own terminal block is CANCELLED (cancellation emails generated) and replaced with a new sale block

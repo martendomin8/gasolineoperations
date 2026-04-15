@@ -358,12 +358,16 @@ export function parseDealDemo(rawText: string): ParsedDealResult {
 
   // ── Ports ────────────────────────────────────────────────────
   const PORT_ALIASES: Record<string, string> = {
-    rdam: "Rotterdam", rotterdam: "Rotterdam",
-    ams: "Amsterdam", amsterdam: "Amsterdam",
-    kly: "Klaipeda", klaipeda: "Klaipeda", klapeda: "Klaipeda",
-    antwerp: "Antwerp", anr: "Antwerp",
-    houston: "Houston", ny: "New York", "new york": "New York",
-    singapore: "Singapore", barcelona: "Barcelona",
+    rotterdam: "Rotterdam",
+    amsterdam: "Amsterdam",
+    antwerp: "Antwerp",
+    lavera: "Lavera",
+    barcelona: "Barcelona",
+    augusta: "Augusta",
+    thessaloniki: "Thessaloniki",
+    thames: "Thames",
+    houston: "Houston", "new york": "New York",
+    singapore: "Singapore",
   };
 
   function normalisePort(raw: string): string {
@@ -384,7 +388,7 @@ export function parseDealDemo(rawText: string): ParsedDealResult {
 
   // "Load Antwerp, discharge Singapore" (no colon, inline)
   if (!loadport) {
-    // Matches "Load Klaipeda" or "Loading Antwerp" when no colon present
+    // Matches "Load Lavera" or "Loading Antwerp" when no colon present
     const loadNoColon = rawText.match(/\bLoad(?:ing)?\s+([A-Z][A-Za-z][a-z]+)\b/);
     if (loadNoColon) { loadport = normalisePort(loadNoColon[1]); scores.loadport = 0.75; }
   }
@@ -414,10 +418,10 @@ export function parseDealDemo(rawText: string): ParsedDealResult {
   }
 
   // Known-port last-resort: scan for city names when no loadport yet
-  // e.g. "FOB basis, Klaipeda terminal" — "Klaipeda" is loadport even without label
+  // e.g. "FOB basis, Lavera terminal" — "Lavera" is loadport even without label
   // Skip any port already assigned as discharge_port to avoid double-assignment
   if (!loadport) {
-    const KNOWN_PORT_NAMES = ["Rotterdam", "Amsterdam", "Antwerp", "Klaipeda", "Houston", "Singapore", "Barcelona", "New York", "Marseille", "Algeciras", "Genova"];
+    const KNOWN_PORT_NAMES = ["Rotterdam", "Amsterdam", "Antwerp", "Lavera", "Barcelona", "Augusta", "Thessaloniki", "Thames", "Houston", "Singapore", "New York", "Marseille", "Algeciras", "Genova", "Beirut"];
     for (const p of KNOWN_PORT_NAMES) {
       if (p.toLowerCase() === discharge_port?.toLowerCase()) continue; // already assigned
       const esc = p.replace(/\s+/g, "\\s+");

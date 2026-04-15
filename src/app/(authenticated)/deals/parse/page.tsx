@@ -114,15 +114,15 @@ Thomas Berg — Trader`,
   },
 
   {
-    id: "fob-buy-klaipeda-clean",
-    label: "FOB Buy Klaipeda — clean",
+    id: "fob-buy-lavera-clean",
+    label: "FOB Buy Lavera — clean",
     tag: "FOB · BUY",
     tagVariant: "info",
-    testFocus: "FOB buy — triggers Klaipeda terminal workflow",
+    testFocus: "FOB buy — triggers Lavera terminal workflow",
     text: `Deal recap — EG-2026-042
 
 Purchase confirmed from Vitol SA:
-15,000 MT Reformate FOB Klaipeda
+15,000 MT Reformate FOB Lavera
 Laycan 10-12 April 2026
 Price: Platts FOB Baltic +$2.50/MT
 Vessel: MT Nordic Hawk, IMO 9341298`,
@@ -215,12 +215,12 @@ Price: Platts CIF NWE Cargo basis flat, BL 0-0-5`,
   },
 
   {
-    id: "chat-abbreviations",
-    label: "Chat — port abbreviations + EFP",
-    tag: "ABBREVS",
+    id: "terse-efp",
+    label: "Terse chat — EFP pricing no dates",
+    tag: "TERSE",
     tagVariant: "muted",
-    testFocus: "AMS, Rdam, Kly abbreviations + EFP pricing without dates — should parse EFP with null value",
-    text: `Bought 15kt reformate FOB Kly from BGN, laycan 10-12/4, no vessel yet. Px: platts fob baltic +2.5, pricing EFP`,
+    testFocus: "EFP pricing without dates — should parse as EFP with null value",
+    text: `Bought 15kt reformate FOB Lavera from BGN, laycan 10-12/4, no vessel yet. Price: Platts FOB Med +2.5, pricing EFP`,
   },
 
   // ── Low confidence / ambiguous ───────────────────────────────
@@ -266,7 +266,7 @@ Inspector to be agreed with buyer (50/50 cost share).`,
     text: `Quick recap:
 
 Purchase 18,000 MT RBOB from Mercuria
-FOB basis, Klaipeda terminal
+FOB basis, Lavera terminal
 Laycan 8-10 April 2026
 Vessel: MT Baltic Star, IMO 9502847
 Price: Platts FOB Baltic +$1.75/MT`,
@@ -296,17 +296,17 @@ Inspector: per buyer's nomination (cost shared).`,
   },
 
   {
-    id: "dual-port-klaipeda",
-    label: "Klaipeda load — blending note",
+    id: "dual-port-lavera",
+    label: "Lavera load — blending note",
     tag: "KLAIPEDA",
     tagVariant: "info",
-    testFocus: "Klaipeda terminal + special blending instruction",
+    testFocus: "Lavera terminal + special blending instruction",
     text: `Deal — purchase:
 
 Counterparty: Litasco SA
 Product: Naphtha (blending grade)
 Qty: 12,000 MT
-Terms: FOB Klaipeda
+Terms: FOB Lavera
 Laycan: 20-22 April 2026
 Vessel: to be nominated by us within 5 days of laycan
 Price: Platts CIF NWE Naphtha -$8.00/MT

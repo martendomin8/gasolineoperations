@@ -93,12 +93,12 @@ describe("parseDealDemo — direction extraction", () => {
   });
 
   it("detects 'bought' as buy", () => {
-    const r = parse("Bought 15000 MT Reformate FOB Klaipeda");
+    const r = parse("Bought 15000 MT Reformate FOB Lavera");
     expect(r.fields.direction).toBe("buy");
   });
 
   it("detects 'purchase' as buy", () => {
-    const r = parse("Confirmed purchase from Vitol: 15000 MT Reformate FOB Klaipeda");
+    const r = parse("Confirmed purchase from Vitol: 15000 MT Reformate FOB Lavera");
     expect(r.fields.direction).toBe("buy");
   });
 
@@ -122,7 +122,7 @@ describe("parseDealDemo — counterparty extraction", () => {
   });
 
   it("extracts from 'purchase from X' pattern", () => {
-    const r = parse("Confirmed purchase from Vitol SA: 15000 MT Reformate FOB Klaipeda");
+    const r = parse("Confirmed purchase from Vitol SA: 15000 MT Reformate FOB Lavera");
     expect(r.fields.counterparty).toContain("Vitol");
   });
 });

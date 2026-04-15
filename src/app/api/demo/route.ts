@@ -50,14 +50,14 @@ export async function POST() {
   // --- Parties (terminals, agents, inspectors, brokers) ---
   await db.insert(schema.parties).values([
     { tenantId: tenant.id, type: "terminal", name: "Vopak Amsterdam", port: "Amsterdam", email: "nominations@vopak-ams.nl", phone: "+31 20 7891234", isFixed: true, notes: "ARA hub.", regionTags: ["ARA", "Amsterdam"] },
-    { tenantId: tenant.id, type: "terminal", name: "Klaipeda Oil Terminal", port: "Klaipeda", email: "ops@klaipeda-terminal.lt", phone: "+370 46 123456", isFixed: true, notes: "Baltic hub.", regionTags: ["Baltic", "Klaipeda"] },
+    { tenantId: tenant.id, type: "terminal", name: "Lavera Oil Terminal", port: "Lavera", email: "ops@lavera-terminal.fr", phone: "+33 4 4206 1234", isFixed: true, notes: "Mediterranean hub.", regionTags: ["Mediterranean", "Lavera"] },
     { tenantId: tenant.id, type: "terminal", name: "ATPC Antwerp", port: "Antwerp", email: "scheduling@atpc-antwerp.be", phone: "+32 3 5678901", isFixed: true, notes: "72h berth notice.", regionTags: ["ARA", "Antwerp"] },
     { tenantId: tenant.id, type: "agent", name: "Van Ommeren Agency", port: "Amsterdam", email: "agency@vanommeren.nl", phone: "+31 20 4561234", isFixed: false, regionTags: ["ARA", "Amsterdam"] },
-    { tenantId: tenant.id, type: "agent", name: "Baltic Shipping Agency", port: "Klaipeda", email: "ops@baltic-shipping.lt", phone: "+370 46 654321", isFixed: false, regionTags: ["Baltic", "Klaipeda"] },
+    { tenantId: tenant.id, type: "agent", name: "Lavera Maritime Agency", port: "Lavera", email: "ops@lavera-agency.fr", phone: "+33 4 4206 5678", isFixed: false, regionTags: ["Mediterranean", "Lavera"] },
     { tenantId: tenant.id, type: "agent", name: "Turkon Agency", port: "Aliaga", email: "ops@turkon-aliaga.com.tr", phone: "+90 232 6161234", isFixed: false, regionTags: ["Turkey", "Aliaga"] },
     { tenantId: tenant.id, type: "agent", name: "Hamburg Port Agency", port: "Hamburg", email: "ops@hpa-hamburg.de", phone: "+49 40 3281234", isFixed: false, regionTags: ["Germany", "Hamburg"] },
     { tenantId: tenant.id, type: "inspector", name: "Saybolt Amsterdam", port: "Amsterdam", email: "amsterdam@saybolt.com", phone: "+31 20 6789012", isFixed: false, regionTags: ["ARA", "Amsterdam"] },
-    { tenantId: tenant.id, type: "inspector", name: "SGS Klaipeda", port: "Klaipeda", email: "petroleum.klaipeda@sgs.com", phone: "+370 46 789012", isFixed: false, regionTags: ["Baltic", "Klaipeda"] },
+    { tenantId: tenant.id, type: "inspector", name: "SGS Lavera", port: "Lavera", email: "petroleum.lavera@sgs.com", phone: "+33 4 4206 7890", isFixed: false, regionTags: ["Mediterranean", "Lavera"] },
     { tenantId: tenant.id, type: "inspector", name: "SGS Aliaga", port: "Aliaga", email: "petroleum.aliaga@sgs.com", phone: "+90 232 6167890", isFixed: false, regionTags: ["Turkey", "Aliaga"] },
     { tenantId: tenant.id, type: "broker", name: "Clarksons Platou", port: null, email: "chartering@clarksons.com", phone: "+44 20 73341000", isFixed: false, notes: "Primary broker." },
   ]);
@@ -101,13 +101,13 @@ export async function POST() {
       { order: 2, name: "Inspector Appointment — Loadport", stepType: "appointment", recipientPartyType: "inspector", description: "Appoint Q&Q inspector at loadport." },
     ]},
     { name: "CIF Sale — ARA", incoterm: "CIF", direction: "sell", regionPattern: "Amsterdam|Antwerp|Rotterdam", steps: cifSteps },
-    { name: "CIF Sale — Klaipeda", incoterm: "CIF", direction: "sell", regionPattern: "Klaipeda|Klaip", steps: cifSteps },
+    { name: "CIF Sale — Lavera", incoterm: "CIF", direction: "sell", regionPattern: "Lavera|Lav", steps: cifSteps },
     { name: "CFR Sale — Generic", incoterm: "CFR", direction: "sell", regionPattern: null, steps: cifSteps },
     { name: "DAP Sale — Generic", incoterm: "DAP", direction: "sell", regionPattern: null, steps: [
       ...cifSteps,
       { order: 6, name: "Discharge Agent Appointment", stepType: "appointment", recipientPartyType: "agent", recommendedAfterStep: 1, description: "Appoint discharge port agent (DAP — seller coordinates discharge)." },
     ]},
-    { name: "FOB Purchase — Klaipeda", incoterm: "FOB", direction: "buy", regionPattern: "Klaipeda|Klaip", steps: [
+    { name: "FOB Purchase — Lavera", incoterm: "FOB", direction: "buy", regionPattern: "Lavera|Lav", steps: [
       { order: 1, name: "Vessel Nomination to Seller", stepType: "nomination", recipientPartyType: "broker", emailTemplateId: tplClearance.id, description: "Nominate vessel to seller within contractual deadline." },
       { order: 2, name: "Inspector Appointment — Loadport", stepType: "appointment", recipientPartyType: "inspector", recommendedAfterStep: 1, description: "Appoint Q&Q inspector at loadport." },
       { order: 3, name: "Agent Appointment — Loadport", stepType: "appointment", recipientPartyType: "agent", recommendedAfterStep: 1, description: "Appoint loadport agent." },

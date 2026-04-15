@@ -113,7 +113,7 @@ function operatorInitials(primary?: string | null, secondary?: string | null): s
 function taxValue(loadport: string, dischargePort: string | null): string {
   // EU ports generally use T2 (free circulation), non-EU use T1
   const euPorts = [
-    "amsterdam", "antwerp", "rotterdam", "klaipeda",
+    "amsterdam", "antwerp", "rotterdam", "lavera",
     "hamburg", "marseille", "genoa", "bilbao",
   ];
   const port = (dischargePort ?? loadport).toLowerCase();

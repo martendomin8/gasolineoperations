@@ -1291,7 +1291,7 @@ function AddDealMenu({ linkageId, linkageCode, side, variant }: {
             </button>
             <button onClick={openTerminalPicker} className="w-full text-left px-3 py-2.5 rounded-[var(--radius-sm)] hover:bg-teal-900/10 transition-colors cursor-pointer">
               <div className="text-sm font-medium text-teal-400">{terminalLabel}</div>
-              <div className="text-xs text-[var(--color-text-tertiary)]">Amsterdam, Klaipeda, Antwerp</div>
+              <div className="text-xs text-[var(--color-text-tertiary)]">Amsterdam, Lavera, Antwerp</div>
             </button>
           </div>
         ) : (

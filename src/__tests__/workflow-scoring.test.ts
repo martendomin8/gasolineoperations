@@ -129,7 +129,7 @@ describe("scoreTemplate — region pattern bonus", () => {
     const tmpl = makeTemplate({
       incoterm: "CIF",
       direction: "sell",
-      regionPattern: "Klaipeda|Klaip",
+      regionPattern: "Lavera|Lav",
     });
     const deal = makeDeal({ incoterm: "CIF", direction: "sell", loadport: "Amsterdam" });
     expect(scoreTemplate(tmpl, deal)).toBe(5); // 3+2, no region bonus
@@ -139,9 +139,9 @@ describe("scoreTemplate — region pattern bonus", () => {
     const tmpl = makeTemplate({
       incoterm: "FOB",
       direction: "buy",
-      regionPattern: "Klaipeda|Klaip",
+      regionPattern: "Lavera|Lav",
     });
-    const deal = makeDeal({ incoterm: "FOB", direction: "buy", loadport: "KLAIPEDA" });
+    const deal = makeDeal({ incoterm: "FOB", direction: "buy", loadport: "LAVERA" });
     expect(scoreTemplate(tmpl, deal)).toBe(7);
   });
 });

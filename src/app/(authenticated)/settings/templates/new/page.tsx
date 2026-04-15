@@ -147,7 +147,7 @@ export default function NewTemplatePage() {
                 label="Region (optional)"
                 value={form.region}
                 onChange={(e) => set("region", e.target.value)}
-                placeholder="e.g. ARA, Klaipeda"
+                placeholder="e.g. ARA, Lavera"
               />
             </div>
 

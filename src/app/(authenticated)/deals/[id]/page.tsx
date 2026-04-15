@@ -1666,7 +1666,7 @@ function AddDealMenu({ side, linkageId, linkageCode, referenceDeal, onCreated }:
     ? "text-blue-600 dark:text-blue-400"
     : "text-amber-600 dark:text-amber-400";
   const terminalLabel = isBuy ? "Load from own terminal" : "Discharge to own terminal";
-  const terminalDescription = "Own terminal (Amsterdam, Klaipeda, Antwerp)";
+  const terminalDescription = "Own terminal (Amsterdam, Lavera, Antwerp)";
 
   const closeAll = () => {
     setShowMenu(false);
