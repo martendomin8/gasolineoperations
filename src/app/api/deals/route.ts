@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { withAuth } from "@/lib/middleware/with-auth";
 import { withTenantDb } from "@/lib/db";
-import { deals, linkages, auditLogs, users, workflowInstances, workflowSteps, type Deal } from "@/lib/db/schema";
+import { deals, linkages, linkageSteps, auditLogs, users, workflowInstances, workflowSteps, type Deal } from "@/lib/db/schema";
 import { matchTemplate, instantiateWorkflow } from "@/lib/workflow-engine";
 import { createDealSchema, dealFilterSchema } from "@/lib/types/deal";
 import { eq, and, ilike, or, desc, sql, like } from "drizzle-orm";
@@ -146,6 +146,11 @@ export const GET = withAuth(async (req, _ctx, session) => {
     // Enrich with workflow step statuses for Excel view
     const dealIds = rawItems.map((d) => d.id);
     const stepStatusMap = new Map<string, Record<string, string | null>>();
+    // voyOrders / disOrders are per-voyage (linkage-level), not per-deal. All
+    // deals belonging to the same linkage share the same voy/dis status, read
+    // from linkage_steps. Built once per request and applied after the
+    // per-deal workflow_steps pass so the linkage-level value wins.
+    const voyDisByLinkage = new Map<string, { voyOrders: string | null; disOrders: string | null }>();
 
     if (dealIds.length > 0) {
       const instances = await db
@@ -206,18 +211,55 @@ export const GET = withAuth(async (req, _ctx, session) => {
           }
         }
       }
+
+      // Voyage / Discharge orders live at linkage level (linkage_steps). Pull
+      // them in a single query for every linkage referenced by this page of
+      // deals, then override each deal's voyOrders / disOrders below.
+      const linkageIds = Array.from(
+        new Set(rawItems.map((d) => d.linkageId).filter((x): x is string => !!x))
+      );
+      if (linkageIds.length > 0) {
+        const linkStepsRows = await db
+          .select({
+            linkageId: linkageSteps.linkageId,
+            stepType: linkageSteps.stepType,
+            stepName: linkageSteps.stepName,
+            status: linkageSteps.status,
+          })
+          .from(linkageSteps)
+          .where(eq(linkageSteps.tenantId, session.user.tenantId));
+
+        for (const ls of linkStepsRows) {
+          if (!linkageIds.includes(ls.linkageId)) continue;
+          const nameLower = ls.stepName.toLowerCase();
+          const display = stepStatusToDisplay(ls.status);
+          if (!voyDisByLinkage.has(ls.linkageId)) {
+            voyDisByLinkage.set(ls.linkageId, { voyOrders: null, disOrders: null });
+          }
+          const slot = voyDisByLinkage.get(ls.linkageId)!;
+          if (nameLower.includes("discharge")) {
+            slot.disOrders = display;
+          } else if (nameLower.includes("voyage") || ls.stepType === "order") {
+            slot.voyOrders = display;
+          }
+        }
+      }
     }
 
     const items = rawItems.map((d) => {
       const stepStatuses = stepStatusMap.get(d.id) ?? {};
       const excelOverrides = (d.excelStatuses ?? {}) as Record<string, string | null>;
+      const linkageVoyDis = d.linkageId ? voyDisByLinkage.get(d.linkageId) : undefined;
 
-      // Workflow step statuses take priority; operator-managed fields come from excelStatuses
+      // Workflow step statuses take priority; operator-managed fields come from excelStatuses.
+      // For voy/dis orders the linkage-level step (linkage_steps) is authoritative — it
+      // overrides any per-deal workflow_steps value so the Excel cell and the linkage
+      // vessel workflow stay in sync.
       return {
         ...d,
         docInstructions: stepStatuses.docInstructions ?? excelOverrides.docInstructions ?? null,
-        voyOrders: stepStatuses.voyOrders ?? excelOverrides.voyOrders ?? null,
-        disOrders: stepStatuses.disOrders ?? excelOverrides.disOrders ?? null,
+        voyOrders: linkageVoyDis?.voyOrders ?? stepStatuses.voyOrders ?? excelOverrides.voyOrders ?? null,
+        disOrders: linkageVoyDis?.disOrders ?? stepStatuses.disOrders ?? excelOverrides.disOrders ?? null,
         vesselNomination: stepStatuses.vesselNomination ?? excelOverrides.vesselNomination ?? null,
         supervision: stepStatuses.supervision ?? excelOverrides.supervision ?? null,
         dischargeNomination: stepStatuses.dischargeNomination ?? excelOverrides.dischargeNomination ?? null,

@@ -6,6 +6,7 @@ import {
   auditLogs,
   workflowInstances,
   workflowSteps,
+  linkageSteps,
 } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { z } from "zod";
@@ -75,6 +76,55 @@ export const PUT = withAuth(
         .limit(1);
 
       if (!deal) return { error: "not_found" as const };
+
+      // --- Voyage / Discharge orders: linkage-level (linkage_steps) ---
+      // These are per-voyage, not per-deal. Route writes to the linkage's
+      // step so every deal in the same linkage sees the same status.
+      if ((field === "voyOrders" || field === "disOrders") && deal.linkageId) {
+        const targetName = field === "voyOrders" ? "voyage" : "discharge";
+        const rows = await db
+          .select()
+          .from(linkageSteps)
+          .where(
+            and(
+              eq(linkageSteps.linkageId, deal.linkageId),
+              eq(linkageSteps.tenantId, session.user.tenantId)
+            )
+          );
+        const target = rows.find((r) => r.stepName.toLowerCase().includes(targetName));
+        if (target) {
+          const newStatus = value === "Done" ? "sent" : value === "N/A" ? "na" : "pending";
+          const updatePayload: Record<string, unknown> = {
+            status: newStatus,
+            updatedAt: new Date(),
+          };
+          if (newStatus === "sent") updatePayload.sentAt = new Date();
+          else updatePayload.sentAt = null;
+
+          await db
+            .update(linkageSteps)
+            .set(updatePayload)
+            .where(eq(linkageSteps.id, target.id));
+
+          await db.insert(auditLogs).values({
+            tenantId: session.user.tenantId,
+            dealId: id,
+            userId: session.user.id,
+            action: "linkage.step_status_changed",
+            details: {
+              linkageId: deal.linkageId,
+              stepId: target.id,
+              stepName: target.stepName,
+              field,
+              oldStatus: target.status,
+              newStatus,
+            },
+          });
+
+          return { ok: true, field, value, linkageStepId: target.id };
+        }
+        // No matching linkage step — fall through to excelStatuses fallback below.
+      }
 
       // --- Pricing fields: update deal columns directly ---
       if (PRICING_FIELDS.has(field)) {

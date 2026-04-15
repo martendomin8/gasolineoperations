@@ -16,6 +16,65 @@ import {
 import { relations } from "drizzle-orm";
 
 // ============================================================
+// SHARED TYPES
+// ============================================================
+
+/**
+ * Parsed Q88 vessel particulars, stored on linkages.vessel_particulars.
+ * Populated by the Q88 parse endpoint; consumed by the stowage planner.
+ * Shape is intentionally loose (jsonb) so we can evolve it as Q88 parsing
+ * improves without schema migrations. All fields are optional.
+ */
+export interface VesselTank {
+  name: string;                      // e.g. "1P", "1S", "2P", "2S", "SLOP P"
+  capacity100?: number | null;       // m³ at 100%
+  capacity98?: number | null;        // m³ at 98% (cargo fill)
+  coating?: string | null;           // epoxy / phenolic / zinc / marineline / etc.
+}
+
+/**
+ * A single loadline row from the Q88. Q88s list several (Summer, Winter,
+ * Tropical, Fresh, Tropical Fresh) and for multi-SDWT vessels also several
+ * "Assigned DWT" rows. The planner lets the operator pick which DWT ceiling
+ * applies to the current voyage — winter zones, fresh water, reduced
+ * loadline selection etc. all change the maximum cargo.
+ */
+export interface VesselLoadline {
+  name: string;                      // e.g. "Summer", "Winter", "Tropical", "Assigned DWT 2"
+  freeboard?: number | null;         // m
+  draft?: number | null;             // m
+  dwt?: number | null;               // MT
+  displacement?: number | null;      // MT
+}
+
+export interface VesselParticulars {
+  dwt?: number | null;               // summer deadweight, MT
+  loa?: number | null;               // length overall, m
+  beam?: number | null;              // breadth, m
+  summerDraft?: number | null;       // summer draft, m
+  flag?: string | null;
+  classSociety?: string | null;
+  builtYear?: number | null;
+  builder?: string | null;
+  vesselType?: string | null;        // e.g. "MR Tanker", "Chemical/Oil"
+  tankCount?: number | null;
+  totalCargoCapacity98?: number | null;   // sum of tanks at 98%, m³
+  totalCargoCapacity100?: number | null;  // sum of tanks at 100%, m³
+  coating?: string | null;           // dominant coating
+  segregations?: number | null;      // number of cargo segregations
+  pumpType?: string | null;
+  tanks?: VesselTank[];
+  /**
+   * Full loadline table from the Q88. The `dwt` field on this interface above
+   * reflects the "Summer" loadline by default, but the planner UI may switch
+   * to any entry here for voyage-specific cargo planning.
+   */
+  loadlines?: VesselLoadline[];
+  parsedAt?: string;                 // ISO timestamp
+  sourceDocumentId?: string;         // documents.id the parse came from
+}
+
+// ============================================================
 // ENUMS
 // ============================================================
 
@@ -126,6 +185,10 @@ export const linkages = pgTable(
     status: varchar("status", { length: 50 }).default("active").notNull(),
     vesselName: varchar("vessel_name", { length: 255 }),
     vesselImo: varchar("vessel_imo", { length: 20 }),
+    // Parsed Q88 particulars — populated when operator drops a Q88 PDF/DOCX on the
+    // vessel section. Stowage planner reads tank data from this column. Pure JSONB
+    // so the shape can evolve without schema migrations while Q88 parsing matures.
+    vesselParticulars: jsonb("vessel_particulars").$type<VesselParticulars | null>(),
     // Operators work entire voyages, so the assignment lives on the linkage and all
     // deals inside it inherit. `deals.secondary_operator_id` is deprecated.
     assignedOperatorId: uuid("assigned_operator_id").references(() => users.id),

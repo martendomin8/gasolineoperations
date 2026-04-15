@@ -168,6 +168,7 @@ export const PUT = withAuth(
     if (updates.stepName !== undefined) updateData.stepName = updates.stepName;
     if (updates.description !== undefined) updateData.description = updates.description;
     if (updates.status === "sent") updateData.sentAt = new Date();
+    if (updates.status !== undefined && updates.status !== "sent") updateData.sentAt = null;
 
     const [updated] = await db
       .update(schema.linkageSteps)
