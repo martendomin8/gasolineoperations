@@ -11,6 +11,7 @@ import {
   Fuel,
   Table2,
   FileText,
+  Ship,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -21,6 +22,7 @@ const navigation = [
   { name: "Spreadsheet", href: "/excel", icon: Table2 },
   { name: "Parse Email", href: "/deals/parse", icon: Sparkles },
   { name: "Deals", href: "/deals", icon: FileText },
+  { name: "Fleet", href: "/fleet", icon: Ship },
   { name: "Parties", href: "/parties", icon: Users },
   { name: "Templates", href: "/settings/templates", icon: Mail },
   { name: "Settings", href: "/settings", icon: Settings },
