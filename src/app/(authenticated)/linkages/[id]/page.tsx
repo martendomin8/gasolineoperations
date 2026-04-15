@@ -443,7 +443,9 @@ function VoyageBar({ linkage, operators, canEdit, onUpdated }: {
             <Ship className="h-3.5 w-3.5 text-[var(--color-text-tertiary)]" />
             <input placeholder="Vessel name" value={vesselDraft} onChange={(e) => setVesselDraft(e.target.value)} disabled={savingVessel}
               className="flex-1 rounded-[var(--radius-sm)] border border-[var(--color-border-default)] bg-[var(--color-surface-1)] px-2 py-1 text-sm text-[var(--color-text-primary)]" />
-            <input placeholder="IMO" value={imoDraft} onChange={(e) => setImoDraft(e.target.value)} disabled={savingVessel}
+            <input placeholder="IMO" value={imoDraft}
+              onChange={(e) => setImoDraft(e.target.value.replace(/\D/g, "").slice(0, 7))}
+              inputMode="numeric" pattern="[0-9]*" maxLength={7} disabled={savingVessel}
               className="w-24 rounded-[var(--radius-sm)] border border-[var(--color-border-default)] bg-[var(--color-surface-1)] px-2 py-1 text-xs font-mono text-[var(--color-text-primary)]" />
             <button onClick={saveVessel} disabled={savingVessel} className="p-1 text-[var(--color-success)] hover:bg-[var(--color-surface-3)] rounded cursor-pointer disabled:opacity-50">
               {savingVessel ? <div className="h-3.5 w-3.5 rounded-full border-2 border-current border-t-transparent animate-spin" /> : <Save className="h-3.5 w-3.5" />}
