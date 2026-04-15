@@ -53,6 +53,7 @@ Be precise and conservative with confidence scores:
 For dates, always output YYYY-MM-DD format. If only a month/year is given (e.g. "April 5/7"), use the current year.
 For quantities: extract TWO values. (1) quantity_mt = the numeric middle/nominal quantity in metric tonnes (e.g. for "18000 MT +/-10%" → 18000; for "37kt +/-5%" → 37000). Convert from BBLs if needed (1 MT ≈ 7.5 BBLs for gasoline). (2) contracted_qty = the full text EXACTLY as written in the recap, including units and tolerance, e.g. "18000 MT +/-10%", "37kt +/- 5%", "25,000 MT +/-10% in buyer's option". Preserve the original spacing and casing. If there is no tolerance stated, contracted_qty can be just the plain quantity string (e.g. "30,000 MT").
 For direction: "buy" means we are purchasing, "sell" means we are selling.
+For ports: ALWAYS output the full canonical port name (e.g. "Rotterdam", "Amsterdam", "Lavera", "Barcelona", "Augusta", "Thessaloniki", "Thames"). NEVER output an abbreviation. If the recap uses an abbreviation (e.g. "AMS", "Rdam", "Lvr") you must expand it. A wrong or ambiguous port name is an expensive shipping mistake.
 For pricing: extract both the pricing formula (e.g. 'Platts FOB Baltic +$5.50/MT') AND the pricing period type (BL, NOR, Fixed, or EFP) with its parameters (e.g. '0-1-5'). BL+5 is shorthand for BL 0-0-5.
 
 Pricing period edge cases:
@@ -72,8 +73,8 @@ const EXTRACTION_TOOL: Anthropic.Tool = {
       quantity_mt: { type: "number", description: "Numeric middle/nominal quantity in metric tonnes (e.g. 18000 for '18000 MT +/-10%', 37000 for '37kt +/-5%')" },
       contracted_qty: { type: "string", description: "Full contracted quantity with tolerance, EXACTLY as written in the recap including units and tolerance notation. Examples: '18000 MT +/-10%', '37kt +/- 5%', '25,000 MT +/-10% in buyer's option'. If no tolerance is stated, the plain quantity string is fine." },
       incoterm: { type: "string", enum: ["FOB", "CIF", "CFR", "DAP"], description: "Incoterm" },
-      loadport: { type: "string", description: "Loading port or terminal city" },
-      discharge_port: { type: "string", description: "Discharge port or terminal city" },
+      loadport: { type: "string", description: "Loading port or terminal city. Use the FULL port name (e.g. 'Rotterdam', 'Amsterdam', 'Lavera', 'Barcelona'). NEVER use abbreviations — port names must be unambiguous because getting a port wrong can be an expensive shipping mistake. If the recap uses an abbreviation, expand it to the full canonical name." },
+      discharge_port: { type: "string", description: "Discharge port or terminal city. Use the FULL port name, NEVER an abbreviation. Expand any abbreviations in the recap to the full canonical name." },
       laycan_start: { type: "string", description: "Laycan start date in YYYY-MM-DD format" },
       laycan_end: { type: "string", description: "Laycan end date in YYYY-MM-DD format" },
       vessel_name: { type: "string", description: "Vessel name if mentioned, null otherwise" },
