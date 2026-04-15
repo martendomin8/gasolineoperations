@@ -49,7 +49,7 @@ async function seed() {
     await sql`TRUNCATE TABLE
       audit_logs, deal_change_logs, email_drafts, workflow_steps,
       workflow_instances, workflow_templates, email_templates,
-      deal_legs, deals, parties, users, tenants
+      deal_legs, deals, linkages, parties, users, tenants
       RESTART IDENTITY CASCADE`;
     console.log("  Done.\n");
   }
@@ -57,11 +57,12 @@ async function seed() {
   // --- Tenant ---
   // Fixed UUIDs so JWT sessions survive re-seeds
   const FIXED_TENANT_ID = "00000000-0000-4000-8000-000000000001";
+  // NominationEngine is an ops tool — no trader accounts. Traders never log in.
   const FIXED_USER_IDS = {
     admin:     "00000000-0000-4000-8000-000000000010",
     operator1: "00000000-0000-4000-8000-000000000011",
     operator2: "00000000-0000-4000-8000-000000000012",
-    trader:    "00000000-0000-4000-8000-000000000013",
+    operator3: "00000000-0000-4000-8000-000000000013",
   };
 
   let tenantId = FIXED_TENANT_ID;
@@ -83,11 +84,12 @@ async function seed() {
     // --- Users ---
     const passwordHash = await bcrypt.hash("password123", 10);
 
+    // Marten = admin. Arne, Lauri, Kristjan = operators. No trader accounts.
     const usersData = [
-      { id: FIXED_USER_IDS.admin, email: "admin@eurogas.com", name: "Pieter van Dijk", role: "admin" as const },
-      { id: FIXED_USER_IDS.operator1, email: "operator@eurogas.com", name: "Marta Kask", role: "operator" as const },
-      { id: FIXED_USER_IDS.operator2, email: "operator2@eurogas.com", name: "Jan Hendriks", role: "operator" as const },
-      { id: FIXED_USER_IDS.trader, email: "trader@eurogas.com", name: "Thomas Berg", role: "trader" as const },
+      { id: FIXED_USER_IDS.admin,     email: "marten@nefgo.com",   name: "Marten",   role: "admin"    as const },
+      { id: FIXED_USER_IDS.operator1, email: "arne@nefgo.com",     name: "Arne",     role: "operator" as const },
+      { id: FIXED_USER_IDS.operator2, email: "lauri@nefgo.com",    name: "Lauri",    role: "operator" as const },
+      { id: FIXED_USER_IDS.operator3, email: "kristjan@nefgo.com", name: "Kristjan", role: "operator" as const },
     ];
 
     for (const u of usersData) {
@@ -111,7 +113,9 @@ async function seed() {
   const operator1 = { id: op1Id };
   const operator2 = { id: op2Id };
   const admin = { id: adminId };
-  const trader = { id: FIXED_USER_IDS.trader };
+  // operator3 is declared for symmetry; currently no seed data assigns to it.
+  const operator3 = { id: FIXED_USER_IDS.operator3 };
+  void operator3;
 
   // --- Parties ---
   const partiesData = [
@@ -580,13 +584,43 @@ async function seed() {
     },
   ];
 
+  // ── Create linkage rows first so deals can FK into them ─────────────────
+  // Excel + dashboard group by linkageId (UUID), NOT linkageCode string.
+  // Without real linkage rows, paired buy/sell deals don't group into a
+  // PURCHASE+SALE card and the dashboard falls back to virtual "code-" cards
+  // that open an individual deal instead of the linkage view.
+  const uniqueLinkageCodes = Array.from(
+    new Set(dealsData.map((d) => d.linkageCode).filter((c): c is string => !!c))
+  );
+  const linkageIdByCode = new Map<string, string>();
+  for (const code of uniqueLinkageCodes) {
+    // Pick the first deal with this code to inherit operator/vessel on the linkage
+    const first = dealsData.find((d) => d.linkageCode === code);
+    const [link] = await db
+      .insert(schema.linkages)
+      .values({
+        tenantId: tenantId,
+        linkageNumber: code,
+        tempName: code,
+        vesselName: first?.vesselName ?? null,
+        vesselImo: first?.vesselImo ?? null,
+        assignedOperatorId: first?.assignedOperatorId ?? null,
+        secondaryOperatorId: first?.secondaryOperatorId ?? null,
+        status: "active",
+      })
+      .returning();
+    linkageIdByCode.set(code, link.id);
+  }
+  console.log(`  Linkages: ${uniqueLinkageCodes.length} created`);
+
   for (const d of dealsData) {
     const [deal] = await db
       .insert(schema.deals)
       .values({
         ...d,
         tenantId: tenantId,
-        createdBy: trader.id,
+        linkageId: d.linkageCode ? linkageIdByCode.get(d.linkageCode) ?? null : null,
+        createdBy: admin.id,
       })
       .returning();
 
@@ -594,7 +628,7 @@ async function seed() {
     await db.insert(schema.auditLogs).values({
       tenantId: tenantId,
       dealId: deal.id,
-      userId: trader.id,
+      userId: admin.id,
       action: "deal.created",
       details: { counterparty: d.counterparty, direction: d.direction, incoterm: d.incoterm },
     });
@@ -1379,10 +1413,10 @@ EuroGas Trading BV — Operations`,
 
   console.log("=== Seed complete! ===\n");
   console.log("Test accounts (all passwords: password123):");
-  console.log("  Admin:    admin@eurogas.com");
-  console.log("  Operator: operator@eurogas.com");
-  console.log("  Operator: operator2@eurogas.com");
-  console.log("  Trader:   trader@eurogas.com");
+  console.log("  Admin:    marten@nefgo.com");
+  console.log("  Operator: arne@nefgo.com");
+  console.log("  Operator: lauri@nefgo.com");
+  console.log("  Operator: kristjan@nefgo.com");
 
   await sql.end();
   process.exit(0);
