@@ -90,7 +90,18 @@ function formatLaycan(deal: DealRow): string {
   const startDay = start.getDate().toString().padStart(2, "0");
   const endDay = end.getDate().toString().padStart(2, "0");
   const month = months[start.getMonth()];
-  return `${dir}(${deal.incoterm} ${(deal.loadport || "TBD").toUpperCase()} ${startDay}-${endDay} ${month})`;
+  // Port relevance follows the incoterm:
+  //   - FOB      → loadport (that's where the vessel loads, the only port the
+  //                operator acts on at this stage)
+  //   - CIF/CFR/DAP sell → discharge port (we're delivering; the destination
+  //                is what the ops team tracks in the spreadsheet)
+  //   - Everything else → fall back to loadport
+  const usesDischarge =
+    deal.direction === "sell" && ["CIF", "CFR", "DAP"].includes(deal.incoterm);
+  const port = usesDischarge
+    ? deal.dischargePort || deal.loadport || "TBD"
+    : deal.loadport || "TBD";
+  return `${dir}(${deal.incoterm} ${port.toUpperCase()} ${startDay}-${endDay} ${month})`;
 }
 
 function formatBLFigures(deal: DealRow): string {
