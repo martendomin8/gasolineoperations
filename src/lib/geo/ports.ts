@@ -16,23 +16,25 @@ export interface PortCoordinates {
 
 /** Known port coordinates — extend as needed */
 const PORTS: Record<string, PortCoordinates> = {
-  lavera:      { lat: 43.3857, lng: 5.0143,   label: "Lavera" },
-  fos:         { lat: 43.4370, lng: 4.9440,   label: "Fos-sur-Mer" },
-  amsterdam:   { lat: 52.3676, lng: 4.9041,   label: "Amsterdam" },
-  antwerp:     { lat: 51.2194, lng: 4.4025,   label: "Antwerp" },
-  rotterdam:   { lat: 51.9225, lng: 4.4792,   label: "Rotterdam" },
-  hamburg:     { lat: 53.5511, lng: 9.9937,   label: "Hamburg" },
-  barcelona:   { lat: 41.3851, lng: 2.1734,   label: "Barcelona" },
-  "new york":  { lat: 40.6892, lng: -74.0445, label: "New York" },
-  aliaga:      { lat: 38.8000, lng: 26.9833,  label: "Aliaga" },
-  singapore:   { lat: 1.2644,  lng: 103.8198, label: "Singapore" },
-  houston:     { lat: 29.7604, lng: -95.3698, label: "Houston" },
-  augusta:     { lat: 37.2305, lng: 15.2227,  label: "Augusta" },
-  thessaloniki:{ lat: 40.6401, lng: 22.9444,  label: "Thessaloniki" },
-  thames:      { lat: 51.4500, lng: 0.7000,   label: "Thames" },
-  marseille:   { lat: 43.2965, lng: 5.3698,   label: "Marseille" },
-  genoa:       { lat: 44.4056, lng: 8.9463,   label: "Genoa" },
-  algeciras:   { lat: 36.1408, lng: -5.4536,  label: "Algeciras" },
+  // Coordinates point to the actual port/harbor area, NOT city centers.
+  // This keeps mock vessel positions in the water instead of on land.
+  lavera:      { lat: 43.3920, lng: 4.9940,   label: "Lavera" },       // Lavera oil terminal jetty
+  fos:         { lat: 43.4050, lng: 4.9300,   label: "Fos-sur-Mer" },  // Fos port basin
+  amsterdam:   { lat: 52.4080, lng: 4.7850,   label: "Amsterdam" },    // Petroleumhaven / IJ waterway
+  antwerp:     { lat: 51.3050, lng: 4.3800,   label: "Antwerp" },      // Antwerp port oil terminals
+  rotterdam:   { lat: 51.9550, lng: 4.1300,   label: "Rotterdam" },    // Europoort / Maasvlakte
+  hamburg:     { lat: 53.5350, lng: 9.9600,   label: "Hamburg" },      // Hamburg port Elbe
+  barcelona:   { lat: 41.3580, lng: 2.1680,   label: "Barcelona" },    // Port of Barcelona
+  "new york":  { lat: 40.6600, lng: -74.0400, label: "New York" },     // NY Harbor
+  aliaga:      { lat: 38.8100, lng: 26.9600,  label: "Aliaga" },       // Aliaga refinery pier
+  singapore:   { lat: 1.2500,  lng: 103.8300, label: "Singapore" },    // Singapore Strait anchorage
+  houston:     { lat: 29.7350, lng: -95.0100, label: "Houston" },      // Houston Ship Channel
+  augusta:     { lat: 37.2100, lng: 15.2400,  label: "Augusta" },      // Augusta harbor
+  thessaloniki:{ lat: 40.6250, lng: 22.9350,  label: "Thessaloniki" }, // Thessaloniki port
+  thames:      { lat: 51.4600, lng: 0.7200,   label: "Thames" },       // Thames Estuary
+  marseille:   { lat: 43.3400, lng: 5.3500,   label: "Marseille" },    // Port of Marseille
+  genoa:       { lat: 44.4100, lng: 8.9200,   label: "Genoa" },        // Genoa port
+  algeciras:   { lat: 36.1300, lng: -5.4400,  label: "Algeciras" },    // Algeciras bay
 };
 
 /** Core terminals that always show on the map regardless of vessel presence */

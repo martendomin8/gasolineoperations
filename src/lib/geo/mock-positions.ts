@@ -54,7 +54,7 @@ export function computeMockPosition(
   // Need at least one known port
   if (!loadCoords && !dischCoords) return null;
 
-  const offset = 0.03; // ~3km offset for at-port jitter
+  const offset = 0.008; // ~800m offset — tight enough to stay in harbor waters
 
   switch (status) {
     case "active":
