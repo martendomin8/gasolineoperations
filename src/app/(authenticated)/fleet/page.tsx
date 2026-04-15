@@ -488,6 +488,11 @@ export default function FleetPage() {
 
               {/* Action */}
               <div className="px-4 py-4">
+                {selectedVessel.id.startsWith("demo-") ? (
+                <div className="text-xs text-center text-[var(--color-text-tertiary)] italic py-1">
+                  Demo vessel — no linked cargo
+                </div>
+              ) : (
                 <Button
                   variant="primary"
                   size="md"
@@ -497,6 +502,7 @@ export default function FleetPage() {
                   <ExternalLink className="h-3.5 w-3.5" />
                   Open Linkage
                 </Button>
+              )}
               </div>
             </div>
           )}
