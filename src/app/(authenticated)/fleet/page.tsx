@@ -215,7 +215,7 @@ export default function FleetPage() {
       {
         id: "demo-2", vesselName: "MT West Africa Star", vesselImo: "9654321",
         linkageCode: "068742GSS", status: "loading",
-        position: { lat: 43.42, lng: 5.05 }, heading: 180,
+        position: { lat: 43.39, lng: 4.98 }, heading: 180,  // Lavera jetty (in water)
         loadport: "Lavera", dischargePort: "New York",
         buys: [{ counterparty: "Total Energies", quantityMt: "7000", product: "Gasoline" }],
         sells: [],
@@ -235,7 +235,7 @@ export default function FleetPage() {
       {
         id: "demo-4", vesselName: "MT Besiktas Canakkale", vesselImo: "9543211",
         linkageCode: "TEMP-001", status: "active",
-        position: { lat: 51.95, lng: 4.52 }, heading: 90,
+        position: { lat: 51.96, lng: 4.05 }, heading: 90,  // Europoort anchorage (in water)
         loadport: "Rotterdam", dischargePort: "Thessaloniki",
         buys: [{ counterparty: "Vitol", quantityMt: "25000", product: "EBOB" }],
         sells: [{ counterparty: "Repsol", quantityMt: "25000", product: "EBOB" }],
@@ -245,7 +245,7 @@ export default function FleetPage() {
       {
         id: "demo-5", vesselName: "MT Nordic Ruth", vesselImo: "9234567",
         linkageCode: "022478GSS", status: "discharging",
-        position: { lat: 41.42, lng: 2.20 }, heading: 0,
+        position: { lat: 41.36, lng: 2.17 }, heading: 0,  // Barcelona port basin (in water)
         loadport: "Amsterdam", dischargePort: "Barcelona",
         buys: [],
         sells: [{ counterparty: "Cepsa", quantityMt: "15000", product: "Gasoline" }],
