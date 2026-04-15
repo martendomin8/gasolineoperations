@@ -175,9 +175,12 @@ export function FleetMapInner({ vessels, selectedVesselId, onSelectVessel }: Fle
 
   return (
     <MapContainer
-      center={[46, 8]}
+      center={[42, 10]}
       zoom={4}
-      style={{ width: "100%", height: "100%" }}
+      minZoom={2}
+      maxBounds={[[-85, -200], [85, 200]]}
+      maxBoundsViscosity={1.0}
+      style={{ width: "100%", height: "100%", background: "#0a0c10" }}
       zoomControl={true}
       attributionControl={true}
     >

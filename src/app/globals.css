@@ -205,8 +205,8 @@ th {
 
 /* ── Leaflet dark theme overrides (Fleet Map) ─────────────── */
 .leaflet-container {
-  background: #0a0c10;
-  font-family: var(--font-sans);
+  background: #0a0c10 !important;
+  font-family: var(--font-sans) !important;
 }
 .leaflet-popup-content-wrapper {
   background: #161a22;
