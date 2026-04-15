@@ -46,10 +46,13 @@ async function seed() {
 
     // --- Truncate all tables (cascade) ---
     console.log("Truncating existing data...");
+    // NOTE: users + tenants are intentionally NOT truncated.
+    // UI-created users and password changes must survive a re-seed.
+    // The fixed seed users are inserted idempotently via ON CONFLICT DO NOTHING.
     await sql`TRUNCATE TABLE
       audit_logs, deal_change_logs, email_drafts, workflow_steps,
       workflow_instances, workflow_templates, email_templates,
-      deal_legs, deals, linkages, parties, users, tenants
+      deal_legs, deals, linkages, parties
       RESTART IDENTITY CASCADE`;
     console.log("  Done.\n");
   }
@@ -71,17 +74,21 @@ async function seed() {
   let op2Id = FIXED_USER_IDS.operator2;
 
   if (!structuralOnly) {
-    const [tenant] = await db
+    // Tenant: idempotent — preserve existing settings if already present.
+    await db
       .insert(schema.tenants)
       .values({
         id: FIXED_TENANT_ID,
         name: "EuroGas Trading BV",
         settings: { defaultTimezone: "Europe/Amsterdam", currency: "USD" },
       })
-      .returning();
+      .onConflictDoNothing({ target: schema.tenants.id });
+    const [tenant] = await db.select().from(schema.tenants).where(eq(schema.tenants.id, FIXED_TENANT_ID));
     console.log(`Tenant: ${tenant.name} (${tenantId})`);
 
     // --- Users ---
+    // Idempotent: only inserts the 4 fixed seed accounts if missing.
+    // UI-created users and password changes survive a re-seed.
     const passwordHash = await bcrypt.hash("password123", 10);
 
     // Marten = admin. Arne, Lauri, Kristjan = operators. No trader accounts.
@@ -93,7 +100,7 @@ async function seed() {
     ];
 
     for (const u of usersData) {
-      const [user] = await db
+      const result = await db
         .insert(schema.users)
         .values({
           id: u.id,
@@ -103,8 +110,13 @@ async function seed() {
           passwordHash,
           role: u.role,
         })
+        .onConflictDoNothing({ target: schema.users.id })
         .returning();
-      console.log(`  User: ${user.name} (${user.email}) [${user.role}]`);
+      if (result.length > 0) {
+        console.log(`  User: ${result[0].name} (${result[0].email}) [${result[0].role}] — created`);
+      } else {
+        console.log(`  User: ${u.email} — already exists, left untouched`);
+      }
     }
   } else {
     console.log(`Using existing tenant ${FIXED_TENANT_ID}`);
@@ -150,10 +162,34 @@ async function seed() {
   }
 
   const dealsData = [
-    // ── ACTIVE (deal entered system, workflow starting) ──────────────────────
+    // ── PURCHASE+SALE #1 — 086412GSS (ops has entered the linkage number) ───
+    // Buy 30k MT Eurobob from Vitol FOB Lavera, sell all 30k to Shell CIF Amsterdam→NY.
+    {
+      externalRef: "EG-2026-042",
+      counterparty: "Vitol SA",
+      direction: "buy" as const,
+      product: "EBOB",
+      quantityMt: "30000",
+      contractedQty: "30,000 MT +/- 5%",
+      incoterm: "FOB" as const,
+      loadport: "Lavera",
+      dischargePort: "Amsterdam",
+      laycanStart: "2026-04-10",
+      laycanEnd: "2026-04-12",
+      vesselName: "MT Stena Penguin",
+      vesselImo: "9812301",
+      vesselCleared: false,
+      docInstructionsReceived: false,
+      status: "active" as const,
+      assignedOperatorId: operator1.id,
+      secondaryOperatorId: operator2.id,
+      pricingFormula: null,
+      pricingType: "NOR",
+      pricingPeriodType: "NOR",
+      pricingPeriodValue: "5-1-5",
+    },
     {
       externalRef: "EG-2026-041",
-      linkageCode: "086412GSS",
       counterparty: "Shell Trading",
       direction: "sell" as const,
       product: "EBOB",
@@ -177,138 +213,30 @@ async function seed() {
       pricingPeriodValue: "0-0-5",
       pricingEstimatedDate: "2026-04-06",
     },
+
+    // ── PURCHASE+SALE #2 — TEMP-001 (ops hasn't entered a linkage number yet) ──
+    // Buy 35k MT EBOB from Trafigura CIF Ust-Luga→Amsterdam, sell all to TotalEnergies CIF Amsterdam→Lagos.
     {
-      externalRef: "EG-2026-042",
-      linkageCode: "086412GSS",
-      counterparty: "Vitol SA",
+      externalRef: "EG-2026-034",
+      counterparty: "Trafigura",
       direction: "buy" as const,
-      product: "Reformate",
-      quantityMt: "15000",
-      contractedQty: "15,000 MT +/- 10%",
-      incoterm: "FOB" as const,
-      loadport: "Lavera",
+      product: "EBOB",
+      quantityMt: "35000",
+      incoterm: "CIF" as const,
+      loadport: "Ust-Luga",
       dischargePort: "Amsterdam",
-      laycanStart: "2026-04-10",
-      laycanEnd: "2026-04-12",
-      vesselName: "MT Stena Penguin",
-      vesselImo: "9812301",
-      vesselCleared: false,
-      docInstructionsReceived: false,
-      status: "active" as const,
-      assignedOperatorId: operator1.id,
-      secondaryOperatorId: operator2.id,
-      pricingFormula: null,
-      pricingType: "NOR",
-      pricingPeriodType: "NOR",
-      pricingPeriodValue: "5-1-5",
-    },
-    {
-      externalRef: "EG-2026-044",
-      counterparty: "Equinor Trading",
-      direction: "sell" as const,
-      product: "EBOB",
-      quantityMt: "27000",
-      incoterm: "FOB" as const,
-      loadport: "Antwerp",
-      dischargePort: "Baltimore",
-      laycanStart: "2026-04-08",
-      laycanEnd: "2026-04-10",
-      vesselName: "MT Nordic Ruth",
-      vesselImo: "9234567",
-      vesselCleared: true,
-      docInstructionsReceived: false,
-      status: "active" as const,
-      assignedOperatorId: operator2.id,
-      pricingFormula: "Platts FOB ARA +$1.75/MT",
-      pricingPeriodType: "BL",
-      pricingPeriodValue: "2-1-2",
-    },
-    {
-      externalRef: "EG-2026-045",
-      counterparty: "Litasco SA",
-      direction: "sell" as const,
-      product: "Eurobob Oxy",
-      quantityMt: "22000",
-      incoterm: "CIF" as const,
-      loadport: "Amsterdam",
-      dischargePort: "Dakar",
-      laycanStart: "2026-04-12",
-      laycanEnd: "2026-04-14",
-      vesselName: "MT Atlantic Gemini",
-      vesselImo: "9345001",
+      laycanStart: "2026-03-19",
+      laycanEnd: "2026-03-21",
+      vesselName: "MT Pacific Venus",
+      vesselImo: "9234890",
       vesselCleared: true,
       docInstructionsReceived: true,
-      status: "active" as const,
-      assignedOperatorId: operator1.id,
-      pricingFormula: "Platts CIF NWE +$14.50/MT",
-      pricingPeriodType: "NOR",
-      pricingPeriodValue: "3-1-3",
-    },
-    // ── LOADING (vessel at berth, cargo being pumped) ────────────────────────
-    {
-      externalRef: "EG-2026-038",
-      counterparty: "BP Oil International",
-      direction: "sell" as const,
-      product: "Eurobob Oxy",
-      quantityMt: "25000",
-      incoterm: "FOB" as const,
-      loadport: "Antwerp",
-      dischargePort: "Philadelphia",
-      laycanStart: "2026-03-28",
-      laycanEnd: "2026-03-30",
-      vesselName: "MT Nordic Breeze",
-      vesselImo: "9812345",
-      vesselCleared: true,
-      docInstructionsReceived: true,
-      status: "loading" as const,
+      status: "sailing" as const,
       assignedOperatorId: operator2.id,
-      pricingFormula: "Platts FOB ARA Barge +$3.00/MT",
-      pricingPeriodType: "BL",
-      pricingPeriodValue: "0-0-5",
+      pricingFormula: "Platts FOB Baltic +$4.00/MT",
+      pricingPeriodType: "EFP",
+      pricingPeriodValue: "Apr H+1",
     },
-    {
-      externalRef: "EG-2026-040",
-      counterparty: "Repsol Trading",
-      direction: "sell" as const,
-      product: "EBOB",
-      quantityMt: "33000",
-      incoterm: "CIF" as const,
-      loadport: "Amsterdam",
-      dischargePort: "Lagos",
-      laycanStart: "2026-03-29",
-      laycanEnd: "2026-03-31",
-      vesselName: "MT Eagle Barents",
-      vesselImo: "9456789",
-      vesselCleared: true,
-      docInstructionsReceived: true,
-      status: "loading" as const,
-      assignedOperatorId: operator1.id,
-      pricingFormula: "Platts CIF NWE Cargo +$9.00/MT",
-      pricingPeriodType: "BL",
-      pricingPeriodValue: "1-0-4",
-    },
-    {
-      externalRef: "EG-2026-037",
-      counterparty: "Repsol Trading",
-      direction: "buy" as const,
-      product: "Light Naphtha",
-      quantityMt: "18000",
-      incoterm: "FOB" as const,
-      loadport: "Barcelona",
-      dischargePort: "Rotterdam",
-      laycanStart: "2026-03-29",
-      laycanEnd: "2026-03-31",
-      vesselName: "MT Baltic Pioneer",
-      vesselImo: "9543210",
-      vesselCleared: true,
-      docInstructionsReceived: false,
-      status: "loading" as const,
-      assignedOperatorId: operator2.id,
-      pricingFormula: "Platts FOB Baltic +$1.50/MT",
-      pricingPeriodType: "BL",
-      pricingPeriodValue: "0-0-5",
-    },
-    // ── SAILING (cargo loaded, vessel at sea) ────────────────────────────────
     {
       externalRef: "EG-2026-035",
       counterparty: "TotalEnergies Trading",
@@ -330,27 +258,96 @@ async function seed() {
       pricingPeriodType: "NOR",
       pricingPeriodValue: "2-1-2",
     },
+
+    // ── PURCHASE+SALE #3 — TEMP-002 (ops hasn't entered a linkage number yet) ──
+    // Buy 25k MT Light Naphtha from Repsol FOB Antwerp, sell all to BP DAP Amsterdam→Philadelphia.
     {
-      externalRef: "EG-2026-033",
-      counterparty: "Freepoint Commodities",
+      externalRef: "EG-2026-037",
+      counterparty: "Repsol Trading",
+      direction: "buy" as const,
+      product: "Light Naphtha",
+      quantityMt: "25000",
+      incoterm: "FOB" as const,
+      loadport: "Antwerp",
+      dischargePort: "Amsterdam",
+      laycanStart: "2026-03-29",
+      laycanEnd: "2026-03-31",
+      vesselName: "MT Baltic Pioneer",
+      vesselImo: "9543210",
+      vesselCleared: true,
+      docInstructionsReceived: false,
+      status: "loading" as const,
+      assignedOperatorId: operator2.id,
+      pricingFormula: "Platts FOB ARA Naphtha +$1.50/MT",
+      pricingPeriodType: "BL",
+      pricingPeriodValue: "0-0-5",
+    },
+    {
+      externalRef: "EG-2026-038",
+      counterparty: "BP Oil International",
       direction: "sell" as const,
-      product: "RBOB",
-      quantityMt: "30000",
+      product: "Light Naphtha",
+      quantityMt: "25000",
       incoterm: "DAP" as const,
       loadport: "Amsterdam",
-      dischargePort: "New York",
-      laycanStart: "2026-03-18",
-      laycanEnd: "2026-03-20",
-      vesselName: "MT Celsius Mauritius",
-      vesselImo: "9501234",
+      dischargePort: "Philadelphia",
+      laycanStart: "2026-03-28",
+      laycanEnd: "2026-03-30",
+      vesselName: "MT Nordic Breeze",
+      vesselImo: "9812345",
       vesselCleared: true,
       docInstructionsReceived: true,
-      status: "sailing" as const,
+      status: "loading" as const,
       assignedOperatorId: operator2.id,
-      pricingFormula: "NYMEX RBOB -3.5 cts/gal",
-      pricingPeriodType: "Fixed",
-      pricingPeriodValue: "1-15 Mar",
-      specialInstructions: "SCAC code EGAS. Title transfers at POLB manifold.",
+      pricingFormula: "Platts CIF NWE Naphtha +$3.00/MT",
+      pricingPeriodType: "BL",
+      pricingPeriodValue: "0-0-5",
+    },
+
+    // ── PURCHASE only — standalone buy without a matched sale ────────────────
+    {
+      externalRef: "EG-2026-030",
+      counterparty: "Orlen Trading",
+      direction: "buy" as const,
+      product: "EBOB",
+      quantityMt: "20000",
+      incoterm: "CIF" as const,
+      loadport: "Ust-Luga",
+      dischargePort: "Thessaloniki",
+      laycanStart: "2026-03-15",
+      laycanEnd: "2026-03-17",
+      vesselName: "MT Besiktas Canakkale",
+      vesselImo: "9543211",
+      vesselCleared: true,
+      docInstructionsReceived: true,
+      status: "active" as const,
+      assignedOperatorId: operator2.id,
+      pricingFormula: "Platts FOB Baltic +$3.00/MT",
+      pricingPeriodType: "BL",
+      pricingPeriodValue: "0-1-5",
+    },
+
+    // ── SALE only ────────────────────────────────────────────────────────────
+    {
+      externalRef: "EG-2026-044",
+      counterparty: "Equinor Trading",
+      direction: "sell" as const,
+      product: "Eurobob Oxy",
+      quantityMt: "27000",
+      incoterm: "FOB" as const,
+      loadport: "Antwerp",
+      dischargePort: "Baltimore",
+      laycanStart: "2026-04-08",
+      laycanEnd: "2026-04-10",
+      vesselName: "MT Nordic Ruth",
+      vesselImo: "9234567",
+      vesselCleared: true,
+      docInstructionsReceived: false,
+      status: "active" as const,
+      assignedOperatorId: operator2.id,
+      pricingFormula: "Platts FOB ARA +$1.75/MT",
+      pricingPeriodType: "BL",
+      pricingPeriodValue: "2-1-2",
     },
     {
       externalRef: "EG-2026-031",
@@ -373,235 +370,46 @@ async function seed() {
       pricingPeriodType: "BL",
       pricingPeriodValue: "0-1-5",
     },
-    {
-      externalRef: "EG-2026-034",
-      counterparty: "Trafigura",
-      direction: "buy" as const,
-      product: "MTBE",
-      quantityMt: "12000",
-      incoterm: "CIF" as const,
-      loadport: "Ust-Luga",
-      dischargePort: "Amsterdam",
-      laycanStart: "2026-03-19",
-      laycanEnd: "2026-03-21",
-      vesselName: "MT Pacific Venus",
-      vesselImo: "9234890",
-      vesselCleared: true,
-      docInstructionsReceived: true,
-      status: "sailing" as const,
-      assignedOperatorId: operator2.id,
-      pricingFormula: "Platts FOB Baltic MTBE +$5.50/MT",
-      pricingPeriodType: "EFP",
-      pricingPeriodValue: "Apr H+1",
-    },
-    {
-      externalRef: "EG-2026-032",
-      counterparty: "Mercuria Energy",
-      direction: "sell" as const,
-      product: "EBOB",
-      quantityMt: "28000",
-      incoterm: "FOB" as const,
-      loadport: "Amsterdam",
-      dischargePort: "Tunis",
-      laycanStart: "2026-03-17",
-      laycanEnd: "2026-03-19",
-      vesselName: "MT CP Ambition",
-      vesselImo: "9389012",
-      vesselCleared: true,
-      docInstructionsReceived: true,
-      status: "sailing" as const,
-      assignedOperatorId: operator1.id,
-      pricingFormula: "Platts CIF MED +$4.25/MT",
-      pricingPeriodType: "BL",
-      pricingPeriodValue: "1-1-3",
-    },
-    // ── DISCHARGING (vessel at discharge port) ───────────────────────────────
-    {
-      externalRef: "EG-2026-036",
-      counterparty: "Mercuria Energy",
-      direction: "sell" as const,
-      product: "EBOB",
-      quantityMt: "32000",
-      incoterm: "CFR" as const,
-      loadport: "Augusta",
-      dischargePort: "Lome",
-      laycanStart: "2026-03-25",
-      laycanEnd: "2026-03-27",
-      vesselName: "MT African Sun",
-      vesselImo: "9345678",
-      vesselCleared: true,
-      docInstructionsReceived: true,
-      status: "discharging" as const,
-      assignedOperatorId: operator1.id,
-      pricingFormula: "Platts CFR West Africa +$12.00/MT",
-      pricingPeriodType: "NOR",
-      pricingPeriodValue: "2-0-3",
-    },
-    {
-      externalRef: "EG-2026-029",
-      counterparty: "Shell Trading",
-      direction: "sell" as const,
-      product: "RBOB",
-      quantityMt: "31000",
-      incoterm: "DAP" as const,
-      loadport: "Amsterdam",
-      dischargePort: "Houston",
-      laycanStart: "2026-03-08",
-      laycanEnd: "2026-03-10",
-      vesselName: "MT Maersk Privilege",
-      vesselImo: "9512678",
-      vesselCleared: true,
-      docInstructionsReceived: true,
-      status: "discharging" as const,
-      assignedOperatorId: operator2.id,
-      pricingFormula: "NYMEX RBOB -2.8 cts/gal",
-      pricingPeriodType: "Fixed",
-      pricingPeriodValue: "15-31 Mar",
-      specialInstructions: "LOI issued. Original B/Ls in transit via DHL.",
-    },
-    {
-      externalRef: "EG-2026-027",
-      counterparty: "Vitol SA",
-      direction: "sell" as const,
-      product: "Isomerate",
-      quantityMt: "14000",
-      incoterm: "CIF" as const,
-      loadport: "Antwerp",
-      dischargePort: "Singapore",
-      laycanStart: "2026-03-02",
-      laycanEnd: "2026-03-04",
-      vesselName: "MT SKS Tanaro",
-      vesselImo: "9423156",
-      vesselCleared: true,
-      docInstructionsReceived: true,
-      status: "discharging" as const,
-      assignedOperatorId: operator1.id,
-      pricingFormula: "Platts CIF Singapore +$18.50/MT",
-      pricingPeriodType: "BL",
-      pricingPeriodValue: "0-0-5",
-    },
-    // ── COMPLETED ────────────────────────────────────────────────────────────
-    {
-      externalRef: "EG-2026-030",
-      counterparty: "Orlen Trading",
-      direction: "buy" as const,
-      product: "Light Naphtha",
-      quantityMt: "20000",
-      incoterm: "CIF" as const,
-      loadport: "Ust-Luga",
-      dischargePort: "Thessaloniki",
-      laycanStart: "2026-03-15",
-      laycanEnd: "2026-03-17",
-      vesselName: "MT Besiktas Canakkale",
-      vesselImo: "9543210",
-      vesselCleared: true,
-      docInstructionsReceived: true,
-      status: "completed" as const,
-      assignedOperatorId: operator2.id,
-      pricingFormula: "Platts FOB Baltic LN +$3.00/MT",
-      pricingPeriodType: "BL",
-      pricingPeriodValue: "0-1-5",
-    },
-    {
-      externalRef: "EG-2026-025",
-      counterparty: "BP Oil International",
-      direction: "sell" as const,
-      product: "EBOB",
-      quantityMt: "29000",
-      incoterm: "FOB" as const,
-      loadport: "Amsterdam",
-      dischargePort: "New York",
-      laycanStart: "2026-02-28",
-      laycanEnd: "2026-03-01",
-      vesselName: "MT Nordic Hawk",
-      vesselImo: "9467234",
-      vesselCleared: true,
-      docInstructionsReceived: true,
-      status: "completed" as const,
-      assignedOperatorId: operator1.id,
-      pricingFormula: "Platts CIF NWE -$4.50/MT",
-      pricingPeriodType: "BL",
-      pricingPeriodValue: "2-1-2",
-    },
-    {
-      externalRef: "EG-2026-022",
-      counterparty: "Equinor Trading",
-      direction: "buy" as const,
-      product: "Reformate",
-      quantityMt: "16500",
-      incoterm: "FOB" as const,
-      loadport: "Thames",
-      dischargePort: "Rotterdam",
-      laycanStart: "2026-02-20",
-      laycanEnd: "2026-02-22",
-      vesselName: "MT Hafnia Atlantic",
-      vesselImo: "9298456",
-      vesselCleared: true,
-      docInstructionsReceived: true,
-      status: "completed" as const,
-      assignedOperatorId: operator2.id,
-      pricingFormula: "Platts FOB Baltic Reformate +$4.00/MT",
-      pricingPeriodType: "NOR",
-      pricingPeriodValue: "1-1-3",
-    },
-    // ── DRAFT (not yet active) ───────────────────────────────────────────────
-    {
-      externalRef: "EG-2026-043",
-      counterparty: "Trafigura",
-      direction: "sell" as const,
-      product: "RBOB",
-      quantityMt: "28000",
-      incoterm: "DAP" as const,
-      loadport: "Amsterdam",
-      dischargePort: "Houston",
-      laycanStart: "2026-04-15",
-      laycanEnd: "2026-04-17",
-      vesselName: null,
-      vesselImo: null,
-      vesselCleared: false,
-      docInstructionsReceived: false,
-      status: "draft" as const,
-      assignedOperatorId: null,
-      specialInstructions: "SCAC code required for US B/L. Buyer to provide documentary instructions.",
-    },
-    {
-      externalRef: "EG-2026-046",
-      counterparty: "Glencore Energy UK",
-      direction: "buy" as const,
-      product: "Eurobob Oxy",
-      quantityMt: "24000",
-      incoterm: "FOB" as const,
-      loadport: "Antwerp",
-      dischargePort: "Amsterdam",
-      laycanStart: "2026-04-18",
-      laycanEnd: "2026-04-20",
-      vesselName: null,
-      vesselImo: null,
-      vesselCleared: false,
-      docInstructionsReceived: false,
-      status: "draft" as const,
-      assignedOperatorId: null,
-    },
   ];
 
-  // ── Create linkage rows first so deals can FK into them ─────────────────
-  // Excel + dashboard group by linkageId (UUID), NOT linkageCode string.
-  // Without real linkage rows, paired buy/sell deals don't group into a
-  // PURCHASE+SALE card and the dashboard falls back to virtual "code-" cards
-  // that open an individual deal instead of the linkage view.
-  const uniqueLinkageCodes = Array.from(
-    new Set(dealsData.map((d) => d.linkageCode).filter((c): c is string => !!c))
-  );
-  const linkageIdByCode = new Map<string, string>();
-  for (const code of uniqueLinkageCodes) {
-    // Pick the first deal with this code to inherit operator/vessel on the linkage
-    const first = dealsData.find((d) => d.linkageCode === code);
+  // ── Create linkages for every deal ──────────────────────────────────────
+  // RULE: every deal belongs to a linkage. The `linkage_number` comes from
+  // the ops-team manually (external ETRM system) — it is NEVER in the
+  // trade recap. If ops hasn't entered it yet, the system auto-generates
+  // `TEMP-NNN` as a placeholder.
+  //
+  // Demo data simulates three states:
+  //   1. Shared linkage with ops-entered number (Vitol buy + Shell sell
+  //      under "086412GSS") — shows the "PURCHASE+SALE" grouping card.
+  //   2. Shared linkage with no ops number yet (Trafigura buy + TotalEnergies
+  //      sell under "TEMP-001") — shows ops hasn't grouped the pair yet but
+  //      the system auto-linked them.
+  //   3. Every other demo deal — its own standalone linkage, auto-TEMP name.
+  type SharedSpec = {
+    linkageNumber: string | null;
+    tempName: string;
+    externalRefs: string[];
+  };
+  const DEMO_SHARED_LINKAGES: SharedSpec[] = [
+    // Pair 1 — ops has already entered the official ETRM linkage number.
+    { linkageNumber: "086412GSS", tempName: "086412GSS", externalRefs: ["EG-2026-041", "EG-2026-042"] },
+    // Pair 2 — system auto-grouped, ops hasn't entered a number yet (TEMP-001).
+    { linkageNumber: null,        tempName: "TEMP-001",  externalRefs: ["EG-2026-034", "EG-2026-035"] },
+    // Pair 3 — same situation (TEMP-002).
+    { linkageNumber: null,        tempName: "TEMP-002",  externalRefs: ["EG-2026-037", "EG-2026-038"] },
+  ];
+
+  const linkageIdByExternalRef = new Map<string, string>();
+  let tempCounter = DEMO_SHARED_LINKAGES.filter((s) => !s.linkageNumber).length;
+
+  for (const spec of DEMO_SHARED_LINKAGES) {
+    const first = dealsData.find((d) => d.externalRef && spec.externalRefs.includes(d.externalRef));
     const [link] = await db
       .insert(schema.linkages)
       .values({
         tenantId: tenantId,
-        linkageNumber: code,
-        tempName: code,
+        linkageNumber: spec.linkageNumber,
+        tempName: spec.tempName,
         vesselName: first?.vesselName ?? null,
         vesselImo: first?.vesselImo ?? null,
         assignedOperatorId: first?.assignedOperatorId ?? null,
@@ -609,9 +417,32 @@ async function seed() {
         status: "active",
       })
       .returning();
-    linkageIdByCode.set(code, link.id);
+    for (const ref of spec.externalRefs) {
+      linkageIdByExternalRef.set(ref, link.id);
+    }
   }
-  console.log(`  Linkages: ${uniqueLinkageCodes.length} created`);
+
+  // Per-deal auto-TEMP linkages for everything else
+  for (const d of dealsData) {
+    if (!d.externalRef || linkageIdByExternalRef.has(d.externalRef)) continue;
+    tempCounter += 1;
+    const tempName = `TEMP-${String(tempCounter).padStart(3, "0")}`;
+    const [link] = await db
+      .insert(schema.linkages)
+      .values({
+        tenantId: tenantId,
+        linkageNumber: null,
+        tempName,
+        vesselName: d.vesselName ?? null,
+        vesselImo: d.vesselImo ?? null,
+        assignedOperatorId: d.assignedOperatorId ?? null,
+        secondaryOperatorId: d.secondaryOperatorId ?? null,
+        status: "active",
+      })
+      .returning();
+    linkageIdByExternalRef.set(d.externalRef, link.id);
+  }
+  console.log(`  Linkages: ${linkageIdByExternalRef.size > 0 ? new Set(linkageIdByExternalRef.values()).size : 0} created (3 shared pairs + rest auto-TEMP)`);
 
   for (const d of dealsData) {
     const [deal] = await db
@@ -619,7 +450,7 @@ async function seed() {
       .values({
         ...d,
         tenantId: tenantId,
-        linkageId: d.linkageCode ? linkageIdByCode.get(d.linkageCode) ?? null : null,
+        linkageId: d.externalRef ? linkageIdByExternalRef.get(d.externalRef) ?? null : null,
         createdBy: admin.id,
       })
       .returning();
@@ -661,26 +492,6 @@ async function seed() {
     ]);
   }
 
-  // Mercuria discharging deal — quantity amendment
-  const mercuriaDeal = allDeals.find((d) => d.counterparty === "Mercuria Energy" && d.status === "discharging");
-  if (mercuriaDeal) {
-    await db.insert(schema.dealChangeLogs).values([
-      { tenantId: tenantId, dealId: mercuriaDeal.id, fieldChanged: "quantityMt", oldValue: "32000", newValue: "31850", changedBy: operator1.id },
-    ]);
-    await db.insert(schema.auditLogs).values([
-      { tenantId: tenantId, dealId: mercuriaDeal.id, userId: operator1.id, action: "deal.updated", details: { changes: { quantityMt: { from: "32000", to: "31850" } } } },
-      { tenantId: tenantId, dealId: mercuriaDeal.id, userId: operator1.id, action: "deal.status_changed", details: { from: "sailing", to: "discharging" } },
-    ]);
-  }
-
-  // Freepoint sailing deal — LOI issued
-  const freepointDeal = allDeals.find((d) => d.counterparty === "Freepoint Commodities");
-  if (freepointDeal) {
-    await db.insert(schema.auditLogs).values([
-      { tenantId: tenantId, dealId: freepointDeal.id, userId: operator2.id, action: "deal.status_changed", details: { from: "active", to: "loading" } },
-      { tenantId: tenantId, dealId: freepointDeal.id, userId: operator2.id, action: "deal.status_changed", details: { from: "loading", to: "sailing" } },
-    ]);
-  }
 
   console.log("  Change logs and audit entries added\n");
 

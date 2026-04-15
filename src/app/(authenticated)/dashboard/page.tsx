@@ -86,8 +86,11 @@ function formatLaycanShort(start: string, end: string): string {
 
 function formatQty(deal: DealItem): string {
   const qty = deal.nominatedQty ?? deal.contractedQty ?? `${deal.quantityMt}`;
-  // Strip trailing ".00" etc
-  const num = parseFloat(qty);
+  // contractedQty often looks like "30,000 MT +/- 5%" — parseFloat stops at
+  // the comma and returns 30 instead of 30000. Extract digits (and decimal
+  // point) from the first numeric run, commas stripped.
+  const match = qty.replace(/,/g, "").match(/-?\d+(\.\d+)?/);
+  const num = match ? parseFloat(match[0]) : NaN;
   if (isNaN(num)) return qty;
   return num >= 1000 ? `${(num / 1000).toFixed(num % 1000 === 0 ? 0 : 1)}k MT` : `${num} MT`;
 }
