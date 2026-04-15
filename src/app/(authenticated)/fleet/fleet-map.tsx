@@ -143,13 +143,29 @@ function computeRouteArc(
 
 // ── Component ────────────────────────────────────────────────
 
+export interface PortMarker {
+  name: string;
+  port: string;
+  type: string; // terminal, agent, inspector, broker
+  lat: number;
+  lng: number;
+}
+
 interface FleetMapProps {
   vessels: FleetVessel[];
+  portMarkers: PortMarker[];
   selectedVesselId: string | null;
   onSelectVessel: (id: string | null) => void;
 }
 
-export function FleetMapInner({ vessels, selectedVesselId, onSelectVessel }: FleetMapProps) {
+const PORT_TYPE_COLORS: Record<string, string> = {
+  terminal: "#FFB000",
+  agent: "#3b82f6",
+  inspector: "#22c55e",
+  broker: "#a855f7",
+};
+
+export function FleetMapInner({ vessels, portMarkers, selectedVesselId, onSelectVessel }: FleetMapProps) {
   // Compute route lines for vessels with both ports
   const routes = useMemo(() => {
     return vessels
@@ -204,23 +220,45 @@ export function FleetMapInner({ vessels, selectedVesselId, onSelectVessel }: Fle
         />
       ))}
 
-      {/* Core terminal markers — always visible */}
-      {CORE_TERMINALS.map((t) => (
+      {/* Port markers from Parties database */}
+      {portMarkers.map((p) => {
+        const color = PORT_TYPE_COLORS[p.type] ?? "#6B7280";
+        return (
+          <CircleMarker
+            key={`${p.port}-${p.type}`}
+            center={[p.lat, p.lng]}
+            radius={p.type === "terminal" ? 5 : 4}
+            pathOptions={{
+              color: `${color}60`,
+              fillColor: color,
+              fillOpacity: p.type === "terminal" ? 0.3 : 0.15,
+              weight: 1,
+            }}
+          >
+            <Tooltip permanent={p.type === "terminal"} direction="right" offset={[10, 0]}>
+              <div style={{ lineHeight: 1.2 }}>
+                <span style={{ fontSize: "10px", color, fontWeight: 600, letterSpacing: "0.3px" }}>
+                  {p.port.toUpperCase()}
+                </span>
+                <div style={{ fontSize: "9px", color: "#6B7280", textTransform: "capitalize" }}>
+                  {p.type}
+                </div>
+              </div>
+            </Tooltip>
+          </CircleMarker>
+        );
+      })}
+
+      {/* Fallback: core terminals if no parties loaded */}
+      {portMarkers.length === 0 && CORE_TERMINALS.map((t) => (
         <CircleMarker
           key={t.label}
           center={[t.lat, t.lng]}
           radius={5}
-          pathOptions={{
-            color: "#FFB00060",
-            fillColor: "#FFB000",
-            fillOpacity: 0.2,
-            weight: 1,
-          }}
+          pathOptions={{ color: "#FFB00060", fillColor: "#FFB000", fillOpacity: 0.2, weight: 1 }}
         >
           <Tooltip permanent direction="right" offset={[10, 0]}>
-            <span style={{ fontSize: "10px", color: "#FFB000", fontWeight: 500, letterSpacing: "0.5px" }}>
-              {t.label.toUpperCase()}
-            </span>
+            <span style={{ fontSize: "10px", color: "#FFB000", fontWeight: 500 }}>{t.label.toUpperCase()}</span>
           </Tooltip>
         </CircleMarker>
       ))}

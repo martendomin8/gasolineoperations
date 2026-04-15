@@ -102,6 +102,9 @@ export default function FleetPage() {
   const [selectedVesselId, setSelectedVesselId] = useState<string | null>(null);
   const [operatorFilter, setOperatorFilter] = useState<string | null>(null);
 
+  // Port markers from parties (terminals, agents, inspectors, brokers)
+  const [portMarkers, setPortMarkers] = useState<Array<{ name: string; port: string; type: string; lat: number; lng: number }>>([]);
+
   const fetchData = useCallback(() => {
     const t = Date.now();
     Promise.all([
@@ -111,14 +114,33 @@ export default function FleetPage() {
       fetch(`/api/deals?perPage=200&_t=${t}`, { cache: "no-store" }).then((r) =>
         r.ok ? (r.json() as Promise<{ items: DealItem[] }>) : { items: [] }
       ),
+      fetch(`/api/parties?_t=${t}`, { cache: "no-store" }).then((r) =>
+        r.ok ? r.json() : []
+      ),
     ])
-      .then(([lr, dd]) => {
+      .then(([lr, dd, partiesData]) => {
         setLinkageRows(lr as LinkageRow[]);
         setAllDeals(
           ((dd as { items: DealItem[] }).items ?? []).filter(
             (d) => d.status !== "completed" && d.status !== "cancelled"
           )
         );
+        // Resolve party ports to coordinates
+        const rawParties: Array<{ name: string; port: string | null; type: string }> =
+          Array.isArray(partiesData) ? partiesData : [...(partiesData.matched ?? []), ...(partiesData.rest ?? [])];
+        const resolved: typeof portMarkers = [];
+        const seen = new Set<string>();
+        for (const p of rawParties) {
+          if (!p.port) continue;
+          const key = p.port.toLowerCase();
+          if (seen.has(key)) continue;
+          seen.add(key);
+          const coords = findPortCoordinates(p.port);
+          if (coords) {
+            resolved.push({ name: p.name, port: p.port, type: p.type, lat: coords.lat, lng: coords.lng });
+          }
+        }
+        setPortMarkers(resolved);
       })
       .finally(() => setLoading(false));
   }, []);
@@ -320,6 +342,7 @@ export default function FleetPage() {
           ) : (
             <FleetMapInner
               vessels={vessels}
+              portMarkers={portMarkers}
               selectedVesselId={selectedVesselId}
               onSelectVessel={setSelectedVesselId}
             />
