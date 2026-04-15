@@ -197,8 +197,10 @@ export default function FleetPage() {
   // Stats — computed before demo injection so demo vessels also count
   const statusCounts: Record<string, number> = {};
 
-  // If no vessels resolved from real data, show demo fleet so the map isn't empty
-  if (vessels.length === 0 && !loading) {
+  // Always inject demo fleet for prototype — ensures the map is never empty
+  // and showcases the different status markers. Real vessels from API data
+  // are shown alongside if they resolve. Remove this block in Phase 2.
+  if (!loading) {
     const demoFleet: FleetVessel[] = [
       {
         id: "demo-1", vesselName: "MT Hafnia Polar", vesselImo: "9786543",
@@ -285,7 +287,7 @@ export default function FleetPage() {
   }
 
   return (
-    <div className="flex flex-col -m-6 h-[calc(100vh-1px)]">
+    <div className="flex flex-col -m-6" style={{ height: "calc(100vh - 48px)" }}>
       {/* Header */}
       <div className="flex items-center justify-between px-5 py-2.5 bg-[var(--color-surface-1)] border-b border-[var(--color-border-subtle)] flex-shrink-0 z-[1100] relative">
         <div className="flex items-center gap-3">

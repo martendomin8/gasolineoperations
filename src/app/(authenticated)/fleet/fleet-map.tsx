@@ -196,7 +196,7 @@ export function FleetMapInner({ vessels, portMarkers, selectedVesselId, onSelect
       minZoom={2}
       maxBounds={[[-85, -200], [85, 200]]}
       maxBoundsViscosity={1.0}
-      style={{ width: "100%", height: "100%", background: "#0a0c10" }}
+      style={{ width: "100%", height: "100%", background: "#0a0c10", zIndex: 0 }}
       zoomControl={true}
       attributionControl={true}
     >
