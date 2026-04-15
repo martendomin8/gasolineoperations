@@ -76,6 +76,21 @@ interface LinkageRow {
   vesselImo?: string | null;
 }
 
+// ── Geo helpers ──────────────────────────────────────────────
+
+/** Haversine distance in nautical miles */
+function distanceNM(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 3440.065; // Earth radius in NM
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+const TANKER_SPEED_KN = 13; // typical MR tanker cruising speed
+
 // ── Helpers ──────────────────────────────────────────────────
 
 function daysUntil(dateStr: string): number {
@@ -191,6 +206,9 @@ export default function FleetPage() {
       assignedOperatorName: card.assignedOperatorName,
       product: card.product,
       isUrgent,
+      etaHours: (card.status === "sailing" && dischCoords)
+        ? Math.round(distanceNM(position.lat, position.lng, dischCoords.lat, dischCoords.lng) / TANKER_SPEED_KN)
+        : null,
     });
   }
 
@@ -211,16 +229,18 @@ export default function FleetPage() {
         sells: [{ counterparty: "Shell", quantityMt: "30000", product: "EBOB" }],
         earliestLaycan: "2026-04-18", latestLaycanEnd: "2026-04-20",
         assignedOperatorName: "AT", product: "Reformate", isUrgent: true,
+        etaHours: 18,  // ~18h Lavera→Barcelona at 13kn
       },
       {
         id: "demo-2", vesselName: "MT West Africa Star", vesselImo: "9654321",
         linkageCode: "068742GSS", status: "loading",
-        position: { lat: 43.39, lng: 4.98 }, heading: 180,  // Lavera jetty (in water)
+        position: { lat: 43.39, lng: 4.98 }, heading: 180,
         loadport: "Lavera", dischargePort: "New York",
         buys: [{ counterparty: "Total Energies", quantityMt: "7000", product: "Gasoline" }],
         sells: [],
         earliestLaycan: "2026-04-04", latestLaycanEnd: "2026-04-06",
         assignedOperatorName: "KK", product: "Gasoline", isUrgent: false,
+        etaHours: null,  // at port, not sailing
       },
       {
         id: "demo-3", vesselName: "MT Nordic Breeze", vesselImo: "9812345",
@@ -231,26 +251,29 @@ export default function FleetPage() {
         sells: [{ counterparty: "NNPC", quantityMt: "11438", product: "Gasoline" }],
         earliestLaycan: "2026-04-20", latestLaycanEnd: "2026-04-25",
         assignedOperatorName: "MK", product: "Gasoline", isUrgent: false,
+        etaHours: 192,  // ~8 days transatlantic
       },
       {
         id: "demo-4", vesselName: "MT Besiktas Canakkale", vesselImo: "9543211",
         linkageCode: "TEMP-001", status: "active",
-        position: { lat: 51.96, lng: 4.05 }, heading: 90,  // Europoort anchorage (in water)
+        position: { lat: 51.96, lng: 4.05 }, heading: 90,
         loadport: "Rotterdam", dischargePort: "Thessaloniki",
         buys: [{ counterparty: "Vitol", quantityMt: "25000", product: "EBOB" }],
         sells: [{ counterparty: "Repsol", quantityMt: "25000", product: "EBOB" }],
         earliestLaycan: "2026-04-22", latestLaycanEnd: "2026-04-24",
         assignedOperatorName: "AT", product: "EBOB", isUrgent: false,
+        etaHours: null,  // at port
       },
       {
         id: "demo-5", vesselName: "MT Nordic Ruth", vesselImo: "9234567",
         linkageCode: "022478GSS", status: "discharging",
-        position: { lat: 41.36, lng: 2.17 }, heading: 0,  // Barcelona port basin (in water)
+        position: { lat: 41.36, lng: 2.17 }, heading: 0,
         loadport: "Amsterdam", dischargePort: "Barcelona",
         buys: [],
         sells: [{ counterparty: "Cepsa", quantityMt: "15000", product: "Gasoline" }],
         earliestLaycan: "2026-04-15", latestLaycanEnd: "2026-04-17",
         assignedOperatorName: "KK", product: "Gasoline", isUrgent: true,
+        etaHours: null,  // already at discharge
       },
       {
         id: "demo-6", vesselName: "MT Ardmore Seatrader", vesselImo: "9678901",
@@ -261,6 +284,7 @@ export default function FleetPage() {
         sells: [{ counterparty: "Saras", quantityMt: "12000", product: "Naphtha" }],
         earliestLaycan: "2026-04-25", latestLaycanEnd: "2026-04-27",
         assignedOperatorName: "MK", product: "Naphtha", isUrgent: false,
+        etaHours: 42,  // ~42h Lavera→Augusta
       },
     ];
     vessels.push(...demoFleet);
@@ -420,6 +444,42 @@ export default function FleetPage() {
                       </div>
                     </div>
                   </div>
+                </div>
+              )}
+
+              {/* ETA to destination */}
+              {selectedVessel.etaHours != null && (
+                <div className="px-4 py-3 border-b border-[var(--color-border-subtle)]">
+                  <div className="text-[0.625rem] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider mb-2">ETA to Destination</div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-mono font-bold text-[var(--color-text-primary)]">
+                      {selectedVessel.etaHours < 24
+                        ? `${selectedVessel.etaHours}h`
+                        : `${Math.floor(selectedVessel.etaHours / 24)}d ${selectedVessel.etaHours % 24}h`}
+                    </span>
+                    <span className="text-[0.625rem] text-[var(--color-text-tertiary)]">
+                      ~{Math.round(selectedVessel.etaHours * TANKER_SPEED_KN)} NM remaining
+                    </span>
+                  </div>
+                  <div className="mt-1.5 h-1.5 rounded-full bg-[var(--color-surface-3)] overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all"
+                      style={{
+                        width: `${Math.max(5, Math.min(95, 100 - (selectedVessel.etaHours / 240) * 100))}%`,
+                        backgroundColor: STATUS_COLORS[selectedVessel.status] ?? "#6B7280",
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+              {selectedVessel.status !== "sailing" && selectedVessel.etaHours == null && (
+                <div className="px-4 py-3 border-b border-[var(--color-border-subtle)]">
+                  <div className="text-[0.625rem] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider mb-1">ETA</div>
+                  <span className="text-xs text-[var(--color-text-tertiary)] italic">
+                    {selectedVessel.status === "loading" ? "At loadport — awaiting departure" :
+                     selectedVessel.status === "discharging" ? "At discharge port" :
+                     selectedVessel.status === "active" ? "Vessel not yet sailing" : "—"}
+                  </span>
                 </div>
               )}
 

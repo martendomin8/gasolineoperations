@@ -38,6 +38,8 @@ export interface FleetVessel {
   assignedOperatorName: string | null;
   product: string | null;
   isUrgent: boolean;
+  /** Estimated hours to discharge port (null if not sailing or no discharge coords) */
+  etaHours: number | null;
 }
 
 // ── Status colors (from globals.css --color-status-*) ────────
