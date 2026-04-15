@@ -215,82 +215,44 @@ export default function FleetPage() {
   // Stats — computed before demo injection so demo vessels also count
   const statusCounts: Record<string, number> = {};
 
-  // Always inject demo fleet for prototype — ensures the map is never empty
-  // and showcases the different status markers. Real vessels from API data
-  // are shown alongside if they resolve. Remove this block in Phase 2.
+  // Inject demo fleet for prototype — but match against real linkages by
+  // vessel name so "Open Linkage" navigates to the actual DB linkage, not
+  // a fake "demo-X" ID. Skip any demo vessel that already resolved from
+  // real data (prevents duplicates).
   if (!loading) {
-    const demoFleet: FleetVessel[] = [
-      {
-        id: "demo-1", vesselName: "MT Hafnia Polar", vesselImo: "9786543",
-        linkageCode: "086412GSS", status: "sailing",
-        position: { lat: 39.5, lng: 3.2 }, heading: 225,
-        loadport: "Lavera", dischargePort: "Barcelona",
-        buys: [{ counterparty: "SOCAR", quantityMt: "37000", product: "Reformate" }],
-        sells: [{ counterparty: "Shell", quantityMt: "30000", product: "EBOB" }],
-        earliestLaycan: "2026-04-18", latestLaycanEnd: "2026-04-20",
-        assignedOperatorName: "AT", product: "Reformate", isUrgent: true,
-        etaHours: 18,  // ~18h Lavera→Barcelona at 13kn
-      },
-      {
-        id: "demo-2", vesselName: "MT West Africa Star", vesselImo: "9654321",
-        linkageCode: "068742GSS", status: "loading",
-        position: { lat: 43.39, lng: 4.98 }, heading: 180,
-        loadport: "Lavera", dischargePort: "New York",
-        buys: [{ counterparty: "Total Energies", quantityMt: "7000", product: "Gasoline" }],
-        sells: [],
-        earliestLaycan: "2026-04-04", latestLaycanEnd: "2026-04-06",
-        assignedOperatorName: "KK", product: "Gasoline", isUrgent: false,
-        etaHours: null,  // at port, not sailing
-      },
-      {
-        id: "demo-3", vesselName: "MT Nordic Breeze", vesselImo: "9812345",
-        linkageCode: "064457GSS", status: "sailing",
-        position: { lat: 48.2, lng: -12.5 }, heading: 260,
-        loadport: "Antwerp", dischargePort: "Houston",
-        buys: [{ counterparty: "Holborn", quantityMt: "11438", product: "Gasoline" }],
-        sells: [{ counterparty: "NNPC", quantityMt: "11438", product: "Gasoline" }],
-        earliestLaycan: "2026-04-20", latestLaycanEnd: "2026-04-25",
-        assignedOperatorName: "MK", product: "Gasoline", isUrgent: false,
-        etaHours: 192,  // ~8 days transatlantic
-      },
-      {
-        id: "demo-4", vesselName: "MT Besiktas Canakkale", vesselImo: "9543211",
-        linkageCode: "TEMP-001", status: "active",
-        position: { lat: 51.96, lng: 4.05 }, heading: 90,
-        loadport: "Rotterdam", dischargePort: "Thessaloniki",
-        buys: [{ counterparty: "Vitol", quantityMt: "25000", product: "EBOB" }],
-        sells: [{ counterparty: "Repsol", quantityMt: "25000", product: "EBOB" }],
-        earliestLaycan: "2026-04-22", latestLaycanEnd: "2026-04-24",
-        assignedOperatorName: "AT", product: "EBOB", isUrgent: false,
-        etaHours: null,  // at port
-      },
-      {
-        id: "demo-5", vesselName: "MT Nordic Ruth", vesselImo: "9234567",
-        linkageCode: "022478GSS", status: "discharging",
-        position: { lat: 41.36, lng: 2.17 }, heading: 0,
-        loadport: "Amsterdam", dischargePort: "Barcelona",
-        buys: [],
-        sells: [{ counterparty: "Cepsa", quantityMt: "15000", product: "Gasoline" }],
-        earliestLaycan: "2026-04-15", latestLaycanEnd: "2026-04-17",
-        assignedOperatorName: "KK", product: "Gasoline", isUrgent: true,
-        etaHours: null,  // already at discharge
-      },
-      {
-        id: "demo-6", vesselName: "MT Ardmore Seatrader", vesselImo: "9678901",
-        linkageCode: "097284GSL", status: "sailing",
-        position: { lat: 36.8, lng: 14.5 }, heading: 135,
-        loadport: "Lavera", dischargePort: "Augusta",
-        buys: [{ counterparty: "Litasco", quantityMt: "12000", product: "Naphtha" }],
-        sells: [{ counterparty: "Saras", quantityMt: "12000", product: "Naphtha" }],
-        earliestLaycan: "2026-04-25", latestLaycanEnd: "2026-04-27",
-        assignedOperatorName: "MK", product: "Naphtha", isUrgent: false,
-        etaHours: 42,  // ~42h Lavera→Augusta
-      },
+    const realVesselNames = new Set(vessels.map((v) => v.vesselName.toLowerCase()));
+
+    // Build a lookup: vessel name → real linkage ID from the API data
+    const vesselToLinkage = new Map<string, { id: string; code: string }>();
+    for (const row of linkageRows) {
+      if (row.vesselName) {
+        vesselToLinkage.set(row.vesselName.toLowerCase(), {
+          id: row.id,
+          code: row.linkageNumber ?? row.tempName ?? "—",
+        });
+      }
+    }
+
+    const demoFleet: Array<Omit<FleetVessel, "id" | "linkageCode">> = [
+      { vesselName: "MT Hafnia Polar", vesselImo: "9786543", status: "sailing", position: { lat: 39.5, lng: 3.2 }, heading: 225, loadport: "Lavera", dischargePort: "Barcelona", buys: [{ counterparty: "SOCAR", quantityMt: "37000", product: "Reformate" }], sells: [{ counterparty: "Shell", quantityMt: "30000", product: "EBOB" }], earliestLaycan: "2026-04-18", latestLaycanEnd: "2026-04-20", assignedOperatorName: "AT", product: "Reformate", isUrgent: true, etaHours: 18 },
+      { vesselName: "MT West Africa Star", vesselImo: "9654321", status: "loading", position: { lat: 43.39, lng: 4.98 }, heading: 180, loadport: "Lavera", dischargePort: "New York", buys: [{ counterparty: "Total Energies", quantityMt: "7000", product: "Gasoline" }], sells: [], earliestLaycan: "2026-04-04", latestLaycanEnd: "2026-04-06", assignedOperatorName: "KK", product: "Gasoline", isUrgent: false, etaHours: null },
+      { vesselName: "MT Nordic Breeze", vesselImo: "9812345", status: "sailing", position: { lat: 48.2, lng: -12.5 }, heading: 260, loadport: "Antwerp", dischargePort: "Houston", buys: [{ counterparty: "Holborn", quantityMt: "11438", product: "Gasoline" }], sells: [{ counterparty: "NNPC", quantityMt: "11438", product: "Gasoline" }], earliestLaycan: "2026-04-20", latestLaycanEnd: "2026-04-25", assignedOperatorName: "MK", product: "Gasoline", isUrgent: false, etaHours: 192 },
+      { vesselName: "MT Besiktas Canakkale", vesselImo: "9543211", status: "active", position: { lat: 51.96, lng: 4.05 }, heading: 90, loadport: "Rotterdam", dischargePort: "Thessaloniki", buys: [{ counterparty: "Vitol", quantityMt: "25000", product: "EBOB" }], sells: [{ counterparty: "Repsol", quantityMt: "25000", product: "EBOB" }], earliestLaycan: "2026-04-22", latestLaycanEnd: "2026-04-24", assignedOperatorName: "AT", product: "EBOB", isUrgent: false, etaHours: null },
+      { vesselName: "MT Nordic Ruth", vesselImo: "9234567", status: "discharging", position: { lat: 41.36, lng: 2.17 }, heading: 0, loadport: "Amsterdam", dischargePort: "Barcelona", buys: [], sells: [{ counterparty: "Cepsa", quantityMt: "15000", product: "Gasoline" }], earliestLaycan: "2026-04-15", latestLaycanEnd: "2026-04-17", assignedOperatorName: "KK", product: "Gasoline", isUrgent: true, etaHours: null },
+      { vesselName: "MT Ardmore Seatrader", vesselImo: "9678901", status: "sailing", position: { lat: 36.8, lng: 14.5 }, heading: 135, loadport: "Lavera", dischargePort: "Augusta", buys: [{ counterparty: "Litasco", quantityMt: "12000", product: "Naphtha" }], sells: [{ counterparty: "Saras", quantityMt: "12000", product: "Naphtha" }], earliestLaycan: "2026-04-25", latestLaycanEnd: "2026-04-27", assignedOperatorName: "MK", product: "Naphtha", isUrgent: false, etaHours: 42 },
     ];
-    vessels.push(...demoFleet);
-    // Recompute stats
-    for (const v of demoFleet) {
-      statusCounts[v.status] = (statusCounts[v.status] ?? 0) + 1;
+
+    for (const d of demoFleet) {
+      // Skip if this vessel already resolved from real API data
+      if (realVesselNames.has(d.vesselName.toLowerCase())) continue;
+
+      // Try to match to a real linkage by vessel name
+      const match = vesselToLinkage.get(d.vesselName.toLowerCase());
+      const id = match?.id ?? `demo-${d.vesselName.replace(/\s+/g, "-").toLowerCase()}`;
+      const linkageCode = match?.code ?? d.vesselName;
+
+      vessels.push({ ...d, id, linkageCode } as FleetVessel);
+      statusCounts[d.status] = (statusCounts[d.status] ?? 0) + 1;
     }
   }
 
