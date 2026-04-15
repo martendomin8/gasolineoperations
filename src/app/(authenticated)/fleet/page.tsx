@@ -3,24 +3,27 @@
 /**
  * /fleet — Fleet Map showing vessel positions on a dark world map.
  *
- * Phase 1 (prototype): Mock positions computed from deal loadport/dischargePort
- * and linkage status. No real AIS data yet.
- *
- * Phase 2: Integrate aisstream.io (free) or MarineTraffic API (enterprise).
+ * Design critique improvements:
+ * - Right-side detail panel instead of floating bottom-left card
+ * - Route polylines from loadport → dischargePort
+ * - Filled markers with glow halos + pulse for urgent vessels
+ * - Permanent vessel name labels
+ * - On-map status legend
  */
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
-import { Ship, X, ExternalLink, MapPin, AlertTriangle } from "lucide-react";
+import { Ship, X, ExternalLink, MapPin, AlertTriangle, Anchor, ArrowRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { buildLinkageCards } from "@/app/(authenticated)/dashboard/page";
 import { findPortCoordinates } from "@/lib/geo/ports";
 import { computeMockPosition } from "@/lib/geo/mock-positions";
+import { STATUS_COLORS, STATUS_LABELS } from "./fleet-map";
 import type { FleetVessel } from "./fleet-map";
 
-// Dynamic import with SSR disabled — Leaflet requires `window`
+// Dynamic import — Leaflet requires `window`
 const FleetMapInner = dynamic(
   () => import("./fleet-map").then((m) => m.FleetMapInner),
   {
@@ -33,7 +36,7 @@ const FleetMapInner = dynamic(
   }
 );
 
-// ── Types matching dashboard interfaces ──────────────────────
+// ── Types ────────────────────────────────────────────────────
 
 interface DealItem {
   id: string;
@@ -89,14 +92,6 @@ function formatQty(qty: string): string {
   return num >= 1000 ? `${(num / 1000).toFixed(num % 1000 === 0 ? 0 : 1)}k` : `${num}`;
 }
 
-const STATUS_LABELS: Record<string, string> = {
-  active: "Active",
-  loading: "Loading",
-  sailing: "Sailing",
-  discharging: "Discharging",
-  completed: "Completed",
-};
-
 // ── Page ─────────────────────────────────────────────────────
 
 export default function FleetPage() {
@@ -128,53 +123,35 @@ export default function FleetPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+  useEffect(() => { fetchData(); }, [fetchData]);
 
-  // Build linkage cards using the same function as the dashboard
   const cards = buildLinkageCards(linkageRows as any, allDeals as any);
 
-  // Apply operator filter
   const filteredCards = operatorFilter
     ? cards.filter((c) => !c.assignedOperatorId || c.assignedOperatorId === operatorFilter)
     : cards;
 
-  // Build FleetVessel array from cards
+  // Build FleetVessel array
   const vessels: FleetVessel[] = [];
   const unlocated: string[] = [];
 
   for (const card of filteredCards) {
     if (!card.vessel) continue;
 
-    // Find representative loadport and dischargePort from deals
     const allCardDeals = [...card.buys, ...card.sells];
     const loadport = allCardDeals.find((d) => d.loadport)?.loadport ?? null;
     const dischargePort = allCardDeals.find((d) => d.dischargePort)?.dischargePort ?? null;
-
     const loadCoords = findPortCoordinates(loadport);
     const dischCoords = findPortCoordinates(dischargePort);
 
-    const position = computeMockPosition(
-      card.status,
-      card.vessel + card.id,
-      loadCoords,
-      dischCoords
-    );
+    const position = computeMockPosition(card.status, card.vessel + card.id, loadCoords, dischCoords);
+    if (!position) { unlocated.push(card.vessel); continue; }
 
-    if (!position) {
-      unlocated.push(card.vessel);
-      continue;
-    }
-
-    // Get vessel IMO from linkage row
     const linkageRow = linkageRows.find((r) => r.id === card.id);
+    const laycanEnds = allCardDeals.map((d) => (d as DealItem).laycanEnd).filter(Boolean).sort();
 
-    // Find the latest laycan end across all deals
-    const laycanEnds = allCardDeals
-      .map((d) => (d as DealItem).laycanEnd)
-      .filter(Boolean)
-      .sort();
+    // Urgency: laycan ≤3 days
+    const isUrgent = card.earliestLaycan ? daysUntil(card.earliestLaycan) >= 0 && daysUntil(card.earliestLaycan) <= 3 : false;
 
     vessels.push({
       id: card.id,
@@ -184,28 +161,19 @@ export default function FleetPage() {
       status: card.status,
       position: { lat: position.lat, lng: position.lng },
       heading: position.heading,
-      loadport,
-      dischargePort,
-      buys: card.buys.map((d) => ({
-        counterparty: d.counterparty,
-        quantityMt: d.quantityMt,
-        product: d.product,
-      })),
-      sells: card.sells.map((d) => ({
-        counterparty: d.counterparty,
-        quantityMt: d.quantityMt,
-        product: d.product,
-      })),
+      loadport, dischargePort,
+      buys: card.buys.map((d) => ({ counterparty: d.counterparty, quantityMt: d.quantityMt, product: d.product })),
+      sells: card.sells.map((d) => ({ counterparty: d.counterparty, quantityMt: d.quantityMt, product: d.product })),
       earliestLaycan: card.earliestLaycan,
       latestLaycanEnd: laycanEnds[laycanEnds.length - 1] ?? null,
       assignedOperatorName: card.assignedOperatorName,
       product: card.product,
+      isUrgent,
     });
   }
 
   const selectedVessel = vessels.find((v) => v.id === selectedVesselId) ?? null;
 
-  // Operator options
   const operatorOptions = Array.from(
     new Map(
       linkageRows
@@ -216,32 +184,39 @@ export default function FleetPage() {
 
   // Stats
   const statusCounts: Record<string, number> = {};
+  const urgentCount = vessels.filter((v) => v.isUrgent).length;
   for (const v of vessels) {
     statusCounts[v.status] = (statusCounts[v.status] ?? 0) + 1;
   }
 
   return (
     <div className="flex flex-col -m-6 h-[calc(100vh-1px)]">
-      {/* Header bar */}
-      <div className="flex items-center justify-between px-5 py-3 bg-[var(--color-surface-1)] border-b border-[var(--color-border-subtle)] flex-shrink-0 z-10">
+      {/* Header */}
+      <div className="flex items-center justify-between px-5 py-2.5 bg-[var(--color-surface-1)] border-b border-[var(--color-border-subtle)] flex-shrink-0 z-10">
         <div className="flex items-center gap-3">
           <Ship className="h-5 w-5 text-[var(--color-accent)]" />
           <div>
             <h1 className="text-sm font-bold text-[var(--color-text-primary)]">Fleet</h1>
-            <p className="text-[0.6875rem] text-[var(--color-text-tertiary)]">
-              {vessels.length} vessel{vessels.length !== 1 ? "s" : ""}
+            <div className="flex items-center gap-2 text-[0.6875rem] text-[var(--color-text-tertiary)]">
+              <span>{vessels.length} vessel{vessels.length !== 1 ? "s" : ""}</span>
               {Object.entries(statusCounts).map(([s, c]) => (
-                <span key={s} className="ml-2">
-                  <span className="inline-block w-1.5 h-1.5 rounded-full mr-0.5" style={{ backgroundColor: STATUS_COLORS[s] ?? "#6B7280" }} />
-                  {c} {STATUS_LABELS[s] ?? s}
+                <span key={s} className="flex items-center gap-1">
+                  <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: STATUS_COLORS[s] ?? "#6B7280", boxShadow: `0 0 4px ${STATUS_COLORS[s] ?? "#6B7280"}60` }} />
+                  <span>{c} {STATUS_LABELS[s] ?? s}</span>
                 </span>
               ))}
-            </p>
+            </div>
           </div>
         </div>
         <div className="flex items-center gap-3">
+          {urgentCount > 0 && (
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[var(--color-danger)]/15 text-[var(--color-danger)] text-[0.6875rem] font-semibold animate-pulse">
+              <AlertTriangle className="h-3 w-3" />
+              {urgentCount} laycan critical
+            </div>
+          )}
           {unlocated.length > 0 && (
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-[var(--radius-md)] bg-[var(--color-warning)]/10 text-[var(--color-warning)] text-[0.6875rem] font-medium" title={`Cannot resolve port coordinates for: ${unlocated.join(", ")}`}>
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-[var(--radius-md)] bg-[var(--color-warning)]/10 text-[var(--color-warning)] text-[0.6875rem] font-medium" title={unlocated.join(", ")}>
               <AlertTriangle className="h-3 w-3" />
               {unlocated.length} unlocated
             </div>
@@ -261,132 +236,176 @@ export default function FleetPage() {
         </div>
       </div>
 
-      {/* Map */}
-      <div className="flex-1 relative">
-        {loading ? (
-          <div className="flex items-center justify-center h-full bg-[var(--color-surface-0)]">
-            <div className="h-6 w-6 rounded-full border-2 border-[var(--color-accent)] border-t-transparent animate-spin" />
-          </div>
-        ) : (
-          <FleetMapInner
-            vessels={vessels}
-            selectedVesselId={selectedVesselId}
-            onSelectVessel={setSelectedVesselId}
-          />
-        )}
+      {/* Map + Side Panel */}
+      <div className="flex-1 flex relative">
+        {/* Map */}
+        <div className={`flex-1 transition-all duration-300 ${selectedVessel ? "" : ""}`}>
+          {loading ? (
+            <div className="flex items-center justify-center h-full bg-[var(--color-surface-0)]">
+              <div className="h-6 w-6 rounded-full border-2 border-[var(--color-accent)] border-t-transparent animate-spin" />
+            </div>
+          ) : (
+            <FleetMapInner
+              vessels={vessels}
+              selectedVesselId={selectedVesselId}
+              onSelectVessel={setSelectedVesselId}
+            />
+          )}
+        </div>
 
-        {/* Vessel info card */}
-        {selectedVessel && (
-          <div className="absolute bottom-5 left-5 z-[1000] w-80 bg-[var(--color-surface-1)] border border-[var(--color-border-default)] rounded-[var(--radius-lg)] shadow-2xl overflow-hidden">
-            {/* Header */}
-            <div className="flex items-center justify-between px-4 pt-3 pb-2 border-b border-[var(--color-border-subtle)]">
-              <div className="min-w-0">
-                <div className="text-sm font-bold text-[var(--color-text-primary)] truncate">
-                  {selectedVessel.vesselName}
+        {/* Right-side detail panel */}
+        <div className={`
+          flex-shrink-0 bg-[var(--color-surface-1)] border-l border-[var(--color-border-default)]
+          transition-all duration-300 overflow-hidden
+          ${selectedVessel ? "w-80" : "w-0"}
+        `}>
+          {selectedVessel && (
+            <div className="w-80 h-full overflow-y-auto">
+              {/* Panel header */}
+              <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--color-border-subtle)] bg-[var(--color-surface-2)]">
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-bold text-[var(--color-text-primary)] truncate">
+                    {selectedVessel.vesselName}
+                  </div>
+                  {selectedVessel.vesselImo && (
+                    <span className="text-[0.625rem] font-mono text-[var(--color-text-tertiary)]">
+                      IMO {selectedVessel.vesselImo}
+                    </span>
+                  )}
                 </div>
-                {selectedVessel.vesselImo && (
-                  <span className="text-[0.625rem] font-mono text-[var(--color-text-tertiary)]">
-                    IMO {selectedVessel.vesselImo}
+                <button
+                  onClick={() => setSelectedVesselId(null)}
+                  className="p-1.5 rounded-[var(--radius-md)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-surface-3)] transition-colors cursor-pointer"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              {/* Status + Linkage */}
+              <div className="px-4 py-3 border-b border-[var(--color-border-subtle)]">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-mono font-bold text-[var(--color-accent-text)] tracking-wide">
+                    {selectedVessel.linkageCode}
                   </span>
+                  <Badge
+                    variant={selectedVessel.status as any}
+                    className="text-[0.625rem]"
+                  >
+                    {STATUS_LABELS[selectedVessel.status] ?? selectedVessel.status}
+                  </Badge>
+                </div>
+                {selectedVessel.product && (
+                  <div className="text-xs text-[var(--color-text-tertiary)]">{selectedVessel.product}</div>
                 )}
               </div>
-              <button
-                onClick={() => setSelectedVesselId(null)}
-                className="p-1 rounded text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-surface-3)] transition-colors cursor-pointer"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            </div>
 
-            {/* Linkage + status */}
-            <div className="flex items-center justify-between px-4 py-2 border-b border-[var(--color-border-subtle)]">
-              <span className="text-xs font-mono font-semibold text-[var(--color-text-primary)]">
-                {selectedVessel.linkageCode}
-              </span>
-              <Badge
-                variant={selectedVessel.status as "active" | "loading" | "sailing" | "completed" | "cancelled" | "muted"}
-                className="text-[0.6rem]"
-              >
-                {STATUS_LABELS[selectedVessel.status] ?? selectedVessel.status}
-              </Badge>
-            </div>
-
-            {/* Deal summary */}
-            <div className="px-4 py-2 space-y-1 border-b border-[var(--color-border-subtle)]">
-              {selectedVessel.buys.map((d, i) => (
-                <div key={`buy-${i}`} className="text-xs text-[var(--color-text-secondary)]">
-                  <span className="text-[var(--color-info)] font-medium">Buy:</span>{" "}
-                  {d.counterparty} — {formatQty(d.quantityMt)} MT {d.product}
-                </div>
-              ))}
-              {selectedVessel.sells.map((d, i) => (
-                <div key={`sell-${i}`} className="text-xs text-[var(--color-text-secondary)]">
-                  <span className="text-[var(--color-accent-text)] font-medium">Sell:</span>{" "}
-                  {d.counterparty} — {formatQty(d.quantityMt)} MT {d.product}
-                </div>
-              ))}
-              {selectedVessel.buys.length === 0 && selectedVessel.sells.length === 0 && (
-                <div className="text-xs text-[var(--color-text-tertiary)] italic">No deals</div>
-              )}
-            </div>
-
-            {/* Route + Laycan */}
-            <div className="px-4 py-2 space-y-1.5 border-b border-[var(--color-border-subtle)]">
+              {/* Route visualization */}
               {(selectedVessel.loadport || selectedVessel.dischargePort) && (
-                <div className="flex items-center gap-1.5 text-xs text-[var(--color-text-secondary)]">
-                  <MapPin className="h-3 w-3 text-[var(--color-text-tertiary)]" />
-                  <span>{selectedVessel.loadport ?? "?"}</span>
-                  <span className="text-[var(--color-text-tertiary)]">&rarr;</span>
-                  <span>{selectedVessel.dischargePort ?? "?"}</span>
+                <div className="px-4 py-3 border-b border-[var(--color-border-subtle)]">
+                  <div className="text-[0.625rem] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider mb-2">Route</div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <Anchor className="h-3 w-3 text-[var(--color-info)]" />
+                        <span className="text-xs font-medium text-[var(--color-text-primary)]">
+                          {selectedVessel.loadport ?? "TBD"}
+                        </span>
+                      </div>
+                    </div>
+                    <ArrowRight className="h-3.5 w-3.5 text-[var(--color-text-tertiary)] flex-shrink-0" />
+                    <div className="flex-1 text-right">
+                      <div className="flex items-center gap-1.5 justify-end">
+                        <span className="text-xs font-medium text-[var(--color-text-primary)]">
+                          {selectedVessel.dischargePort ?? "TBD"}
+                        </span>
+                        <MapPin className="h-3 w-3 text-[var(--color-accent-text)]" />
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
-              {selectedVessel.earliestLaycan && selectedVessel.latestLaycanEnd && (
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-[var(--color-text-tertiary)]">
-                    Laycan: {new Date(selectedVessel.earliestLaycan).toLocaleDateString("en-GB", { day: "2-digit", month: "short" })}
-                    {" — "}
-                    {new Date(selectedVessel.latestLaycanEnd).toLocaleDateString("en-GB", { day: "2-digit", month: "short" })}
-                  </span>
-                  {(() => {
-                    const days = daysUntil(selectedVessel.earliestLaycan);
-                    if (days < 0) return null;
-                    const isUrgent = days <= 3;
-                    return (
-                      <span className={`font-bold ${isUrgent ? "text-[var(--color-danger)]" : "text-[var(--color-text-tertiary)]"}`}>
-                        {days === 0 ? "TODAY" : days === 1 ? "TOMORROW" : `${days}d`}
-                      </span>
-                    );
-                  })()}
-                </div>
-              )}
-            </div>
 
-            {/* Operator + Action */}
-            <div className="flex items-center justify-between px-4 py-2.5">
-              <span className="text-[0.6875rem] text-[var(--color-text-tertiary)]">
-                {selectedVessel.assignedOperatorName ?? "Unassigned"}
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => router.push(`/linkages/${selectedVessel.id}`)}
-              >
-                <ExternalLink className="h-3 w-3" />
-                Open Linkage
-              </Button>
+              {/* Laycan */}
+              {selectedVessel.earliestLaycan && (
+                <div className="px-4 py-3 border-b border-[var(--color-border-subtle)]">
+                  <div className="text-[0.625rem] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider mb-2">Laycan</div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-mono text-[var(--color-text-secondary)]">
+                      {new Date(selectedVessel.earliestLaycan).toLocaleDateString("en-GB", { day: "2-digit", month: "short" })}
+                      {selectedVessel.latestLaycanEnd && (
+                        <> — {new Date(selectedVessel.latestLaycanEnd).toLocaleDateString("en-GB", { day: "2-digit", month: "short" })}</>
+                      )}
+                    </span>
+                    {(() => {
+                      const days = daysUntil(selectedVessel.earliestLaycan);
+                      if (days < 0) return <span className="text-[0.625rem] text-[var(--color-text-tertiary)]">passed</span>;
+                      const isUrgent = days <= 3;
+                      return (
+                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                          isUrgent
+                            ? "bg-[var(--color-danger)]/15 text-[var(--color-danger)]"
+                            : "text-[var(--color-text-tertiary)]"
+                        }`}>
+                          {days === 0 ? "TODAY" : days === 1 ? "TOMORROW" : `${days}d`}
+                        </span>
+                      );
+                    })()}
+                  </div>
+                </div>
+              )}
+
+              {/* Cargo */}
+              <div className="px-4 py-3 border-b border-[var(--color-border-subtle)]">
+                <div className="text-[0.625rem] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider mb-2">Cargo</div>
+                <div className="space-y-1.5">
+                  {selectedVessel.buys.map((d, i) => (
+                    <div key={`buy-${i}`} className="flex items-center gap-2 text-xs">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-info)] flex-shrink-0" />
+                      <span className="text-[var(--color-text-secondary)]">
+                        <span className="font-medium text-[var(--color-text-primary)]">{d.counterparty}</span>
+                        {" "}{formatQty(d.quantityMt)} MT {d.product}
+                      </span>
+                    </div>
+                  ))}
+                  {selectedVessel.sells.map((d, i) => (
+                    <div key={`sell-${i}`} className="flex items-center gap-2 text-xs">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-accent)] flex-shrink-0" />
+                      <span className="text-[var(--color-text-secondary)]">
+                        <span className="font-medium text-[var(--color-text-primary)]">{d.counterparty}</span>
+                        {" "}{formatQty(d.quantityMt)} MT {d.product}
+                      </span>
+                    </div>
+                  ))}
+                  {selectedVessel.buys.length === 0 && selectedVessel.sells.length === 0 && (
+                    <div className="text-xs text-[var(--color-text-tertiary)] italic">No deals attached</div>
+                  )}
+                </div>
+              </div>
+
+              {/* Operator */}
+              <div className="px-4 py-3 border-b border-[var(--color-border-subtle)]">
+                <div className="text-[0.625rem] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider mb-1">Operator</div>
+                <span className="text-xs text-[var(--color-text-secondary)]">
+                  {selectedVessel.assignedOperatorName ?? "Unassigned"}
+                </span>
+              </div>
+
+              {/* Action */}
+              <div className="px-4 py-4">
+                <Button
+                  variant="primary"
+                  size="md"
+                  className="w-full"
+                  onClick={() => router.push(`/linkages/${selectedVessel.id}`)}
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  Open Linkage
+                </Button>
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );
 }
-
-// Status colors for the header stats (duplicated from fleet-map for the header dots)
-const STATUS_COLORS: Record<string, string> = {
-  active: "#3b82f6",
-  loading: "#e5983e",
-  sailing: "#6366f1",
-  discharging: "#a855f7",
-  completed: "#22c55e",
-};
