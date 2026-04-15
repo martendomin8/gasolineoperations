@@ -47,7 +47,7 @@ async function seed() {
     // --- Truncate all tables (cascade) ---
     console.log("Truncating existing data...");
     await sql`TRUNCATE TABLE
-      documents, audit_logs, deal_change_logs, email_drafts, workflow_steps,
+      audit_logs, deal_change_logs, email_drafts, workflow_steps,
       workflow_instances, workflow_templates, email_templates,
       deal_legs, deals, parties, users, tenants
       RESTART IDENTITY CASCADE`;
@@ -167,8 +167,10 @@ async function seed() {
       status: "active" as const,
       assignedOperatorId: operator1.id,
       secondaryOperatorId: operator2.id,
-      pricingFormula: "0-0-5",
+      pricingFormula: null,
       pricingType: "BL",
+      pricingPeriodType: "BL",
+      pricingPeriodValue: "0-0-5",
       pricingEstimatedDate: "2026-04-06",
     },
     {
@@ -191,8 +193,10 @@ async function seed() {
       status: "active" as const,
       assignedOperatorId: operator1.id,
       secondaryOperatorId: operator2.id,
-      pricingFormula: "5-1-5",
+      pricingFormula: null,
       pricingType: "NOR",
+      pricingPeriodType: "NOR",
+      pricingPeriodValue: "5-1-5",
     },
     {
       externalRef: "EG-2026-044",
@@ -212,6 +216,8 @@ async function seed() {
       status: "active" as const,
       assignedOperatorId: operator2.id,
       pricingFormula: "Platts FOB ARA +$1.75/MT",
+      pricingPeriodType: "BL",
+      pricingPeriodValue: "2-1-2",
     },
     {
       externalRef: "EG-2026-045",
@@ -231,6 +237,8 @@ async function seed() {
       status: "active" as const,
       assignedOperatorId: operator1.id,
       pricingFormula: "Platts CIF NWE +$14.50/MT",
+      pricingPeriodType: "NOR",
+      pricingPeriodValue: "3-1-3",
     },
     // ── LOADING (vessel at berth, cargo being pumped) ────────────────────────
     {
@@ -251,10 +259,12 @@ async function seed() {
       status: "loading" as const,
       assignedOperatorId: operator2.id,
       pricingFormula: "Platts FOB ARA Barge +$3.00/MT",
+      pricingPeriodType: "BL",
+      pricingPeriodValue: "0-0-5",
     },
     {
       externalRef: "EG-2026-040",
-      counterparty: "Gunvor Group",
+      counterparty: "Repsol Trading",
       direction: "sell" as const,
       product: "EBOB",
       quantityMt: "33000",
@@ -270,6 +280,8 @@ async function seed() {
       status: "loading" as const,
       assignedOperatorId: operator1.id,
       pricingFormula: "Platts CIF NWE Cargo +$9.00/MT",
+      pricingPeriodType: "BL",
+      pricingPeriodValue: "1-0-4",
     },
     {
       externalRef: "EG-2026-037",
@@ -289,6 +301,8 @@ async function seed() {
       status: "loading" as const,
       assignedOperatorId: operator2.id,
       pricingFormula: "Platts FOB Baltic +$1.50/MT",
+      pricingPeriodType: "BL",
+      pricingPeriodValue: "0-0-5",
     },
     // ── SAILING (cargo loaded, vessel at sea) ────────────────────────────────
     {
@@ -309,6 +323,8 @@ async function seed() {
       status: "sailing" as const,
       assignedOperatorId: operator1.id,
       pricingFormula: "Platts CIF NWE Cargo +$8.00/MT",
+      pricingPeriodType: "NOR",
+      pricingPeriodValue: "2-1-2",
     },
     {
       externalRef: "EG-2026-033",
@@ -328,6 +344,8 @@ async function seed() {
       status: "sailing" as const,
       assignedOperatorId: operator2.id,
       pricingFormula: "NYMEX RBOB -3.5 cts/gal",
+      pricingPeriodType: "Fixed",
+      pricingPeriodValue: "1-15 Mar",
       specialInstructions: "SCAC code EGAS. Title transfers at POLB manifold.",
     },
     {
@@ -348,6 +366,8 @@ async function seed() {
       status: "sailing" as const,
       assignedOperatorId: operator1.id,
       pricingFormula: "Platts CIF NWE +$11.00/MT",
+      pricingPeriodType: "BL",
+      pricingPeriodValue: "0-1-5",
     },
     {
       externalRef: "EG-2026-034",
@@ -367,6 +387,8 @@ async function seed() {
       status: "sailing" as const,
       assignedOperatorId: operator2.id,
       pricingFormula: "Platts FOB Baltic MTBE +$5.50/MT",
+      pricingPeriodType: "EFP",
+      pricingPeriodValue: "Apr H+1",
     },
     {
       externalRef: "EG-2026-032",
@@ -386,6 +408,8 @@ async function seed() {
       status: "sailing" as const,
       assignedOperatorId: operator1.id,
       pricingFormula: "Platts CIF MED +$4.25/MT",
+      pricingPeriodType: "BL",
+      pricingPeriodValue: "1-1-3",
     },
     // ── DISCHARGING (vessel at discharge port) ───────────────────────────────
     {
@@ -406,6 +430,8 @@ async function seed() {
       status: "discharging" as const,
       assignedOperatorId: operator1.id,
       pricingFormula: "Platts CFR West Africa +$12.00/MT",
+      pricingPeriodType: "NOR",
+      pricingPeriodValue: "2-0-3",
     },
     {
       externalRef: "EG-2026-029",
@@ -425,6 +451,8 @@ async function seed() {
       status: "discharging" as const,
       assignedOperatorId: operator2.id,
       pricingFormula: "NYMEX RBOB -2.8 cts/gal",
+      pricingPeriodType: "Fixed",
+      pricingPeriodValue: "15-31 Mar",
       specialInstructions: "LOI issued. Original B/Ls in transit via DHL.",
     },
     {
@@ -445,11 +473,13 @@ async function seed() {
       status: "discharging" as const,
       assignedOperatorId: operator1.id,
       pricingFormula: "Platts CIF Singapore +$18.50/MT",
+      pricingPeriodType: "BL",
+      pricingPeriodValue: "0-0-5",
     },
     // ── COMPLETED ────────────────────────────────────────────────────────────
     {
       externalRef: "EG-2026-030",
-      counterparty: "Gunvor Group",
+      counterparty: "Orlen Trading",
       direction: "buy" as const,
       product: "Light Naphtha",
       quantityMt: "20000",
@@ -465,6 +495,8 @@ async function seed() {
       status: "completed" as const,
       assignedOperatorId: operator2.id,
       pricingFormula: "Platts FOB Baltic LN +$3.00/MT",
+      pricingPeriodType: "BL",
+      pricingPeriodValue: "0-1-5",
     },
     {
       externalRef: "EG-2026-025",
@@ -484,6 +516,8 @@ async function seed() {
       status: "completed" as const,
       assignedOperatorId: operator1.id,
       pricingFormula: "Platts CIF NWE -$4.50/MT",
+      pricingPeriodType: "BL",
+      pricingPeriodValue: "2-1-2",
     },
     {
       externalRef: "EG-2026-022",
@@ -503,6 +537,8 @@ async function seed() {
       status: "completed" as const,
       assignedOperatorId: operator2.id,
       pricingFormula: "Platts FOB Baltic Reformate +$4.00/MT",
+      pricingPeriodType: "NOR",
+      pricingPeriodValue: "1-1-3",
     },
     // ── DRAFT (not yet active) ───────────────────────────────────────────────
     {

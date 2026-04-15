@@ -149,6 +149,25 @@ Ref: ET-2026-089`,
   },
 
   {
+    id: "dap-sale-lebanon",
+    label: "DAP Sale Lebanon — Navinkor, full-month pricing",
+    tag: "DAP · SELL",
+    tagVariant: "warning",
+    testFocus: "Navinkor Lebanon recurring sell. Tests 'full March' → Fixed 1-31 Mar expansion.",
+    text: `Arne,
+
+Confirmed sold to Navinkor:
+25,000 MT EBOB 10ppm DAP Beirut
+Load: Amsterdam (Vopak terminal)
+Laycan: 18-20 April 2026
+Vessel: MT Baltic Voyager, IMO 9612847
+Price: Platts CIF MED +$6.25/MT, pricing full March
+
+Buyer handles import clearance at Beirut.
+Inspector: SGS at load, SGS Beirut at discharge (cost shared 50/50).`,
+  },
+
+  {
     id: "dap-sale-us",
     label: "DAP Sale US — SCAC required",
     tag: "DAP · SELL",
@@ -169,20 +188,20 @@ EUR1 certificate NOT required (non-preferential origin).`,
 
   {
     id: "fob-sale-ara",
-    label: "FOB Sale ARA",
+    label: "FOB Sale ARA — BGN",
     tag: "FOB · SELL",
     tagVariant: "success",
     testFocus: "FOB sell — buyer arranges vessel. Simpler workflow.",
     text: `Hi,
 
-Sold to Gunvor Group:
+Sold to BGN:
 Product: EBOB 10ppm
 Quantity: 20,000 MT
 Terms: FOB
 Load port: Rotterdam (Maasvlakte)
 Laycan: 22-24 April 2026
 Buyer nominates vessel — we accept/reject.
-Price: Platts CIF NWE Cargo basis flat`,
+Price: Platts CIF NWE Cargo basis flat, BL 0-0-5`,
   },
 
   // ── Terse / Telegram-style ───────────────────────────────────
@@ -197,11 +216,11 @@ Price: Platts CIF NWE Cargo basis flat`,
 
   {
     id: "chat-abbreviations",
-    label: "Chat — port abbreviations",
+    label: "Chat — port abbreviations + EFP",
     tag: "ABBREVS",
     tagVariant: "muted",
-    testFocus: "AMS, Rdam, Kly abbreviations — tests port name normalization",
-    text: `Bought 15kt reformate FOB Kly from Vitol, laycan 10-12/4, no vessel yet. Px: platts fob baltic +2.5`,
+    testFocus: "AMS, Rdam, Kly abbreviations + EFP pricing without dates — should parse EFP with null value",
+    text: `Bought 15kt reformate FOB Kly from BGN, laycan 10-12/4, no vessel yet. Px: platts fob baltic +2.5, pricing EFP`,
   },
 
   // ── Low confidence / ambiguous ───────────────────────────────
@@ -262,7 +281,7 @@ Price: Platts FOB Baltic +$1.75/MT`,
     testFocus: "Amendment language in email — tests extraction of current (not previous) vessel",
     text: `AMENDED DEAL RECAP — EG-2026-031 (supersedes v1)
 
-Sold to Gunvor Group, CIF Rotterdam → New York:
+Sold to Orlen Trading, CIF Rotterdam → New York:
 Product: EBOB Reg
 Quantity: 28,500 MT (+/- 5%)
 Laycan: 12-14 April 2026 (REVISED from 10-12 Apr)

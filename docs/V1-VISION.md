@@ -58,6 +58,10 @@ Today's parser is calibrated against demo data. Real trader recaps are messier �
 - Audit AI parser fields: which are needed, which can be dropped
 - Confidence scoring per field
 - Edge cases catalogue (laycan keywords, qty tolerance variants, vessel TBN, etc.)
+- **Pricing period edge cases** the parser must handle:
+  - Natural-language Fixed periods: *"full March"* / *"whole April"* / *"entire Q1"* → `pricingPeriodType = "Fixed"`, `pricingPeriodValue` expanded to the full range (e.g. `"1-31 Mar"`)
+  - EFP without explicit dates: *"EFP"* / *"EFP against May"* → `pricingPeriodType = "EFP"`, value can be null. UI already renders "EFP" alone when value is empty.
+  - BL/NOR notation variants: *"0-0-5"*, *"5 days around B/L"*, *"B/L +/- 2 days"* → normalise to canonical `N-N-N` form.
 
 This work locks the parser contract before templates depend on it.
 

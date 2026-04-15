@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { withAuth } from "@/lib/middleware/with-auth";
 import { withTenantDb } from "@/lib/db";
-import { deals, linkages, auditLogs, dealChangeLogs, emailDrafts, workflowSteps, workflowInstances } from "@/lib/db/schema";
+import { deals, linkages, auditLogs, dealChangeLogs, emailDrafts, workflowSteps, workflowInstances, users } from "@/lib/db/schema";
 import { updateDealSchema, isValidTransition, RE_NOTIFICATION_FIELDS } from "@/lib/types/deal";
 import { eq, and, desc, inArray } from "drizzle-orm";
 import type { DealStatus } from "@/lib/db/schema";
@@ -68,8 +68,17 @@ export const GET = withAuth(async (_req, ctx, session) => {
         .orderBy(desc(dealChangeLogs.createdAt))
         .limit(50),
       db
-        .select()
+        .select({
+          id: auditLogs.id,
+          action: auditLogs.action,
+          details: auditLogs.details,
+          createdAt: auditLogs.createdAt,
+          userId: auditLogs.userId,
+          userName: users.name,
+          userEmail: users.email,
+        })
         .from(auditLogs)
+        .leftJoin(users, eq(auditLogs.userId, users.id))
         .where(eq(auditLogs.dealId, id))
         .orderBy(desc(auditLogs.createdAt))
         .limit(50),

@@ -717,7 +717,7 @@ function PricingCell({ deal, onUpdate }: { deal: DealRow; onUpdate: () => void }
       ? periodValue ? `EFP: ${periodValue}` : "EFP"
       : periodType && periodValue
       ? `${periodType} ${periodValue}`
-      : periodType || deal.pricingFormula || "\u2014";
+      : periodType || "\u2014";
 
   // Format date as "4 Feb" (no year)
   const formatShortDate = (iso: string | null): string => {

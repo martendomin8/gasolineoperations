@@ -112,6 +112,9 @@ interface DealDetail {
     action: string;
     details: Record<string, unknown>;
     createdAt: string;
+    userId: string | null;
+    userName: string | null;
+    userEmail: string | null;
   }>;
 }
 
@@ -3273,6 +3276,11 @@ function DealFooterSections({ deal }: { deal: DealDetail }) {
                   })}
                 </span>
                 <span className="text-[var(--color-text-secondary)]">{entry.action}</span>
+                {entry.userName && (
+                  <span className="text-xs text-[var(--color-text-tertiary)] ml-auto">
+                    {entry.userName}
+                  </span>
+                )}
               </div>
             ))
           )}

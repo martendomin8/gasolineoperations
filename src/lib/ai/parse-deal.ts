@@ -53,7 +53,12 @@ Be precise and conservative with confidence scores:
 For dates, always output YYYY-MM-DD format. If only a month/year is given (e.g. "April 5/7"), use the current year.
 For quantities: extract TWO values. (1) quantity_mt = the numeric middle/nominal quantity in metric tonnes (e.g. for "18000 MT +/-10%" → 18000; for "37kt +/-5%" → 37000). Convert from BBLs if needed (1 MT ≈ 7.5 BBLs for gasoline). (2) contracted_qty = the full text EXACTLY as written in the recap, including units and tolerance, e.g. "18000 MT +/-10%", "37kt +/- 5%", "25,000 MT +/-10% in buyer's option". Preserve the original spacing and casing. If there is no tolerance stated, contracted_qty can be just the plain quantity string (e.g. "30,000 MT").
 For direction: "buy" means we are purchasing, "sell" means we are selling.
-For pricing: extract both the pricing formula (e.g. 'Platts FOB Baltic +$5.50/MT') AND the pricing period type (BL, NOR, Fixed, or EFP) with its parameters (e.g. '0-1-5'). BL+5 is shorthand for BL 0-0-5.`;
+For pricing: extract both the pricing formula (e.g. 'Platts FOB Baltic +$5.50/MT') AND the pricing period type (BL, NOR, Fixed, or EFP) with its parameters (e.g. '0-1-5'). BL+5 is shorthand for BL 0-0-5.
+
+Pricing period edge cases:
+- "Full March" / "whole April" / "entire Q1" / "all of May" → pricing_period_type = "Fixed", pricing_period_value = the expanded day range for that period (e.g. "full March" → "1-31 Mar"; "whole April" → "1-30 Apr"; "full February" → "1-28 Feb"). Use 28 for February (ignore leap years).
+- "EFP" alone, or "EFP against May", or any EFP without explicit day windows → pricing_period_type = "EFP", pricing_period_value = null. EFP deals often don't have explicit dates — that's normal, do not invent one.
+- BL/NOR notation variants: "5 days around B/L" → "2-0-3" (approximate); "B/L +/- 2 days" → "2-0-2"; "BL+5" → "0-0-5". Normalise to canonical N-N-N form (days before, BL/NOR day 0 or 1, days after).`;
 
 const EXTRACTION_TOOL: Anthropic.Tool = {
   name: "extract_deal",
@@ -185,6 +190,18 @@ const MONTH_MAP: Record<string, number> = {
   apr: 4, april: 4, may: 5, jun: 6, june: 6,
   jul: 7, july: 7, aug: 8, august: 8, sep: 9, september: 9,
   oct: 10, october: 10, nov: 11, november: 11, dec: 12, december: 12,
+};
+
+// Days in each month — used for expanding "full March" / "whole April" into
+// a Fixed-period day range. February uses 28 (leap years ignored — edge case).
+const DAYS_IN_MONTH: Record<number, number> = {
+  1: 31, 2: 28, 3: 31, 4: 30, 5: 31, 6: 30,
+  7: 31, 8: 31, 9: 30, 10: 31, 11: 30, 12: 31,
+};
+
+const MONTH_SHORT: Record<number, string> = {
+  1: "Jan", 2: "Feb", 3: "Mar", 4: "Apr", 5: "May", 6: "Jun",
+  7: "Jul", 8: "Aug", 9: "Sep", 10: "Oct", 11: "Nov", 12: "Dec",
 };
 
 function toDate(day: number, month: number, year: number): string {
@@ -469,11 +486,13 @@ export function parseDealDemo(rawText: string): ParsedDealResult {
   let pricing_period_type: ParsedDealFields["pricing_period_type"] = null;
   let pricing_period_value: string | null = null;
 
-  // "BL 0-1-5", "BL+5", "NOR 3-1-3", "Fixed 1-15 Mar", "EFP"
+  // "BL 0-1-5", "BL+5", "NOR 3-1-3", "Fixed 1-15 Mar", "EFP",
+  // "full March" / "whole April" / "entire May" → Fixed + expanded day range
   const blShorthand = rawText.match(/\bBL\s*\+\s*(\d+)\b/i);
   const blFull = rawText.match(/\bBL\s+(\d+-\d+-\d+)\b/i);
   const norFull = rawText.match(/\bNOR\s+(\d+-\d+-\d+)\b/i);
   const fixedMatch = rawText.match(/\bFixed\s+([\d]+-[\d]+\s+[A-Za-z]+)\b/i);
+  const fullMonth = rawText.match(/\b(?:full|whole|entire|all\s+of)\s+([A-Za-z]+)\b/i);
   const efpMatch = rawText.match(/\bEFP\b/i);
 
   if (blShorthand) {
@@ -496,11 +515,24 @@ export function parseDealDemo(rawText: string): ParsedDealResult {
     pricing_period_value = fixedMatch[1];
     scores.pricing_period_type = 0.88;
     scores.pricing_period_value = 0.88;
+  } else if (fullMonth) {
+    // "full March" → Fixed, value expanded to "1-31 Mar"
+    const mon = MONTH_MAP[fullMonth[1].toLowerCase()];
+    if (mon) {
+      pricing_period_type = "Fixed";
+      pricing_period_value = `1-${DAYS_IN_MONTH[mon]} ${MONTH_SHORT[mon]}`;
+      scores.pricing_period_type = 0.88;
+      scores.pricing_period_value = 0.85;
+    } else {
+      scores.pricing_period_type = 0;
+      scores.pricing_period_value = 0;
+    }
   } else if (efpMatch) {
+    // EFP often has no explicit dates — value stays null, UI renders just "EFP"
     pricing_period_type = "EFP";
-    pricing_period_value = "";
+    pricing_period_value = null;
     scores.pricing_period_type = 0.9;
-    scores.pricing_period_value = 0.9;
+    scores.pricing_period_value = 0;
   } else {
     scores.pricing_period_type = 0;
     scores.pricing_period_value = 0;
