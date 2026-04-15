@@ -163,7 +163,10 @@ async function seed() {
 
   const dealsData = [
     // ── PURCHASE+SALE #1 — 086412GSS (ops has entered the linkage number) ───
-    // Buy 30k MT Eurobob from Vitol FOB Lavera, sell all 30k to Shell CIF Amsterdam→NY.
+    // Single vessel MT Hafnia Polar loads 30k MT EBOB in Lavera and sails to NY.
+    // Buy FOB Lavera from Vitol; sell CIF Lavera→NY to Shell.
+    // Buy laycan = Lavera loadport window. Sell laycan = NY discharge window
+    // (~2.5 weeks later for trans-Atlantic voyage).
     {
       externalRef: "EG-2026-042",
       counterparty: "Vitol SA",
@@ -173,20 +176,20 @@ async function seed() {
       contractedQty: "30,000 MT +/- 5%",
       incoterm: "FOB" as const,
       loadport: "Lavera",
-      dischargePort: "Amsterdam",
-      laycanStart: "2026-04-10",
-      laycanEnd: "2026-04-12",
-      vesselName: "MT Stena Penguin",
-      vesselImo: "9812301",
+      dischargePort: "New York",
+      laycanStart: "2026-04-05",
+      laycanEnd: "2026-04-07",
+      vesselName: "MT Hafnia Polar",
+      vesselImo: "9786543",
       vesselCleared: false,
       docInstructionsReceived: false,
       status: "active" as const,
       assignedOperatorId: operator1.id,
       secondaryOperatorId: operator2.id,
-      pricingFormula: null,
-      pricingType: "NOR",
-      pricingPeriodType: "NOR",
-      pricingPeriodValue: "5-1-5",
+      pricingFormula: "Platts FOB MED +$1.50/MT",
+      pricingType: "BL",
+      pricingPeriodType: "BL",
+      pricingPeriodValue: "0-0-5",
     },
     {
       externalRef: "EG-2026-041",
@@ -196,10 +199,10 @@ async function seed() {
       quantityMt: "30000",
       contractedQty: "30,000 MT +/- 5%",
       incoterm: "CIF" as const,
-      loadport: "Amsterdam",
+      loadport: "Lavera",
       dischargePort: "New York",
-      laycanStart: "2026-04-05",
-      laycanEnd: "2026-04-07",
+      laycanStart: "2026-04-22",
+      laycanEnd: "2026-04-25",
       vesselName: "MT Hafnia Polar",
       vesselImo: "9786543",
       vesselCleared: true,
@@ -207,28 +210,30 @@ async function seed() {
       status: "active" as const,
       assignedOperatorId: operator1.id,
       secondaryOperatorId: operator2.id,
-      pricingFormula: null,
-      pricingType: "BL",
-      pricingPeriodType: "BL",
-      pricingPeriodValue: "0-0-5",
-      pricingEstimatedDate: "2026-04-06",
+      pricingFormula: "Platts CIF NWE Cargo +$8.00/MT",
+      pricingType: "NOR",
+      pricingPeriodType: "NOR",
+      pricingPeriodValue: "2-1-2",
+      pricingEstimatedDate: "2026-04-23",
     },
 
     // ── PURCHASE+SALE #2 — TEMP-001 (ops hasn't entered a linkage number yet) ──
-    // Buy 35k MT EBOB from Trafigura CIF Ust-Luga→Amsterdam, sell all to TotalEnergies CIF Amsterdam→Lagos.
+    // Single vessel MT West Africa Star loads 35k MT EBOB in Ust-Luga and sails to Lagos.
+    // Buy FOB Ust-Luga from Trafigura; sell CIF Ust-Luga→Lagos to TotalEnergies.
+    // Buy laycan = Ust-Luga loadport window (Mar 20-22). Sell laycan = Lagos discharge window (~Apr 15-18).
     {
       externalRef: "EG-2026-034",
       counterparty: "Trafigura",
       direction: "buy" as const,
       product: "EBOB",
       quantityMt: "35000",
-      incoterm: "CIF" as const,
+      incoterm: "FOB" as const,
       loadport: "Ust-Luga",
-      dischargePort: "Amsterdam",
-      laycanStart: "2026-03-19",
-      laycanEnd: "2026-03-21",
-      vesselName: "MT Pacific Venus",
-      vesselImo: "9234890",
+      dischargePort: "Lagos",
+      laycanStart: "2026-03-20",
+      laycanEnd: "2026-03-22",
+      vesselName: "MT West Africa Star",
+      vesselImo: "9654321",
       vesselCleared: true,
       docInstructionsReceived: true,
       status: "sailing" as const,
@@ -244,10 +249,10 @@ async function seed() {
       product: "EBOB",
       quantityMt: "35000",
       incoterm: "CIF" as const,
-      loadport: "Amsterdam",
+      loadport: "Ust-Luga",
       dischargePort: "Lagos",
-      laycanStart: "2026-03-20",
-      laycanEnd: "2026-03-22",
+      laycanStart: "2026-04-15",
+      laycanEnd: "2026-04-18",
       vesselName: "MT West Africa Star",
       vesselImo: "9654321",
       vesselCleared: true,
@@ -260,7 +265,9 @@ async function seed() {
     },
 
     // ── PURCHASE+SALE #3 — TEMP-002 (ops hasn't entered a linkage number yet) ──
-    // Buy 25k MT Light Naphtha from Repsol FOB Antwerp, sell all to BP DAP Amsterdam→Philadelphia.
+    // Single vessel MT Nordic Breeze loads 25k MT Light Naphtha in Antwerp and sails to Philadelphia.
+    // Buy FOB Antwerp from Repsol; sell DAP Antwerp→Philadelphia to BP.
+    // Buy laycan = Antwerp loadport window (Mar 28-30). Sell laycan = Philadelphia discharge window (~Apr 15-17).
     {
       externalRef: "EG-2026-037",
       counterparty: "Repsol Trading",
@@ -269,11 +276,11 @@ async function seed() {
       quantityMt: "25000",
       incoterm: "FOB" as const,
       loadport: "Antwerp",
-      dischargePort: "Amsterdam",
-      laycanStart: "2026-03-29",
-      laycanEnd: "2026-03-31",
-      vesselName: "MT Baltic Pioneer",
-      vesselImo: "9543210",
+      dischargePort: "Philadelphia",
+      laycanStart: "2026-03-28",
+      laycanEnd: "2026-03-30",
+      vesselName: "MT Nordic Breeze",
+      vesselImo: "9812345",
       vesselCleared: true,
       docInstructionsReceived: false,
       status: "loading" as const,
@@ -289,10 +296,10 @@ async function seed() {
       product: "Light Naphtha",
       quantityMt: "25000",
       incoterm: "DAP" as const,
-      loadport: "Amsterdam",
+      loadport: "Antwerp",
       dischargePort: "Philadelphia",
-      laycanStart: "2026-03-28",
-      laycanEnd: "2026-03-30",
+      laycanStart: "2026-04-15",
+      laycanEnd: "2026-04-17",
       vesselName: "MT Nordic Breeze",
       vesselImo: "9812345",
       vesselCleared: true,
@@ -311,8 +318,8 @@ async function seed() {
       direction: "buy" as const,
       product: "EBOB",
       quantityMt: "20000",
-      incoterm: "CIF" as const,
-      loadport: "Ust-Luga",
+      incoterm: "FOB" as const,
+      loadport: "Barcelona",
       dischargePort: "Thessaloniki",
       laycanStart: "2026-03-15",
       laycanEnd: "2026-03-17",
@@ -322,7 +329,7 @@ async function seed() {
       docInstructionsReceived: true,
       status: "active" as const,
       assignedOperatorId: operator2.id,
-      pricingFormula: "Platts FOB Baltic +$3.00/MT",
+      pricingFormula: "Platts FOB MED +$3.00/MT",
       pricingPeriodType: "BL",
       pricingPeriodValue: "0-1-5",
     },
@@ -358,8 +365,8 @@ async function seed() {
       incoterm: "CIF" as const,
       loadport: "Antwerp",
       dischargePort: "Lome",
-      laycanStart: "2026-03-15",
-      laycanEnd: "2026-03-17",
+      laycanStart: "2026-04-05",
+      laycanEnd: "2026-04-08",
       vesselName: "MT Ardmore Seatrader",
       vesselImo: "9678901",
       vesselCleared: true,
@@ -474,7 +481,7 @@ async function seed() {
   if (totalDeal) {
     await db.insert(schema.dealChangeLogs).values([
       { tenantId: tenantId, dealId: totalDeal.id, fieldChanged: "vesselName", oldValue: "MT Lagos Spirit", newValue: "MT West Africa Star", changedBy: operator1.id },
-      { tenantId: tenantId, dealId: totalDeal.id, fieldChanged: "laycanStart", oldValue: "2026-03-18", newValue: "2026-03-20", changedBy: operator1.id },
+      { tenantId: tenantId, dealId: totalDeal.id, fieldChanged: "laycanStart", oldValue: "2026-04-12", newValue: "2026-04-15", changedBy: operator1.id },
     ]);
     await db.insert(schema.auditLogs).values([
       { tenantId: tenantId, dealId: totalDeal.id, userId: operator1.id, action: "deal.updated", details: { changes: { vesselName: { from: "MT Lagos Spirit", to: "MT West Africa Star" } } } },
@@ -1118,7 +1125,7 @@ EuroGas Trading BV — Operations`,
           ccAddresses: "ops@eurogas.com",
           subject: `Vessel Clearance Request — EBOB / EG-2026-041`,
           body: `Dear Sirs,\n\nWe are pleased to inform you of the following cargo and request vessel clearance for the nominated vessel:\n\nCARGO DETAILS\nProduct:            EBOB\nQuantity:           30,000 MT\nIncoterm:           CIF\nLoad Port:          Amsterdam\nDischarge Port:     New York\nLaycan:             2026-04-05 / 2026-04-07\n\nVESSEL NOMINATION\nVessel Name:        MT Hafnia Polar\nIMO Number:         9786543\n\nPlease confirm vessel clearance and provide your documentary instructions (consignee, notify party, B/L marks, and any special requirements).\n\nBest regards,\nEuroGas Trading BV — Operations`,
-          mergeFieldsUsed: { counterparty: "Shell Trading", vessel_name: "MT Hafnia Polar", vessel_imo: "9786543", laycan_start: "2026-04-05", laycan_end: "2026-04-07" },
+          mergeFieldsUsed: { counterparty: "Shell Trading", vessel_name: "MT Hafnia Polar", vessel_imo: "9786543", laycan_start: "2026-04-22", laycan_end: "2026-04-25" },
           status: "sent",
           sentViaSednaAt: new Date(Date.now() - 4 * 60 * 60 * 1000), // 4h ago
           sednaMessageId: "demo-msg-001",
@@ -1183,8 +1190,8 @@ EuroGas Trading BV — Operations`,
           workflowStepId: vitolStep1.id,
           templateId: vitolStep1.emailTemplateId,
           toAddresses: "ops@baltic-shipping.lt",
-          subject: `Vessel Nomination — Reformate / EG-2026-042`,
-          body: `Dear Sirs,\n\nIn accordance with our agreement, we hereby nominate the following vessel:\n\nVessel Name: MT Nordic Hawk\nIMO Number:  9341298\n\nProduct: Reformate\nQuantity: 15,000 MT\nFOB Lavera\nLaycan: 2026-04-10 / 2026-04-12\n\nBest regards,\nEuroGas Trading BV — Operations`,
+          subject: `Vessel Nomination — EBOB / EG-2026-042`,
+          body: `Dear Sirs,\n\nIn accordance with our agreement, we hereby nominate the following vessel:\n\nVessel Name: MT Nordic Hawk\nIMO Number:  9341298\n\nProduct: EBOB\nQuantity: 30,000 MT\nFOB Lavera\nLaycan: 2026-04-05 / 2026-04-07\n\nBest regards,\nEuroGas Trading BV — Operations`,
           mergeFieldsUsed: { vessel_name: "MT Nordic Hawk", vessel_imo: "9341298", counterparty: "Vitol SA" },
           status: "sent",
           sentViaSednaAt: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2h ago
@@ -1202,7 +1209,7 @@ EuroGas Trading BV — Operations`,
           dealId: vitolDeal.id,
           fieldChanged: "vesselName",
           oldValue: "MT Nordic Hawk",
-          newValue: "MT Stena Penguin",
+          newValue: "MT Hafnia Polar",
           changedBy: operator1.id,
           affectedSteps: [vitolStep1.id],
         });
@@ -1212,7 +1219,7 @@ EuroGas Trading BV — Operations`,
           dealId: vitolDeal.id,
           userId: operator1.id,
           action: "deal.updated",
-          details: { changes: { vesselName: { from: "MT Nordic Hawk", to: "MT Stena Penguin" } }, note: "Vessel swap — re-nomination required" },
+          details: { changes: { vesselName: { from: "MT Nordic Hawk", to: "MT Hafnia Polar" } }, note: "Vessel swap — re-nomination required" },
         });
 
         console.log(`  Vitol FOB deal: step 1 needs_update (vessel swap re-nomination pending)`);
