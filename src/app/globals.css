@@ -248,6 +248,18 @@ th {
 }
 .leaflet-control-attribution a { color: #9aa0ad !important; }
 
+/* Fleet vessel labels — force dark theme on permanent tooltips */
+.fleet-vessel-label {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  color: #FAFAF7 !important;
+}
+.fleet-vessel-label::before {
+  display: none !important;
+}
+
 /* Pulse animation for urgent vessel markers (laycan ≤3 days) */
 @keyframes fleet-pulse-ring {
   0% { transform: scale(1); opacity: 1; }

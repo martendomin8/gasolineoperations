@@ -277,9 +277,9 @@ export function FleetMapInner({ vessels, portMarkers, selectedVesselId, onSelect
               click: () => onSelectVessel(v.id === selectedVesselId ? null : v.id),
             }}
           >
-            {/* Permanent label */}
-            <Tooltip permanent direction="right" offset={[20, 0]}>
-              <div style={{ lineHeight: 1.2 }}>
+            {/* Permanent label — className forces dark theme even on permanent tooltips */}
+            <Tooltip permanent direction="right" offset={[20, 0]} className="fleet-vessel-label">
+              <div>
                 <div style={{ fontSize: "11px", fontWeight: 700, color: isSelected ? "#FFB000" : "#FAFAF7" }}>
                   {v.vesselName}
                 </div>
