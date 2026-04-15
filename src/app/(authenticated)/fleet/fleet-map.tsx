@@ -237,15 +237,10 @@ export function FleetMapInner({ vessels, portMarkers, selectedVesselId, onSelect
               weight: 1,
             }}
           >
-            <Tooltip permanent={p.type === "terminal"} direction="right" offset={[10, 0]}>
-              <div style={{ lineHeight: 1.2 }}>
-                <span style={{ fontSize: "10px", color, fontWeight: 600, letterSpacing: "0.3px" }}>
-                  {p.port.toUpperCase()}
-                </span>
-                <div style={{ fontSize: "9px", color: "#6B7280", textTransform: "capitalize" }}>
-                  {p.type}
-                </div>
-              </div>
+            <Tooltip permanent={p.type === "terminal"} direction="bottom" offset={[0, 8]} className="fleet-port-label">
+              <span style={{ fontSize: "8px", color, fontWeight: 600, letterSpacing: "0.5px", opacity: 0.7 }}>
+                {p.port.toUpperCase()}
+              </span>
             </Tooltip>
           </CircleMarker>
         );

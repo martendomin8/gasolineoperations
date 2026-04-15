@@ -260,6 +260,17 @@ th {
   display: none !important;
 }
 
+/* Fleet port labels — transparent, subtle, below the marker */
+.fleet-port-label {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+.fleet-port-label::before {
+  display: none !important;
+}
+
 /* Pulse animation for urgent vessel markers (laycan ≤3 days) */
 @keyframes fleet-pulse-ring {
   0% { transform: scale(1); opacity: 1; }
