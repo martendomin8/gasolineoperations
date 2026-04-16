@@ -38,6 +38,8 @@ import {
   CircleDot,
   CheckCircle2,
   ChevronRight,
+  Layers,
+  Loader2,
 } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
@@ -46,6 +48,43 @@ import { useSession } from "next-auth/react";
 
 // ── Types ────────────────────────────────────────────────────
 
+interface VesselTank {
+  name: string;
+  capacity100?: number | null;
+  capacity98?: number | null;
+  coating?: string | null;
+}
+
+interface VesselLoadline {
+  name: string;
+  freeboard?: number | null;
+  draft?: number | null;
+  dwt?: number | null;
+  displacement?: number | null;
+}
+
+interface VesselParticulars {
+  dwt?: number | null;
+  loa?: number | null;
+  beam?: number | null;
+  summerDraft?: number | null;
+  flag?: string | null;
+  classSociety?: string | null;
+  builtYear?: number | null;
+  builder?: string | null;
+  vesselType?: string | null;
+  tankCount?: number | null;
+  totalCargoCapacity98?: number | null;
+  totalCargoCapacity100?: number | null;
+  coating?: string | null;
+  segregations?: number | null;
+  pumpType?: string | null;
+  tanks?: VesselTank[];
+  loadlines?: VesselLoadline[];
+  parsedAt?: string;
+  sourceDocumentId?: string;
+}
+
 interface LinkageData {
   id: string;
   linkageNumber: string | null;
@@ -53,6 +92,7 @@ interface LinkageData {
   status: string;
   vesselName: string | null;
   vesselImo: string | null;
+  vesselParticulars: VesselParticulars | null;
   assignedOperatorId: string | null;
   secondaryOperatorId: string | null;
   notes: string | null;
@@ -100,6 +140,7 @@ interface LinkageDoc {
   id: string;
   filename: string;
   fileType: string;
+  storagePath: string | null;
   createdAt: string;
 }
 
@@ -673,6 +714,15 @@ function VesselSection({ linkage, steps, docs, canEdit, onUpdated }: {
   const [dragOverCp, setDragOverCp] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadingCp, setUploadingCp] = useState(false);
+  const [parsing, setParsing] = useState(false);
+  const [parseResult, setParseResult] = useState<null | {
+    docId: string;
+    vesselName: string | null;
+    vesselImo: string | null;
+    particulars: VesselParticulars;
+    confidenceScores: Record<string, number>;
+  }>(null);
+  const [showPlanner, setShowPlanner] = useState(false);
   const [addingStep, setAddingStep] = useState(false);
   const [newStepName, setNewStepName] = useState("");
 
@@ -692,18 +742,105 @@ function VesselSection({ linkage, steps, docs, canEdit, onUpdated }: {
     if (files.length === 0) return;
 
     setUploading(true);
+    const failed: string[] = [];
+    let lastDocId: string | null = null;
+    let lastFileName: string | null = null;
     for (const file of files) {
       try {
-        await fetch(`/api/linkages/${linkage.id}/documents`, {
+        const fd = new FormData();
+        fd.append("file", file);
+        fd.append("fileType", "q88");
+        const res = await fetch(`/api/linkages/${linkage.id}/documents`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ filename: file.name, fileType: "q88" }),
+          body: fd,
         });
-      } catch { /* silent */ }
+        if (!res.ok) {
+          failed.push(file.name);
+        } else {
+          const data = await res.json();
+          lastDocId = data?.document?.id ?? null;
+          lastFileName = file.name;
+        }
+      } catch {
+        failed.push(file.name);
+      }
     }
     setUploading(false);
-    toast.success(`Q88 uploaded: ${files.map((f) => f.name).join(", ")}`);
+    if (failed.length === 0) {
+      toast.success(`Q88 uploaded: ${files.map((f) => f.name).join(", ")}`);
+    } else {
+      toast.error(`Upload failed: ${failed.join(", ")}`);
+    }
     onUpdated();
+
+    // Auto-parse the most recently uploaded Q88 — background job, non-blocking
+    // from the operator's POV. They get a toast if it fails; on success the
+    // confirm modal opens so they can review + accept.
+    if (lastDocId && lastFileName) {
+      void runQ88Parse(lastDocId, lastFileName);
+    }
+  };
+
+  const runQ88Parse = async (docId: string, filename: string) => {
+    setParsing(true);
+    try {
+      const res = await fetch(
+        `/api/linkages/${linkage.id}/documents/${docId}/parse-q88`,
+        { method: "POST" }
+      );
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(`Q88 parse failed: ${data.error ?? "unknown error"}`);
+        return;
+      }
+      setParseResult({
+        docId,
+        vesselName: data.vesselName ?? null,
+        vesselImo: data.vesselImo ?? null,
+        particulars: data.particulars ?? {},
+        confidenceScores: data.confidenceScores ?? {},
+      });
+      toast.success(`Parsed ${filename} — review and confirm`);
+    } catch (err) {
+      toast.error(`Q88 parse failed: ${err instanceof Error ? err.message : "network error"}`);
+    } finally {
+      setParsing(false);
+    }
+  };
+
+  const applyParseResult = async (accept: {
+    vesselName: boolean;
+    vesselImo: boolean;
+    particulars: boolean;
+  }) => {
+    if (!parseResult) return;
+    const payload: Record<string, unknown> = {};
+    if (accept.vesselName && parseResult.vesselName) payload.vesselName = parseResult.vesselName;
+    if (accept.vesselImo && parseResult.vesselImo) payload.vesselImo = parseResult.vesselImo;
+    if (accept.particulars) payload.vesselParticulars = parseResult.particulars;
+
+    if (Object.keys(payload).length === 0) {
+      setParseResult(null);
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/linkages/${linkage.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        toast.success("Vessel details applied");
+        setParseResult(null);
+        onUpdated();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        toast.error(`Apply failed: ${data.error ?? res.statusText}`);
+      }
+    } catch {
+      toast.error("Apply failed: network error");
+    }
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -720,18 +857,46 @@ function VesselSection({ linkage, steps, docs, canEdit, onUpdated }: {
     if (files.length === 0) return;
 
     setUploadingCp(true);
+    const failed: string[] = [];
     for (const file of files) {
       try {
-        await fetch(`/api/linkages/${linkage.id}/documents`, {
+        const fd = new FormData();
+        fd.append("file", file);
+        fd.append("fileType", "cp_recap");
+        const res = await fetch(`/api/linkages/${linkage.id}/documents`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ filename: file.name, fileType: "cp_recap" }),
+          body: fd,
         });
-      } catch { /* silent */ }
+        if (!res.ok) failed.push(file.name);
+      } catch {
+        failed.push(file.name);
+      }
     }
     setUploadingCp(false);
-    toast.success(`CP Recap uploaded: ${files.map((f) => f.name).join(", ")}`);
+    if (failed.length === 0) {
+      toast.success(`CP Recap uploaded: ${files.map((f) => f.name).join(", ")}`);
+    } else {
+      toast.error(`Upload failed: ${failed.join(", ")}`);
+    }
     onUpdated();
+  };
+
+  const handleDeleteDoc = async (docId: string, filename: string) => {
+    if (!canEdit) return;
+    if (!window.confirm(`Delete "${filename}"? This cannot be undone.`)) return;
+    try {
+      const res = await fetch(`/api/linkages/${linkage.id}/documents/${docId}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        toast.success("Document deleted");
+        onUpdated();
+      } else {
+        toast.error("Failed to delete document");
+      }
+    } catch {
+      toast.error("Failed to delete document");
+    }
   };
 
   const handleAddStep = async () => {
@@ -787,6 +952,33 @@ function VesselSection({ linkage, steps, docs, canEdit, onUpdated }: {
               IMO {imoDisplay}
             </span>
           </div>
+          {linkage.vesselParticulars?.tanks && linkage.vesselParticulars.tanks.length > 0 && (
+            <span
+              role="button"
+              tabIndex={0}
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowPlanner(true);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.stopPropagation();
+                  setShowPlanner(true);
+                }
+              }}
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-[var(--radius-sm)] text-[0.65rem] font-medium bg-cyan-500/10 text-cyan-300 hover:bg-cyan-500/20 border border-cyan-500/30 transition-colors cursor-pointer"
+              title="Open stowage planner"
+            >
+              <Layers className="h-3 w-3" />
+              Planner Mode
+            </span>
+          )}
+          {parsing && (
+            <span className="inline-flex items-center gap-1 text-[0.65rem] text-[var(--color-text-tertiary)]">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              Parsing Q88…
+            </span>
+          )}
           {q88Docs.length > 0 && (
             <Badge variant="muted" className="text-[0.6rem]">Q88 ✓</Badge>
           )}
@@ -833,10 +1025,31 @@ function VesselSection({ linkage, steps, docs, canEdit, onUpdated }: {
                 {q88Docs.map((d) => (
                   <div key={d.id} className="flex items-center justify-center gap-2 text-xs text-cyan-400">
                     <FileText className="h-3 w-3" />
-                    {d.filename}
+                    {d.storagePath ? (
+                      <a
+                        href={d.storagePath}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="hover:underline"
+                      >
+                        {d.filename}
+                      </a>
+                    ) : (
+                      <span>{d.filename}</span>
+                    )}
+                    {canEdit && (
+                      <button
+                        type="button"
+                        onClick={(ev) => { ev.stopPropagation(); handleDeleteDoc(d.id, d.filename); }}
+                        className="text-[var(--color-text-tertiary)] hover:text-red-400 transition-colors"
+                        title="Delete document"
+                      >
+                        ×
+                      </button>
+                    )}
                   </div>
                 ))}
-                <p className="text-[0.65rem] text-[var(--color-text-tertiary)]">Drop to replace Q88</p>
+                <p className="text-[0.65rem] text-[var(--color-text-tertiary)]">Drop to add another Q88</p>
               </div>
             ) : (
               <div className="flex flex-col items-center gap-1">
@@ -867,10 +1080,31 @@ function VesselSection({ linkage, steps, docs, canEdit, onUpdated }: {
                 {cpDocs.map((d) => (
                   <div key={d.id} className="flex items-center justify-center gap-2 text-xs text-amber-400">
                     <FileText className="h-3 w-3" />
-                    {d.filename}
+                    {d.storagePath ? (
+                      <a
+                        href={d.storagePath}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="hover:underline"
+                      >
+                        {d.filename}
+                      </a>
+                    ) : (
+                      <span>{d.filename}</span>
+                    )}
+                    {canEdit && (
+                      <button
+                        type="button"
+                        onClick={(ev) => { ev.stopPropagation(); handleDeleteDoc(d.id, d.filename); }}
+                        className="text-[var(--color-text-tertiary)] hover:text-red-400 transition-colors"
+                        title="Delete document"
+                      >
+                        ×
+                      </button>
+                    )}
                   </div>
                 ))}
-                <p className="text-[0.65rem] text-[var(--color-text-tertiary)]">Drop to replace CP Recap</p>
+                <p className="text-[0.65rem] text-[var(--color-text-tertiary)]">Drop to add another CP Recap</p>
               </div>
             ) : (
               <div className="flex flex-col items-center gap-1">
@@ -935,6 +1169,15 @@ function VesselSection({ linkage, steps, docs, canEdit, onUpdated }: {
                             className="px-3 py-1.5 text-xs font-medium rounded-md bg-green-500/20 text-green-400 hover:bg-green-500/30 border border-green-500/30 transition-colors cursor-pointer"
                           >
                             Mark Sent
+                          </button>
+                        )}
+                        {canEdit && hasVessel && isSent && (
+                          <button
+                            onClick={() => handleStepStatusChange(s.id, "pending")}
+                            title="Undo — revert to pending"
+                            className="px-3 py-1.5 text-xs font-medium rounded-md bg-[var(--color-surface-2)] text-[var(--color-text-tertiary)] hover:bg-[var(--color-surface-3)] border border-[var(--color-border-subtle)] transition-colors cursor-pointer"
+                          >
+                            Undo
                           </button>
                         )}
                         {canEdit && hasVessel && isNeedsUpdate && (
@@ -1003,8 +1246,231 @@ function VesselSection({ linkage, steps, docs, canEdit, onUpdated }: {
           )}
         </div>
       )}
+
+      {parseResult && (
+        <Q88ParseModal
+          result={parseResult}
+          currentVesselName={linkage.vesselName}
+          currentVesselImo={linkage.vesselImo}
+          hasExistingParticulars={Boolean(linkage.vesselParticulars)}
+          onApply={applyParseResult}
+          onClose={() => setParseResult(null)}
+        />
+      )}
+
+      {showPlanner && linkage.vesselParticulars && (
+        <PlannerModal
+          linkage={linkage}
+          onClose={() => setShowPlanner(false)}
+        />
+      )}
     </Card>
   );
+}
+
+// ── Q88 Parse Confirm Modal ──────────────────────────────────
+
+function Q88ParseModal({
+  result,
+  currentVesselName,
+  currentVesselImo,
+  hasExistingParticulars,
+  onApply,
+  onClose,
+}: {
+  result: {
+    vesselName: string | null;
+    vesselImo: string | null;
+    particulars: VesselParticulars;
+    confidenceScores: Record<string, number>;
+  };
+  currentVesselName: string | null;
+  currentVesselImo: string | null;
+  hasExistingParticulars: boolean;
+  onApply: (accept: { vesselName: boolean; vesselImo: boolean; particulars: boolean }) => void;
+  onClose: () => void;
+}) {
+  const [acceptName, setAcceptName] = useState(Boolean(result.vesselName));
+  const [acceptImo, setAcceptImo] = useState(Boolean(result.vesselImo));
+  const [acceptParticulars, setAcceptParticulars] = useState(true);
+
+  const p = result.particulars;
+  const confidence = (k: string) => {
+    const v = result.confidenceScores[k];
+    if (typeof v !== "number") return null;
+    const colour = v >= 0.9 ? "text-emerald-400" : v >= 0.7 ? "text-amber-400" : "text-red-400";
+    return <span className={`text-[0.6rem] ${colour}`}>({Math.round(v * 100)}%)</span>;
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-8 overflow-auto">
+      <div className="w-full max-w-2xl rounded-[var(--radius-lg)] border border-[var(--color-border-default)] bg-[var(--color-surface-1)] shadow-xl">
+        <div className="flex items-center justify-between border-b border-[var(--color-border-subtle)] px-5 py-3">
+          <h3 className="text-sm font-semibold text-[var(--color-text-primary)]">
+            Q88 parsed — review and apply
+          </h3>
+          <button
+            onClick={onClose}
+            className="text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="px-5 py-4 space-y-4 text-xs text-[var(--color-text-secondary)]">
+          {/* Vessel identity */}
+          <section className="space-y-2">
+            <h4 className="text-[0.7rem] font-semibold uppercase tracking-wide text-[var(--color-text-tertiary)]">
+              Vessel identity
+            </h4>
+            <label className="flex items-start gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={acceptName}
+                onChange={(e) => setAcceptName(e.target.checked)}
+                disabled={!result.vesselName}
+                className="mt-0.5 accent-cyan-500"
+              />
+              <span className="flex-1">
+                <span className="text-[var(--color-text-tertiary)]">Vessel name:</span>{" "}
+                <span className="font-medium text-[var(--color-text-primary)]">
+                  {result.vesselName ?? "— not found —"}
+                </span>{" "}
+                {confidence("vessel_name")}
+                {currentVesselName && currentVesselName !== result.vesselName && (
+                  <span className="text-[0.65rem] text-amber-400 block">
+                    replaces current: {currentVesselName}
+                  </span>
+                )}
+              </span>
+            </label>
+            <label className="flex items-start gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={acceptImo}
+                onChange={(e) => setAcceptImo(e.target.checked)}
+                disabled={!result.vesselImo}
+                className="mt-0.5 accent-cyan-500"
+              />
+              <span className="flex-1">
+                <span className="text-[var(--color-text-tertiary)]">IMO:</span>{" "}
+                <span className="font-medium text-[var(--color-text-primary)]">
+                  {result.vesselImo ?? "— not found —"}
+                </span>{" "}
+                {confidence("vessel_imo")}
+                {currentVesselImo && currentVesselImo !== result.vesselImo && (
+                  <span className="text-[0.65rem] text-amber-400 block">
+                    replaces current: {currentVesselImo}
+                  </span>
+                )}
+              </span>
+            </label>
+          </section>
+
+          {/* Particulars preview */}
+          <section className="space-y-2">
+            <h4 className="text-[0.7rem] font-semibold uppercase tracking-wide text-[var(--color-text-tertiary)]">
+              Vessel particulars
+              {hasExistingParticulars && (
+                <span className="ml-2 text-amber-400 normal-case text-[0.65rem]">
+                  (will replace existing)
+                </span>
+              )}
+            </h4>
+            <label className="flex items-start gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={acceptParticulars}
+                onChange={(e) => setAcceptParticulars(e.target.checked)}
+                className="mt-0.5 accent-cyan-500"
+              />
+              <span className="flex-1">Apply particulars + tank capacities (used by Planner Mode)</span>
+            </label>
+
+            <div className="grid grid-cols-2 gap-x-4 gap-y-1 rounded-[var(--radius-md)] bg-[var(--color-surface-2)] border border-[var(--color-border-subtle)] px-3 py-2">
+              <Kv label="DWT">{fmt(p.dwt, " MT")}</Kv>
+              <Kv label="Built">{p.builtYear ?? "—"}</Kv>
+              <Kv label="LOA">{fmt(p.loa, " m")}</Kv>
+              <Kv label="Beam">{fmt(p.beam, " m")}</Kv>
+              <Kv label="Summer draft">{fmt(p.summerDraft, " m")}</Kv>
+              <Kv label="Flag">{p.flag ?? "—"}</Kv>
+              <Kv label="Class">{p.classSociety ?? "—"}</Kv>
+              <Kv label="Type">{p.vesselType ?? "—"}</Kv>
+              <Kv label="Coating">{p.coating ?? "—"}</Kv>
+              <Kv label="Segregations">{p.segregations ?? "—"}</Kv>
+              <Kv label="Tanks">{p.tankCount ?? p.tanks?.length ?? "—"}</Kv>
+              <Kv label="Cargo @98%">{fmt(p.totalCargoCapacity98, " m³")}</Kv>
+            </div>
+
+            {p.tanks && p.tanks.length > 0 && (
+              <details className="text-[0.7rem]">
+                <summary className="cursor-pointer text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]">
+                  {p.tanks.length} tanks parsed — expand
+                </summary>
+                <div className="mt-2 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] overflow-hidden">
+                  <table className="w-full">
+                    <thead className="bg-[var(--color-surface-2)] text-[var(--color-text-tertiary)]">
+                      <tr>
+                        <th className="text-left px-2 py-1 font-normal">Tank</th>
+                        <th className="text-right px-2 py-1 font-normal">100% (m³)</th>
+                        <th className="text-right px-2 py-1 font-normal">98% (m³)</th>
+                        <th className="text-left px-2 py-1 font-normal">Coating</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {p.tanks.map((t, i) => (
+                        <tr key={i} className="border-t border-[var(--color-border-subtle)]">
+                          <td className="px-2 py-1 font-medium">{t.name}</td>
+                          <td className="px-2 py-1 text-right">{fmt(t.capacity100)}</td>
+                          <td className="px-2 py-1 text-right">{fmt(t.capacity98)}</td>
+                          <td className="px-2 py-1 text-[var(--color-text-tertiary)]">{t.coating ?? "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </details>
+            )}
+          </section>
+        </div>
+
+        <div className="flex items-center justify-end gap-2 border-t border-[var(--color-border-subtle)] px-5 py-3">
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button
+            onClick={() =>
+              onApply({
+                vesselName: acceptName,
+                vesselImo: acceptImo,
+                particulars: acceptParticulars,
+              })
+            }
+            disabled={!acceptName && !acceptImo && !acceptParticulars}
+          >
+            Apply selected
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Kv({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-baseline gap-1">
+      <span className="text-[var(--color-text-tertiary)]">{label}:</span>
+      <span className="text-[var(--color-text-primary)]">{children}</span>
+    </div>
+  );
+}
+
+function fmt(v: number | null | undefined, suffix = ""): string {
+  if (v == null || !Number.isFinite(v)) return "—";
+  // Format with thousand separators, no decimals unless non-integer
+  const rounded = Math.round(v * 100) / 100;
+  const str = Number.isInteger(rounded)
+    ? rounded.toLocaleString("en-US")
+    : rounded.toLocaleString("en-US", { maximumFractionDigits: 2 });
+  return `${str}${suffix}`;
 }
 
 // ── Step Status Badge ────────────────────────────────────────
@@ -1376,5 +1842,421 @@ function DeleteLinkageButton({ linkageId, dealCount, onDeleted }: { linkageId: s
         </div>
       )}
     </>
+  );
+}
+
+// ── Planner Mode Modal ──────────────────────────────────────
+//
+// Top-down stowage plan view. The operator inputs cargo density (kg/m³) and
+// the planner computes how much cargo can be loaded per tank, using 98%
+// capacity as the cargo fill rule (IMO convention — 2% ullage for thermal
+// expansion). Totals across selected tanks give a quick sanity check against
+// the nominated quantity before loading.
+//
+// The tank layout is derived from the parsed Q88:
+//   - Tanks ending in "P" go port (top row), "S" starboard (bottom row).
+//   - Tank numbers determine column order (1 = stern, growing bow-ward).
+//   - Slop tanks go at the stern.
+// This is heuristic — real tanker layouts vary — but for a parallel-tank MR
+// it gets the operator to a recognisable picture without hand-wiring geometry.
+
+function PlannerModal({
+  linkage,
+  onClose,
+}: {
+  linkage: LinkageData;
+  onClose: () => void;
+}) {
+  const particulars = linkage.vesselParticulars!;
+  const tanks = particulars.tanks ?? [];
+  const loadlines = particulars.loadlines ?? [];
+
+  // Default to the Summer loadline since that's the industry default and the
+  // AI parser puts it at the top. If parse didn't find any loadlines, the
+  // top-level particulars.dwt is still shown as the ceiling.
+  const defaultLoadlineName =
+    loadlines.find((l) => /^summer$/i.test(l.name))?.name ?? loadlines[0]?.name ?? "";
+  const [selectedLoadlineName, setSelectedLoadlineName] = useState<string>(defaultLoadlineName);
+  const selectedLoadline =
+    loadlines.find((l) => l.name === selectedLoadlineName) ?? null;
+  const dwtCeiling = selectedLoadline?.dwt ?? particulars.dwt ?? null;
+
+  const [density, setDensity] = useState<number>(740);
+  const [selectedTanks, setSelectedTanks] = useState<Set<string>>(
+    () => new Set(tanks.map((t) => t.name))
+  );
+
+  const toggleTank = (name: string) => {
+    setSelectedTanks((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  };
+
+  const parsed = tanks.map((t) => {
+    const match = t.name.trim().toUpperCase().match(/^(SLOP\s*)?(\d+)?\s*([PS])?$/);
+    const isSlop = /^SLOP/i.test(t.name);
+    const num = match && match[2] ? parseInt(match[2], 10) : null;
+    const side: "P" | "S" | "C" =
+      match && match[3] === "P" ? "P" : match && match[3] === "S" ? "S" : "C";
+    return { ...t, _num: num, _side: side, _isSlop: isSlop };
+  });
+
+  const numberedTanks = parsed.filter((t) => t._num != null && !t._isSlop);
+  const slopTanks = parsed.filter((t) => t._isSlop);
+  const otherTanks = parsed.filter((t) => t._num == null && !t._isSlop);
+
+  const columns = Array.from(new Set(numberedTanks.map((t) => t._num as number))).sort((a, b) => a - b);
+
+  const portRow = columns.map((col) => numberedTanks.find((t) => t._num === col && t._side === "P") ?? null);
+  const stbdRow = columns.map((col) => numberedTanks.find((t) => t._num === col && t._side === "S") ?? null);
+  const centerRow = columns.map((col) => numberedTanks.find((t) => t._num === col && t._side === "C") ?? null);
+  const hasCenter = centerRow.some((t) => t !== null);
+
+  const cargoM3 = (t: VesselTank): number => {
+    if (typeof t.capacity98 === "number") return t.capacity98;
+    if (typeof t.capacity100 === "number") return t.capacity100 * 0.98;
+    return 0;
+  };
+  const cargoMt = (t: VesselTank): number => (cargoM3(t) * density) / 1000;
+
+  const totals = parsed.reduce(
+    (acc, t) => {
+      const m3 = cargoM3(t);
+      const mt = cargoMt(t);
+      acc.totalM3 += m3;
+      acc.totalMt += mt;
+      if (selectedTanks.has(t.name)) {
+        acc.selectedM3 += m3;
+        acc.selectedMt += mt;
+      }
+      return acc;
+    },
+    { totalM3: 0, totalMt: 0, selectedM3: 0, selectedMt: 0 }
+  );
+
+  const svgWidth = 760;
+  const svgHeight = 300;
+  const margin = 24;
+  const hullTop = margin;
+  const hullBottom = svgHeight - margin;
+  const sternX = margin;
+  const bowX = svgWidth - margin;
+  const hullHeight = hullBottom - hullTop;
+  const bowTaper = 70;
+  const gridSternX = sternX + (slopTanks.length > 0 ? 60 : 20);
+  const gridBowX = bowX - bowTaper;
+  const gridWidth = gridBowX - gridSternX;
+  const colWidth = columns.length > 0 ? gridWidth / columns.length : 0;
+  const rowCount = hasCenter ? 3 : 2;
+  const rowHeight = (hullHeight - 16) / rowCount;
+  const rowTop = (idx: number) => hullTop + 8 + idx * rowHeight;
+
+  const maxM3 = Math.max(...parsed.map((x) => cargoM3(x)), 1);
+  const tankFill = (t: VesselTank) => {
+    if (!selectedTanks.has(t.name)) return "var(--color-surface-3)";
+    const intensity = Math.max(0.3, cargoM3(t) / maxM3);
+    return `rgba(34, 211, 238, ${intensity * 0.6})`;
+  };
+  const tankStroke = (t: VesselTank) =>
+    selectedTanks.has(t.name) ? "rgb(34, 211, 238)" : "var(--color-border-default)";
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-8 overflow-auto">
+      <div className="w-full max-w-5xl rounded-[var(--radius-lg)] border border-[var(--color-border-default)] bg-[var(--color-surface-1)] shadow-xl">
+        <div className="flex items-center justify-between border-b border-[var(--color-border-subtle)] px-5 py-3">
+          <div className="flex items-center gap-3">
+            <Layers className="h-4 w-4 text-cyan-400" />
+            <h3 className="text-sm font-semibold text-[var(--color-text-primary)]">
+              Stowage Planner — {linkage.vesselName ?? "TBN"}{" "}
+              <span className="text-[var(--color-text-tertiary)] font-normal">
+                (IMO {linkage.vesselImo ?? "—"})
+              </span>
+            </h3>
+          </div>
+          <button onClick={onClose} className="text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="px-5 py-4 space-y-4 text-xs text-[var(--color-text-secondary)]">
+          <div className="grid grid-cols-6 gap-x-4 gap-y-1 rounded-[var(--radius-md)] bg-[var(--color-surface-2)] border border-[var(--color-border-subtle)] px-3 py-2">
+            <Kv label="DWT">
+              {fmt(dwtCeiling, " MT")}
+              {selectedLoadline && (
+                <span className="text-[0.6rem] text-[var(--color-text-tertiary)] ml-1">
+                  ({selectedLoadline.name})
+                </span>
+              )}
+            </Kv>
+            <Kv label="LOA">{fmt(particulars.loa, " m")}</Kv>
+            <Kv label="Beam">{fmt(particulars.beam, " m")}</Kv>
+            <Kv label="Draft">{fmt(selectedLoadline?.draft ?? particulars.summerDraft, " m")}</Kv>
+            <Kv label="Tanks">{particulars.tankCount ?? tanks.length}</Kv>
+            <Kv label="Coating">{particulars.coating ?? "—"}</Kv>
+          </div>
+
+          {/* Loadline selector — Q88 always lists several loadlines (Summer,
+              Winter, Tropical, Fresh, Tropical Fresh) plus per-assigned-DWT
+              rows on multi-SDWT vessels. The operator picks the one that
+              applies to the current voyage zone / water density. */}
+          {loadlines.length > 0 && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[0.65rem] uppercase tracking-wide text-[var(--color-text-tertiary)]">
+                Loadline:
+              </span>
+              <div className="flex flex-wrap gap-1.5">
+                {loadlines.map((l) => {
+                  const active = l.name === selectedLoadlineName;
+                  return (
+                    <button
+                      key={l.name}
+                      onClick={() => setSelectedLoadlineName(l.name)}
+                      className={`px-2 py-0.5 rounded-[var(--radius-sm)] text-[0.65rem] border transition-colors ${
+                        active
+                          ? "bg-cyan-500/20 border-cyan-500/50 text-cyan-300"
+                          : "bg-[var(--color-surface-2)] border-[var(--color-border-subtle)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-default)]"
+                      }`}
+                      title={`DWT ${fmt(l.dwt, " MT")}${l.draft ? ` · draft ${l.draft} m` : ""}`}
+                    >
+                      {l.name}{" "}
+                      <span className={active ? "text-cyan-400" : "text-[var(--color-text-tertiary)]"}>
+                        {fmt(l.dwt, " MT")}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          <div className="rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-2)] p-3">
+            <svg viewBox={`0 0 ${svgWidth} ${svgHeight}`} className="w-full h-auto" style={{ maxHeight: 340 }}>
+              <path
+                d={`M ${sternX} ${hullTop} L ${bowX - bowTaper} ${hullTop} Q ${bowX} ${hullTop + hullHeight / 2 - hullHeight * 0.25}, ${bowX} ${hullTop + hullHeight / 2} Q ${bowX} ${hullBottom - hullHeight * 0.25}, ${bowX - bowTaper} ${hullBottom} L ${sternX} ${hullBottom} Z`}
+                fill="var(--color-surface-1)"
+                stroke="var(--color-border-default)"
+                strokeWidth={1.5}
+              />
+              <line
+                x1={sternX + 4}
+                y1={hullTop + hullHeight / 2}
+                x2={bowX - 4}
+                y2={hullTop + hullHeight / 2}
+                stroke="var(--color-border-subtle)"
+                strokeDasharray="3 3"
+                strokeWidth={1}
+              />
+              <text x={sternX + 4} y={hullTop - 6} fontSize={9} fill="var(--color-text-tertiary)">STERN</text>
+              <text x={bowX - 30} y={hullTop - 6} fontSize={9} fill="var(--color-text-tertiary)">BOW →</text>
+              <text x={svgWidth / 2 - 10} y={hullTop - 6} fontSize={9} fill="var(--color-text-tertiary)">PORT</text>
+              <text x={svgWidth / 2 - 20} y={hullBottom + 14} fontSize={9} fill="var(--color-text-tertiary)">STARBOARD</text>
+
+              {slopTanks.map((t, i) => {
+                const slopW = 40;
+                const slopH = rowHeight - 4;
+                const x = sternX + 8;
+                const y = hullTop + 10 + i * (slopH + 4);
+                return (
+                  <g key={`slop-${i}`} onClick={() => toggleTank(t.name)} style={{ cursor: "pointer" }}>
+                    <rect x={x} y={y} width={slopW} height={slopH} fill={tankFill(t)} stroke={tankStroke(t)} strokeWidth={1} rx={2} />
+                    <text x={x + slopW / 2} y={y + slopH / 2 + 3} textAnchor="middle" fontSize={8} fill="var(--color-text-primary)">{t.name}</text>
+                  </g>
+                );
+              })}
+
+              {columns.map((colNum, ci) => {
+                const x = gridSternX + ci * colWidth + 2;
+                const w = colWidth - 4;
+                const pt = portRow[ci];
+                const ct = centerRow[ci];
+                const st = stbdRow[ci];
+                return (
+                  <g key={`col-${colNum}`}>
+                    {pt && (
+                      <g onClick={() => toggleTank(pt.name)} style={{ cursor: "pointer" }}>
+                        <rect x={x} y={rowTop(0)} width={w} height={rowHeight - 4} fill={tankFill(pt)} stroke={tankStroke(pt)} strokeWidth={1} rx={2} />
+                        <text x={x + w / 2} y={rowTop(0) + (rowHeight - 4) / 2 - 4} textAnchor="middle" fontSize={10} fontWeight={600} fill="var(--color-text-primary)">{pt.name}</text>
+                        <text x={x + w / 2} y={rowTop(0) + (rowHeight - 4) / 2 + 10} textAnchor="middle" fontSize={8} fill="var(--color-text-secondary)">{fmt(cargoMt(pt), " MT")}</text>
+                      </g>
+                    )}
+                    {hasCenter && ct && (
+                      <g onClick={() => toggleTank(ct.name)} style={{ cursor: "pointer" }}>
+                        <rect x={x} y={rowTop(1)} width={w} height={rowHeight - 4} fill={tankFill(ct)} stroke={tankStroke(ct)} strokeWidth={1} rx={2} />
+                        <text x={x + w / 2} y={rowTop(1) + (rowHeight - 4) / 2 - 4} textAnchor="middle" fontSize={10} fontWeight={600} fill="var(--color-text-primary)">{ct.name}</text>
+                        <text x={x + w / 2} y={rowTop(1) + (rowHeight - 4) / 2 + 10} textAnchor="middle" fontSize={8} fill="var(--color-text-secondary)">{fmt(cargoMt(ct), " MT")}</text>
+                      </g>
+                    )}
+                    {st && (
+                      <g onClick={() => toggleTank(st.name)} style={{ cursor: "pointer" }}>
+                        <rect x={x} y={rowTop(rowCount - 1)} width={w} height={rowHeight - 4} fill={tankFill(st)} stroke={tankStroke(st)} strokeWidth={1} rx={2} />
+                        <text x={x + w / 2} y={rowTop(rowCount - 1) + (rowHeight - 4) / 2 - 4} textAnchor="middle" fontSize={10} fontWeight={600} fill="var(--color-text-primary)">{st.name}</text>
+                        <text x={x + w / 2} y={rowTop(rowCount - 1) + (rowHeight - 4) / 2 + 10} textAnchor="middle" fontSize={8} fill="var(--color-text-secondary)">{fmt(cargoMt(st), " MT")}</text>
+                      </g>
+                    )}
+                  </g>
+                );
+              })}
+            </svg>
+            {otherTanks.length > 0 && (
+              <div className="mt-2 text-[0.65rem] text-[var(--color-text-tertiary)]">
+                Unmapped tanks (click to toggle):{" "}
+                {otherTanks.map((t, i) => (
+                  <button
+                    key={i}
+                    onClick={() => toggleTank(t.name)}
+                    className={`inline-block mx-1 px-1.5 py-0.5 rounded border ${
+                      selectedTanks.has(t.name)
+                        ? "border-cyan-500/50 bg-cyan-500/20 text-cyan-300"
+                        : "border-[var(--color-border-subtle)] text-[var(--color-text-secondary)]"
+                    }`}
+                  >
+                    {t.name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <label className="rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-3 py-2">
+              <span className="block text-[0.65rem] uppercase tracking-wide text-[var(--color-text-tertiary)]">
+                Cargo density (kg/m³)
+              </span>
+              <input
+                type="number"
+                min={500}
+                max={1100}
+                step={1}
+                value={density}
+                onChange={(e) => setDensity(Number(e.target.value) || 0)}
+                className="w-full mt-1 bg-transparent text-sm font-medium text-[var(--color-text-primary)] focus:outline-none"
+              />
+              <span className="block text-[0.6rem] text-[var(--color-text-tertiary)] mt-0.5">
+                Gasoline ~720-745 · Naphtha ~680-720 · Diesel ~820-845
+              </span>
+            </label>
+
+            {(() => {
+              const overDwt =
+                typeof dwtCeiling === "number" && totals.selectedMt > dwtCeiling;
+              const nearDwt =
+                typeof dwtCeiling === "number" &&
+                !overDwt &&
+                totals.selectedMt > dwtCeiling * 0.98;
+              const borderCls = overDwt
+                ? "border-red-500/60"
+                : nearDwt
+                ? "border-amber-500/60"
+                : "border-[var(--color-border-subtle)]";
+              const textCls = overDwt
+                ? "text-red-400"
+                : nearDwt
+                ? "text-amber-400"
+                : "text-[var(--color-text-primary)]";
+              return (
+                <div
+                  className={`rounded-[var(--radius-md)] border ${borderCls} bg-[var(--color-surface-2)] px-3 py-2`}
+                >
+                  <span className="block text-[0.65rem] uppercase tracking-wide text-[var(--color-text-tertiary)]">
+                    Selected tanks
+                  </span>
+                  <div className={`text-sm font-semibold mt-1 ${textCls}`}>
+                    {fmt(totals.selectedMt, " MT")}
+                  </div>
+                  <div className="text-[0.65rem] text-[var(--color-text-tertiary)]">
+                    {fmt(totals.selectedM3, " m³ @ 98%")} · {selectedTanks.size}/{tanks.length} tanks
+                  </div>
+                  {overDwt && (
+                    <div className="text-[0.65rem] text-red-400 mt-1">
+                      Exceeds {selectedLoadline?.name ?? "DWT"} by{" "}
+                      {fmt(totals.selectedMt - (dwtCeiling ?? 0), " MT")}
+                    </div>
+                  )}
+                  {nearDwt && (
+                    <div className="text-[0.65rem] text-amber-400 mt-1">
+                      Within 2% of {selectedLoadline?.name ?? "DWT"} ceiling
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
+            <div className="rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-2)] px-3 py-2">
+              <span className="block text-[0.65rem] uppercase tracking-wide text-[var(--color-text-tertiary)]">
+                Max capacity
+              </span>
+              <div className="text-sm font-semibold text-[var(--color-text-primary)] mt-1">
+                {fmt(totals.totalMt, " MT")}
+              </div>
+              <div className="text-[0.65rem] text-[var(--color-text-tertiary)]">
+                {fmt(totals.totalM3, " m³ @ 98%")} · all tanks
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] overflow-hidden">
+            <div className="flex items-center justify-between border-b border-[var(--color-border-subtle)] bg-[var(--color-surface-2)] px-3 py-1.5">
+              <span className="text-[0.65rem] uppercase tracking-wide text-[var(--color-text-tertiary)]">
+                Tank breakdown
+              </span>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setSelectedTanks(new Set(tanks.map((t) => t.name)))}
+                  className="text-[0.65rem] text-cyan-400 hover:text-cyan-300"
+                >
+                  Select all
+                </button>
+                <button
+                  onClick={() => setSelectedTanks(new Set())}
+                  className="text-[0.65rem] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]"
+                >
+                  Clear
+                </button>
+              </div>
+            </div>
+            <table className="w-full text-[0.7rem]">
+              <thead className="text-[var(--color-text-tertiary)]">
+                <tr>
+                  <th className="text-left px-2 py-1 font-normal w-8"></th>
+                  <th className="text-left px-2 py-1 font-normal">Tank</th>
+                  <th className="text-right px-2 py-1 font-normal">100% (m³)</th>
+                  <th className="text-right px-2 py-1 font-normal">98% (m³)</th>
+                  <th className="text-right px-2 py-1 font-normal">Cargo (MT)</th>
+                  <th className="text-left px-2 py-1 font-normal">Coating</th>
+                </tr>
+              </thead>
+              <tbody>
+                {tanks.map((t, i) => {
+                  const sel = selectedTanks.has(t.name);
+                  return (
+                    <tr key={i} className="border-t border-[var(--color-border-subtle)]">
+                      <td className="px-2 py-1">
+                        <input type="checkbox" checked={sel} onChange={() => toggleTank(t.name)} className="accent-cyan-500" />
+                      </td>
+                      <td className="px-2 py-1 font-medium">{t.name}</td>
+                      <td className="px-2 py-1 text-right">{fmt(t.capacity100)}</td>
+                      <td className="px-2 py-1 text-right">
+                        {fmt(t.capacity98 ?? (t.capacity100 ? t.capacity100 * 0.98 : null))}
+                      </td>
+                      <td className={`px-2 py-1 text-right ${sel ? "text-cyan-300 font-medium" : "text-[var(--color-text-tertiary)]"}`}>
+                        {fmt(cargoMt(t))}
+                      </td>
+                      <td className="px-2 py-1 text-[var(--color-text-tertiary)]">{t.coating ?? "—"}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-end gap-2 border-t border-[var(--color-border-subtle)] px-5 py-3">
+          <Button variant="secondary" onClick={onClose}>Close</Button>
+        </div>
+      </div>
+    </div>
   );
 }

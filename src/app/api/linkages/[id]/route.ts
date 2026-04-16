@@ -65,6 +65,7 @@ export const PUT = withAuth(
       if (updates.status !== undefined) updatePayload.status = updates.status;
       if (updates.vesselName !== undefined) updatePayload.vesselName = updates.vesselName;
       if (updates.vesselImo !== undefined) updatePayload.vesselImo = updates.vesselImo;
+      if (updates.vesselParticulars !== undefined) updatePayload.vesselParticulars = updates.vesselParticulars;
       if (updates.assignedOperatorId !== undefined) updatePayload.assignedOperatorId = updates.assignedOperatorId;
       if (updates.secondaryOperatorId !== undefined) updatePayload.secondaryOperatorId = updates.secondaryOperatorId;
       if (updates.notes !== undefined) updatePayload.notes = updates.notes;

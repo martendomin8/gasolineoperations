@@ -32,6 +32,10 @@ yarn-error.log*
 # archives
 *.zip
 
+# local-only dev artefacts
+/public/uploads
+/Q88
+
 # vercel
 .vercel
 
