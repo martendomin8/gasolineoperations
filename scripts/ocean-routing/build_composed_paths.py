@@ -259,7 +259,11 @@ CORRIDORS = {
     # STRAIT OF HORMUZ (narrow)
     "strait_of_hormuz": [[26.00, 56.50], [26.50, 56.20], [26.50, 55.50]],
 
-    # INDIAN OCEAN to MALACCA
+    # INDIAN OCEAN CROSSING (Bab-el-Mandeb → Malacca)
+    "indian_ocean_bab_to_malacca": [[11.80, 44.10], [6.00, 70.00], [5.50, 95.00], [5.50, 99.00], [3.00, 100.50], [1.50, 103.00]],
+    # INDIAN OCEAN SOUTH (south of equator transit east-west)
+    "indian_ocean_south": [[-20.00, 50.00], [-10.00, 65.00], [0.00, 75.00], [5.00, 88.00], [5.50, 95.00]],
+    # alias for backward compatibility
     "indian_ocean_malacca": [[11.80, 44.10], [6.00, 70.00], [5.50, 95.00], [5.50, 99.00], [3.00, 100.50], [1.50, 103.00]],
 
     "malacca_strait": [[5.50, 99.00], [3.00, 100.50], [1.50, 103.00]],
@@ -364,7 +368,7 @@ REGION_GRAPH = {
 
     # INDIAN_OCEAN:
     ("INDIAN_OCEAN", "RED_SEA"): ["aden_to_hormuz", "bab_el_mandeb"],
-    ("INDIAN_OCEAN", "SE_ASIA"): ["indian_ocean_malacca"],
+    ("INDIAN_OCEAN", "SE_ASIA"): ["indian_ocean_bab_to_malacca", "malacca_strait"],
     ("INDIAN_OCEAN", "E_AFRICA"): [],
     ("INDIAN_OCEAN", "S_ATLANTIC"): ["cape_of_good_hope"],
 
@@ -388,7 +392,11 @@ REGION_GRAPH = {
     ("W_AFRICA", "PACIFIC_SA"): ["west_africa_offshore", "canaries_bypass", "atlantic_n_crossing", "us_east_coast", "caribbean_transit", "panama_canal", "pacific_sa_coast"],
     ("W_AFRICA", "CARIBBEAN"): ["west_africa_offshore", "canaries_bypass", "atlantic_n_crossing", "us_east_coast", "caribbean_transit"],
     ("W_AFRICA", "GULF_OF_MEXICO"): ["west_africa_offshore", "canaries_bypass", "atlantic_n_crossing", "us_east_coast", "florida_strait", "gulf_of_mexico_interior"],
-    ("SE_ASIA", "INDIAN_OCEAN"): ["indian_ocean_malacca"],
+    ("SE_ASIA", "INDIAN_OCEAN"): ["malacca_strait", "indian_ocean_bab_to_malacca"],
+    ("SE_ASIA", "S_ATLANTIC"): ["malacca_strait", "indian_ocean_south", "cape_of_good_hope"],
+    ("SE_ASIA", "E_AFRICA"): ["malacca_strait", "indian_ocean_south"],
+    ("S_ATLANTIC", "SE_ASIA"): ["cape_of_good_hope", "indian_ocean_south", "malacca_strait"],
+    ("E_AFRICA", "SE_ASIA"): ["indian_ocean_south", "malacca_strait"],
 
     # BALTIC:
     ("BALTIC", "NE_ATLANTIC"): ["north_sea_kattegat_baltic"],
