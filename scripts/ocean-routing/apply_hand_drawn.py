@@ -80,6 +80,54 @@ def load_land_geometry():
     return prep(merged)
 
 
+# Navigable corridors where Natural Earth 50m's simplified coastline
+# incorrectly reports land-crossings. These are narrow straits, tidal
+# rivers, and dense archipelagos where real ships DO pass through but
+# the 50m polygon merges adjacent islands/peninsulas into "mainland".
+# Hits inside any of these boxes are treated as water.
+#
+# Format: (min_lat, max_lat, min_lon, max_lon, label)
+NAVIGABLE_CORRIDORS = [
+    # Danish straits — Øresund + Great Belt + Little Belt + Kattegat approach
+    (54.50, 56.20, 11.30, 13.20, "Danish Straits / Øresund"),
+    # Scheldt estuary (Antwerp approach via Westerschelde)
+    (51.20, 51.60, 3.30, 4.60, "Scheldt / Westerschelde"),
+    # Dutch North Sea approaches (Maas/Waal/IJ — Amsterdam + Rotterdam)
+    # Lower bound extended to 51.40 to include Zeeland/Walcheren islands.
+    (51.40, 52.60, 3.00, 5.30, "Dutch coast / Amsterdam-Rotterdam"),
+    # English Channel / Dover narrows
+    (50.70, 51.30, 0.90, 2.00, "Dover Strait"),
+    # Kiel Canal (Germany, cuts through Schleswig-Holstein)
+    (53.80, 54.50, 9.00, 10.30, "Kiel Canal"),
+    # Chesapeake Bay entrance + Delmarva shore (Baltimore/Norfolk approach)
+    (36.70, 39.60, -76.80, -75.20, "Chesapeake Bay / Delaware Bay"),
+    # New York Bight / Long Island Sound approaches
+    (40.20, 40.80, -74.40, -73.20, "New York Bight"),
+    # Gulf of Finland mouth (Tallinn / Helsinki / Ust-Luga approach)
+    (59.00, 60.30, 22.00, 29.00, "Gulf of Finland"),
+    # Greek archipelago — Cyclades + Ionian + Aegean islands
+    (35.50, 40.00, 22.50, 27.00, "Greek archipelago"),
+    # Strait of Gibraltar
+    (35.80, 36.20, -5.90, -5.10, "Strait of Gibraltar"),
+    # Strait of Messina (Sicily)
+    (37.90, 38.40, 15.50, 15.80, "Strait of Messina"),
+    # Bosphorus + Dardanelles + Sea of Marmara
+    (40.00, 41.30, 26.00, 29.50, "Turkish Straits"),
+    # Suez Canal (Port Said to Suez)
+    (29.80, 31.30, 32.20, 32.70, "Suez Canal"),
+    # Panama Canal
+    (8.80, 9.40, -80.00, -79.40, "Panama Canal"),
+]
+
+
+def in_navigable_corridor(lat: float, lon: float) -> str | None:
+    """Return the label of the corridor containing this point, or None."""
+    for min_lat, max_lat, min_lon, max_lon, label in NAVIGABLE_CORRIDORS:
+        if min_lat <= lat <= max_lat and min_lon <= lon <= max_lon:
+            return label
+    return None
+
+
 def segment_crosses_land(p1, p2, land_prep, samples: int = 80,
                          endpoint_buffer_nm: float = 15.0):
     """
@@ -103,6 +151,11 @@ def segment_crosses_land(p1, p2, land_prep, samples: int = 80,
         d1 = haversine_nm(lat, lon, p1[0], p1[1])
         d2 = haversine_nm(lat, lon, p2[0], p2[1])
         if d1 < endpoint_buffer_nm or d2 < endpoint_buffer_nm:
+            continue
+
+        # Skip if inside a known-navigable corridor (Natural Earth 50m
+        # false-positive zone — narrow straits, tidal rivers, archipelagos).
+        if in_navigable_corridor(lat, lon):
             continue
 
         if land_prep.contains(Point(lon, lat)):
