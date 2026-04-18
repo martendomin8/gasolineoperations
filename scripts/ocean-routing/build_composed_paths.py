@@ -234,6 +234,12 @@ CORRIDORS = {
         [56.50, 19.50], [55.80, 19.80], [55.70, 20.80]
     ],
 
+    # GULF OF RIGA TRANSIT — between Tallinn / NE Estonia and Ventspils /
+    # Riga area, between Estonian mainland and Saaremaa island.
+    "gulf_of_riga": [
+        [59.50, 24.80], [58.60, 23.60], [57.80, 22.80], [57.40, 21.80]
+    ],
+
     # IRISH SEA SOUTH — Belfast/Dublin to Channel via south of Ireland
     "irish_sea_to_channel": [
         [54.90, -5.30], [53.50, -5.60], [52.00, -6.20], [51.00, -7.00],
@@ -498,7 +504,11 @@ SAME_REGION_CORRIDORS = {
     # — through open Baltic sea, not across Latvia/Lithuania
     frozenset(["Tallinn, EE", "Klaipeda, LT"]): ["baltic_open_sea"],
     frozenset(["Tallinn, EE", "Gdansk, PL"]): ["baltic_open_sea"],
-    frozenset(["Tallinn, EE", "Ventspils, LV"]): ["baltic_open_sea"],
+    frozenset(["Tallinn, EE", "Ventspils, LV"]): ["gulf_of_riga"],
+    frozenset(["Ust-Luga, RU", "Ventspils, LV"]): ["gulf_of_riga"],
+    frozenset(["Sankt-Peterburg, RU", "Ventspils, LV"]): ["gulf_of_riga"],
+    frozenset(["Primorsk, RU", "Ventspils, LV"]): ["gulf_of_riga"],
+    frozenset(["Porvoo, FI", "Ventspils, LV"]): ["gulf_of_riga"],
     frozenset(["Ust-Luga, RU", "Klaipeda, LT"]): ["baltic_open_sea"],
     frozenset(["Ust-Luga, RU", "Gdansk, PL"]): ["baltic_open_sea"],
     frozenset(["Sankt-Peterburg, RU", "Klaipeda, LT"]): ["baltic_open_sea"],
