@@ -234,6 +234,13 @@ CORRIDORS = {
         [56.50, 19.50], [55.80, 19.80], [55.70, 20.80]
     ],
 
+    # AEGEAN SOUTH → CYPRUS / LEVANT — south of Turkish coast, east of
+    # Rhodes, into east Mediterranean.
+    "aegean_south_levant": [
+        [38.50, 26.20], [36.50, 28.20], [35.30, 29.50], [35.00, 32.00],
+        [34.73, 33.33]
+    ],
+
     # AROUND SAAREMAA — tight western loop for Tallinn/Ust-Luga ↔ Ventspils.
     # Keeps it a short loop west of Hiiumaa + Saaremaa instead of the
     # wider open-Baltic detour via Gotland.
@@ -506,6 +513,19 @@ SAME_REGION_CORRIDORS = {
     # — through open Baltic sea, not across Latvia/Lithuania
     frozenset(["Tallinn, EE", "Klaipeda, LT"]): ["baltic_open_sea"],
     frozenset(["Tallinn, EE", "Gdansk, PL"]): ["baltic_open_sea"],
+    # MED_EAST internal — Aegean ports ↔ Cyprus / Levant (around Turkish coast)
+    frozenset(["Aliaga, TR", "Vassiliko, CY"]): ["aegean_south_levant"],
+    frozenset(["Aliaga, TR", "Beirut, LB"]): ["aegean_south_levant"],
+    frozenset(["Aliaga, TR", "Alexandria, EG"]): ["aegean_south_levant"],
+    frozenset(["Agioi Theodoroi, GR", "Vassiliko, CY"]): ["aegean_south_levant"],
+    frozenset(["Agioi Theodoroi, GR", "Beirut, LB"]): ["aegean_south_levant"],
+    frozenset(["Thessaloniki, GR", "Vassiliko, CY"]): ["aegean_south_levant"],
+    frozenset(["Thessaloniki, GR", "Beirut, LB"]): ["aegean_south_levant"],
+    frozenset(["Thessaloniki, GR", "Alexandria, EG"]): ["aegean_south_levant"],
+    frozenset(["Izmit, TR", "Vassiliko, CY"]): ["aegean_south_levant"],
+    frozenset(["Izmit, TR", "Beirut, LB"]): ["aegean_south_levant"],
+    frozenset(["Izmit, TR", "Alexandria, EG"]): ["aegean_south_levant"],
+
     frozenset(["Tallinn, EE", "Ventspils, LV"]): ["around_saaremaa"],
     frozenset(["Ust-Luga, RU", "Ventspils, LV"]): ["around_saaremaa"],
     frozenset(["Sankt-Peterburg, RU", "Ventspils, LV"]): ["around_saaremaa"],
