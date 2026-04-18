@@ -80,8 +80,8 @@ def load_land_geometry():
     return prep(merged)
 
 
-def segment_crosses_land(p1, p2, land_prep, samples: int = 40,
-                         endpoint_buffer_nm: float = 30.0):
+def segment_crosses_land(p1, p2, land_prep, samples: int = 80,
+                         endpoint_buffer_nm: float = 15.0):
     """
     Sample the great-circle arc between two [lat, lon] points and
     return the first sampled point that lies on land, or None if the
