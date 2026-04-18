@@ -43,6 +43,10 @@ yarn-error.log*
 # Ocean routing source data (Natural Earth shapefiles, redownloadable — 12MB)
 /scripts/ocean-routing/data/
 
+# Python bytecode
+__pycache__/
+*.pyc
+
 # vercel
 .vercel
 
