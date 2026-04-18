@@ -1,5 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
-import { findPort, getPortCoords, getSeaRoutePath } from "@/lib/sea-distance";
+import {
+  findPort,
+  getPortCoords,
+  getSeaRoutePath,
+  type RouteOptions,
+} from "@/lib/sea-distance";
+
+function parseAvoid(params: URLSearchParams): RouteOptions {
+  const raw = (params.get("avoid") ?? "").toLowerCase();
+  const list = new Set(raw.split(",").map((s) => s.trim()).filter(Boolean));
+  return {
+    avoidSuez: list.has("suez") || params.get("avoidSuez") === "1",
+    avoidPanama: list.has("panama") || params.get("avoidPanama") === "1",
+  };
+}
 
 /**
  * GET /api/sea-distance/route-line?ports=Amsterdam|Augusta|Lagos
@@ -10,7 +24,8 @@ import { findPort, getPortCoords, getSeaRoutePath } from "@/lib/sea-distance";
  * cross over continents.
  */
 export async function GET(req: NextRequest) {
-  const portsParam = req.nextUrl.searchParams.get("ports");
+  const params = req.nextUrl.searchParams;
+  const portsParam = params.get("ports");
   if (!portsParam) {
     return NextResponse.json({ error: "Provide ?ports=A|B|C" }, { status: 400 });
   }
@@ -19,6 +34,8 @@ export async function GET(req: NextRequest) {
   if (portNames.length < 2) {
     return NextResponse.json({ error: "Need at least 2 ports" }, { status: 400 });
   }
+
+  const opts = parseAvoid(params);
 
   // Resolve port names to canonical form
   const resolved: Array<{ name: string; lat: number; lon: number }> = [];
@@ -45,7 +62,7 @@ export async function GET(req: NextRequest) {
     const to = resolved[i + 1];
 
     // Use our pre-computed ocean routing path — never crosses land
-    const path = getSeaRoutePath(from.name, to.name);
+    const path = getSeaRoutePath(from.name, to.name, opts);
 
     // Fallback: straight line (only if the pair is not in our distance table)
     const coords: [number, number][] = path ?? [

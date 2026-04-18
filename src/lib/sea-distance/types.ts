@@ -39,6 +39,13 @@ export interface RouteResult {
 export interface PortSearchResult extends PortInfo {
   /** Reserved for providers that alias ports onto other ports. */
   routingVia: string | null;
+  /**
+   * If the query matched through an alias (e.g. user typed "Fos" and
+   * we resolved it to "Lavera, FR"), the exact alias is surfaced here
+   * so the UI can show "Fos (Lavera, FR)" instead of silently snapping.
+   * Null for direct / city-name / ISO-code matches.
+   */
+  matchedAlias?: string | null;
 }
 
 export interface PortAmbiguityResult {

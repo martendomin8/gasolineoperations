@@ -23,6 +23,16 @@ import type {
  *   - Coordinates are decimal degrees, negative west/south.
  *   - Distances are nautical miles.
  */
+/**
+ * Passage-avoidance toggles. Used when operators need to route around
+ * a closed / unsafe canal or strait (Red Sea security, Panama drought).
+ * Providers that don't support variants can ignore the options.
+ */
+export interface RouteOptions {
+  avoidSuez?: boolean;
+  avoidPanama?: boolean;
+}
+
 export interface DistanceProvider {
   /** Human-readable provider id, used for logging + RouteResult.source. */
   readonly name: string;
@@ -43,16 +53,16 @@ export interface DistanceProvider {
   getAllPorts(): PortInfo[];
 
   /** Distance between two ports. */
-  getSeaDistance(from: string, to: string): RouteResult;
+  getSeaDistance(from: string, to: string, opts?: RouteOptions): RouteResult;
 
   /** Multi-stop voyage distance (sum of consecutive legs). */
-  getMultiStopDistance(portNames: string[]): RouteResult;
+  getMultiStopDistance(portNames: string[], opts?: RouteOptions): RouteResult;
 
   /**
    * Geometry of the route as a polyline of [lat, lon] pairs ordered from
    * `a` to `b`, or null if the provider has no geometry (distance-only).
    */
-  getRoutePath(a: string, b: string): [number, number][] | null;
+  getRoutePath(a: string, b: string, opts?: RouteOptions): [number, number][] | null;
 
   /**
    * True if the route is known to come from a hand-curated override rather

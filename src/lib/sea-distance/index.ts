@@ -24,7 +24,9 @@ export type {
   PortAmbiguityResult,
 } from "./types";
 
+export type { RouteOptions } from "./provider";
 export { calculateETA } from "./provider";
+import type { RouteOptions } from "./provider";
 
 // Forward public methods to the active provider. We wrap each one in a
 // function so the active provider is looked up lazily (server-side env
@@ -51,16 +53,16 @@ export function getAllPorts() {
   return getActiveProvider().getAllPorts();
 }
 
-export function getSeaDistance(from: string, to: string) {
-  return getActiveProvider().getSeaDistance(from, to);
+export function getSeaDistance(from: string, to: string, opts?: RouteOptions) {
+  return getActiveProvider().getSeaDistance(from, to, opts);
 }
 
-export function getMultiStopDistance(portNames: string[]) {
-  return getActiveProvider().getMultiStopDistance(portNames);
+export function getMultiStopDistance(portNames: string[], opts?: RouteOptions) {
+  return getActiveProvider().getMultiStopDistance(portNames, opts);
 }
 
-export function getSeaRoutePath(a: string, b: string): [number, number][] | null {
-  return getActiveProvider().getRoutePath(a, b);
+export function getSeaRoutePath(a: string, b: string, opts?: RouteOptions): [number, number][] | null {
+  return getActiveProvider().getRoutePath(a, b, opts);
 }
 
 export function isHandDrawnRoute(a: string, b: string): boolean {

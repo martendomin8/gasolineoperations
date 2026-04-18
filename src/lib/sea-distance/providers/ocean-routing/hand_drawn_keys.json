@@ -1,17 +1,3 @@
 {
-  "keys": [
-    "Amsterdam, NL|Baltimore, US",
-    "Amsterdam, NL|New York, US",
-    "Amsterdam, NL|Philadelphia, US",
-    "Antwerp, BE|Baltimore, US",
-    "Antwerp, BE|Lome, TG",
-    "Antwerp, BE|New York, US",
-    "Antwerp, BE|Philadelphia, US",
-    "Baltimore, US|Rotterdam, NL",
-    "Barcelona, ES|Thessaloniki, GR",
-    "Lagos, NG|Ust-Luga, RU",
-    "Lavera, FR|New York, US",
-    "New York, US|Rotterdam, NL",
-    "Philadelphia, US|Rotterdam, NL"
-  ]
+  "keys": []
 }

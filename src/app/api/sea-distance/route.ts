@@ -5,10 +5,21 @@ import {
   searchPorts,
   checkPortAmbiguity,
   calculateETA,
+  type RouteOptions,
 } from "@/lib/sea-distance";
 
+function parseAvoid(params: URLSearchParams): RouteOptions {
+  // Accept either ?avoid=suez,panama or ?avoidSuez=1&avoidPanama=1
+  const raw = (params.get("avoid") ?? "").toLowerCase();
+  const list = new Set(raw.split(",").map((s) => s.trim()).filter(Boolean));
+  return {
+    avoidSuez: list.has("suez") || params.get("avoidSuez") === "1",
+    avoidPanama: list.has("panama") || params.get("avoidPanama") === "1",
+  };
+}
+
 // GET /api/sea-distance?from=Amsterdam&to=Augusta&speed=12
-// GET /api/sea-distance?ports=Amsterdam|Augusta|Lagos&speed=12
+// GET /api/sea-distance?ports=Amsterdam|Augusta|Lagos&speed=12&avoid=suez
 // GET /api/sea-distance?search=amster
 // GET /api/sea-distance?check=Barcelona  (ambiguity check)
 export async function GET(req: NextRequest) {
@@ -28,6 +39,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ ports: results });
   }
 
+  const opts = parseAvoid(params);
+
   // Multi-stop mode (pipe-separated to avoid clashing with commas in port names)
   const portsParam = params.get("ports");
   if (portsParam) {
@@ -39,12 +52,13 @@ export async function GET(req: NextRequest) {
       );
     }
     const speed = parseFloat(params.get("speed") ?? "12") || 12;
-    const result = getMultiStopDistance(portNames);
+    const result = getMultiStopDistance(portNames, opts);
     return NextResponse.json({
       ...result,
       speedKnots: speed,
       etaDays: calculateETA(result.totalNm, speed),
       etaDisplay: formatETA(calculateETA(result.totalNm, speed)),
+      avoid: opts,
     });
   }
 
@@ -59,12 +73,13 @@ export async function GET(req: NextRequest) {
   }
 
   const speed = parseFloat(params.get("speed") ?? "12") || 12;
-  const result = getSeaDistance(from, to);
+  const result = getSeaDistance(from, to, opts);
   return NextResponse.json({
     ...result,
     speedKnots: speed,
     etaDays: calculateETA(result.totalNm, speed),
     etaDisplay: formatETA(calculateETA(result.totalNm, speed)),
+    avoid: opts,
   });
 }
 
