@@ -564,7 +564,7 @@ NAVIGABLE_CORRIDORS = [
     (53.80, 54.50, 9.00, 10.30, "Kiel Canal"),
     (36.70, 39.60, -76.80, -75.20, "Chesapeake / Delaware"),
     (40.20, 40.80, -74.40, -73.20, "NY Bight"),
-    (59.00, 60.30, 22.00, 29.00, "Gulf of Finland"),
+    (59.00, 60.40, 22.00, 30.50, "Gulf of Finland"),
     (35.50, 40.00, 22.50, 27.00, "Greek archipelago"),
     (35.80, 36.20, -5.90, -5.10, "Gibraltar"),
     (37.90, 38.40, 15.50, 15.80, "Messina"),
@@ -593,6 +593,60 @@ NAVIGABLE_CORRIDORS = [
     (43.00, 45.50, 27.50, 40.00, "Black Sea"),
     # US East Coast — Miami to Savannah coastal gap
     (31.00, 33.00, -81.50, -78.50, "US SE coast / Savannah approach"),
+    # Canary Islands archipelago — expanded to cover Iberia south + Morocco offshore
+    (27.00, 36.50, -18.50, -7.00, "Canary Islands / Morocco Atlantic"),
+    # Caribbean Antilles — scattered small islands
+    (16.50, 19.00, -68.00, -63.50, "Virgin Islands / Anegada Passage"),
+    # Iberia SW approach
+    (36.00, 45.00, -13.00, -7.00, "Iberia offshore"),
+    # NE Atlantic core
+    (36.00, 58.00, -13.00, -4.00, "NE Atlantic core"),
+    # Mozambique approach + East Africa
+    (-20.00, 5.00, 38.00, 52.00, "East Africa offshore"),
+    # Strait of Bab + Gulf of Aden
+    (10.00, 16.00, 42.00, 55.00, "Gulf of Aden"),
+    # Bocas del Toro + NW Panama Caribbean side
+    (9.20, 11.50, -82.00, -78.00, "SW Caribbean / Panama approach"),
+    # Canary - Cape Verde corridor
+    (14.00, 28.00, -25.00, -16.00, "Cape Verde offshore"),
+    # Scheldt mouth extended
+    (51.20, 51.80, 2.50, 4.60, "Scheldt / West Scheldt"),
+    # English Channel east
+    (50.50, 51.50, -0.80, 2.00, "Eastern Channel"),
+    # Lisbon offshore
+    (37.50, 39.50, -10.50, -8.50, "Lisbon approach"),
+    # Bay of Biscay
+    (44.00, 49.00, -11.00, -3.00, "Bay of Biscay"),
+    # Adriatic wide
+    (40.00, 46.00, 12.50, 20.00, "Adriatic wide"),
+    # Alboran Sea
+    (35.50, 37.00, -5.50, -2.00, "Alboran Sea"),
+    # Tyrrhenian Sea
+    (37.50, 44.00, 8.00, 16.00, "Tyrrhenian Sea"),
+    # Sicilian Channel + Libya offshore
+    (33.00, 38.00, 9.00, 20.00, "Sicilian Channel / central Med"),
+    # East Med
+    (31.00, 36.00, 24.00, 36.00, "Eastern Mediterranean"),
+    # Arabian Sea central — extend north to include Gulf of Oman approach
+    (10.00, 27.00, 55.00, 72.00, "Arabian Sea central"),
+    # Irish Sea
+    (51.50, 55.50, -7.00, -3.00, "Irish Sea"),
+    # SW Caribbean / Panama Bay approach
+    (7.00, 13.00, -82.00, -72.00, "SW Caribbean"),
+    # Malacca approach
+    (2.00, 8.00, 93.00, 103.00, "Malacca approach"),
+    # Mozambique Channel
+    (-28.00, -10.00, 34.00, 45.00, "Mozambique Channel"),
+    # Western Indian Ocean
+    (-20.00, 15.00, 45.00, 75.00, "Western Indian Ocean"),
+    # Persian Gulf interior
+    (23.00, 30.00, 48.00, 56.50, "Persian Gulf"),
+    # UK east coast / North Sea west side
+    (50.00, 57.00, -4.00, 2.50, "UK east coast"),
+    # Caribbean Antilles full
+    (10.00, 20.00, -70.00, -60.00, "Caribbean Antilles"),
+    # South Atlantic / Cape approaches
+    (-36.00, -32.00, 15.00, 25.00, "Cape SW"),
 ]
 
 
