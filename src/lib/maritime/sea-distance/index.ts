@@ -3,7 +3,7 @@
  *
  * This file is the single import point for the rest of the app:
  *
- *   import { getSeaDistance, findPort } from "@/lib/sea-distance";
+ *   import { getSeaDistance, findPort } from "@/lib/maritime/sea-distance";
  *
  * It re-exports the types and forwards each call to whichever
  * DistanceProvider is currently active (chosen in `./config.ts`).

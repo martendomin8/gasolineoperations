@@ -91,7 +91,7 @@ export function PortSelect({
       return;
     }
     const controller = new AbortController();
-    fetch(`/api/sea-distance?check=${encodeURIComponent(value)}`, { signal: controller.signal })
+    fetch(`/api/maritime/sea-distance?check=${encodeURIComponent(value)}`, { signal: controller.signal })
       .then((r) => r.ok ? r.json() as Promise<AmbiguityResult> : null)
       .then((data) => { if (data) setAmbiguity(data); })
       .catch(() => { /* aborted or failed */ });
@@ -105,7 +105,7 @@ export function PortSelect({
       setIsOpen(false);
       return;
     }
-    fetch(`/api/sea-distance?search=${encodeURIComponent(query)}`)
+    fetch(`/api/maritime/sea-distance?search=${encodeURIComponent(query)}`)
       .then((r) => r.ok ? r.json() as Promise<{ ports: PortResult[] }> : { ports: [] })
       .then((data) => {
         setResults(data.ports.slice(0, 10));

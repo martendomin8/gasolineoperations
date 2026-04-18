@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { checkPortAmbiguity } from "@/lib/sea-distance";
+import { checkPortAmbiguity } from "@/lib/maritime/sea-distance";
 
 // ============================================================
 // TYPES
