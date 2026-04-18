@@ -36,14 +36,39 @@ def gc_interpolate(p1, p2, t):
     A = math.sin((1 - t) * d) / math.sin(d)
     B = math.sin(t * d) / math.sin(d)
     x = A * math.cos(lat1) * math.cos(lon1) + B * math.cos(lat2) * math.cos(lon2)
-    y = A * math.cos(lat1) * math.sin(lon1) + B * math.cos(lat2) * math.cos(lon2)
+    y = A * math.cos(lat1) * math.sin(lon1) + B * math.cos(lat2) * math.sin(lon2)
     z = A * math.sin(lat1) + B * math.sin(lat2)
     lat = math.atan2(z, math.sqrt(x * x + y * y))
     lon = math.atan2(y, x)
     return [math.degrees(lat), math.degrees(lon)]
 
 
-def segment_crosses_land(p1, p2, land_prep, samples=30, endpoint_buffer_nm=30.0):
+NAVIGABLE_CORRIDORS = [
+    (54.50, 56.20, 11.30, 13.20, "Danish Straits"),
+    (51.20, 51.60, 3.30, 4.60, "Scheldt"),
+    (51.40, 52.60, 3.00, 5.30, "Dutch coast"),
+    (50.70, 51.30, 0.90, 2.00, "Dover Strait"),
+    (53.80, 54.50, 9.00, 10.30, "Kiel Canal"),
+    (36.70, 39.60, -76.80, -75.20, "Chesapeake / Delaware"),
+    (40.20, 40.80, -74.40, -73.20, "NY Bight"),
+    (59.00, 60.30, 22.00, 29.00, "Gulf of Finland"),
+    (35.50, 40.00, 22.50, 27.00, "Greek archipelago"),
+    (35.80, 36.20, -5.90, -5.10, "Gibraltar"),
+    (37.90, 38.40, 15.50, 15.80, "Messina"),
+    (40.00, 41.30, 26.00, 29.50, "Turkish Straits"),
+    (29.80, 31.30, 32.20, 32.70, "Suez"),
+    (8.80, 9.40, -80.00, -79.40, "Panama"),
+]
+
+
+def in_navigable_corridor(lat, lon):
+    for min_lat, max_lat, min_lon, max_lon, label in NAVIGABLE_CORRIDORS:
+        if min_lat <= lat <= max_lat and min_lon <= lon <= max_lon:
+            return label
+    return None
+
+
+def segment_crosses_land(p1, p2, land_prep, samples=80, endpoint_buffer_nm=15.0):
     from shapely.geometry import Point
     for i in range(samples + 1):
         t = i / samples
@@ -51,6 +76,8 @@ def segment_crosses_land(p1, p2, land_prep, samples=30, endpoint_buffer_nm=30.0)
         d1 = haversine_nm(lat, lon, p1[0], p1[1])
         d2 = haversine_nm(lat, lon, p2[0], p2[1])
         if d1 < endpoint_buffer_nm or d2 < endpoint_buffer_nm:
+            continue
+        if in_navigable_corridor(lat, lon):
             continue
         if land_prep.contains(Point(lon, lat)):
             return (lat, lon, t)
