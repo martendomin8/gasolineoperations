@@ -6,6 +6,7 @@ import {
   type RouteOptions,
 } from "@/lib/maritime/sea-distance";
 import { parseWaypoint, formatCustomLabel } from "@/lib/maritime/sea-distance/waypoints";
+import { routeThroughGraph, type Waypoint } from "@/lib/maritime/sea-distance/providers/ocean-routing/graph-runtime";
 
 function parseAvoid(params: URLSearchParams): RouteOptions {
   const raw = (params.get("avoid") ?? "").toLowerCase();
@@ -17,12 +18,13 @@ function parseAvoid(params: URLSearchParams): RouteOptions {
 }
 
 /**
- * GET /api/sea-distance/route-line?ports=Amsterdam|Augusta|Lagos
+ * GET /api/maritime/sea-distance/route-line?ports=Amsterdam|Augusta|Lagos
  *
- * Returns an array of [lat, lon] coordinate arrays — one per leg —
- * that can be drawn as Leaflet polylines. Uses our pre-computed
- * ocean routing paths (0.1° water grid, land-free) so routes never
- * cross over continents.
+ * Returns per-leg [lat, lon] polylines for map rendering. Two modes:
+ *   - All named ports → precomputed paths.json (honors avoid variants)
+ *   - Any custom @lat,lon waypoint → runtime Dijkstra over the V2 land-safe
+ *     graph so the returned polyline is actually water-only instead of
+ *     a straight great-circle that crosses land.
  */
 export async function GET(req: NextRequest) {
   const params = req.nextUrl.searchParams;
@@ -37,71 +39,83 @@ export async function GET(req: NextRequest) {
   }
 
   const opts = parseAvoid(params);
+  const hasCustom = rawEntries.some((e) => e.startsWith("@"));
 
-  // Resolve each entry — named ports go through findPort/getPortCoords,
-  // `@lat,lon` entries are custom waypoints (click-anywhere) and
-  // carry their coords directly. isCustom lets us pick the right
-  // rendering strategy per leg below.
-  type Resolved = { label: string; lat: number; lon: number; isCustom: boolean; portName: string | null };
-  const resolved: Resolved[] = [];
-  for (const entry of rawEntries) {
-    const parsed = parseWaypoint(entry);
-    if (!parsed) continue;
-    if (parsed.type === "custom") {
-      resolved.push({
-        label: formatCustomLabel(parsed.lat, parsed.lon),
-        lat: parsed.lat,
-        lon: parsed.lon,
-        isCustom: true,
-        portName: null,
+  // Custom-waypoint mode: runtime graph provides the full path.
+  // TODO: honor avoid-passage variants here too — would need
+  // per-variant graph.json exports from the Python pipeline.
+  if (hasCustom) {
+    const waypoints: Waypoint[] = [];
+    for (const entry of rawEntries) {
+      const parsed = parseWaypoint(entry);
+      if (!parsed) continue;
+      if (parsed.type === "custom") {
+        waypoints.push({
+          type: "custom",
+          label: formatCustomLabel(parsed.lat, parsed.lon),
+          lat: parsed.lat,
+          lon: parsed.lon,
+        });
+      } else {
+        const canonical = findPort(parsed.raw);
+        if (!canonical) continue;
+        const coords = getPortCoords(canonical);
+        if (!coords) continue;
+        waypoints.push({
+          type: "port",
+          label: canonical,
+          lat: coords.lat,
+          lon: coords.lon,
+          portName: canonical,
+        });
+      }
+    }
+    if (waypoints.length < 2) {
+      return NextResponse.json({ legs: [] });
+    }
+
+    try {
+      const routed = routeThroughGraph(waypoints);
+      if (!routed) return NextResponse.json({ legs: [] });
+      return NextResponse.json({
+        legs: routed.legs.map((l) => ({
+          from: l.from,
+          to: l.to,
+          coordinates: l.coordinates,
+        })),
       });
-    } else {
-      const canonical = findPort(parsed.raw);
-      if (!canonical) continue;
-      const coords = getPortCoords(canonical);
-      if (!coords) continue;
-      resolved.push({
-        label: canonical,
-        lat: coords.lat,
-        lon: coords.lon,
-        isCustom: false,
-        portName: canonical,
-      });
+    } catch (err) {
+      console.error("[sea-distance/route-line] runtime graph failed:", err);
+      return NextResponse.json({ legs: [] });
     }
   }
 
+  // All named ports — precomputed-path path.
+  type Resolved = { label: string; lat: number; lon: number; portName: string };
+  const resolved: Resolved[] = [];
+  for (const entry of rawEntries) {
+    const canonical = findPort(entry);
+    if (!canonical) continue;
+    const coords = getPortCoords(canonical);
+    if (!coords) continue;
+    resolved.push({
+      label: canonical,
+      lat: coords.lat,
+      lon: coords.lon,
+      portName: canonical,
+    });
+  }
   if (resolved.length < 2) {
     return NextResponse.json({ legs: [] });
   }
 
-  const legs: Array<{
-    from: string;
-    to: string;
-    coordinates: [number, number][];
-  }> = [];
-
+  const legs: Array<{ from: string; to: string; coordinates: [number, number][] }> = [];
   for (let i = 0; i < resolved.length - 1; i++) {
     const from = resolved[i];
     const to = resolved[i + 1];
-
-    let coords: [number, number][];
-    if (!from.isCustom && !to.isCustom && from.portName && to.portName) {
-      // Both are named ports — use pre-computed land-safe ocean path.
-      const path = getSeaRoutePath(from.portName, to.portName, opts);
-      coords = path ?? [[from.lat, from.lon], [to.lat, to.lon]];
-    } else {
-      // Custom waypoint on at least one end. Two-point straight segment;
-      // the frontend expands it into a great-circle arc via turf before
-      // rendering, so it still looks curved on Mercator.
-      coords = [[from.lat, from.lon], [to.lat, to.lon]];
-    }
-
-    legs.push({
-      from: from.label,
-      to: to.label,
-      coordinates: coords,
-    });
+    const path = getSeaRoutePath(from.portName, to.portName, opts);
+    const coords: [number, number][] = path ?? [[from.lat, from.lon], [to.lat, to.lon]];
+    legs.push({ from: from.label, to: to.label, coordinates: coords });
   }
-
   return NextResponse.json({ legs });
 }

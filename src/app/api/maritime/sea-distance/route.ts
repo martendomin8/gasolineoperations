@@ -9,7 +9,8 @@ import {
   getPortCoords,
   type RouteOptions,
 } from "@/lib/maritime/sea-distance";
-import { parseWaypoint, haversineNm, formatCustomLabel } from "@/lib/maritime/sea-distance/waypoints";
+import { parseWaypoint, formatCustomLabel } from "@/lib/maritime/sea-distance/waypoints";
+import { routeThroughGraph, type Waypoint } from "@/lib/maritime/sea-distance/providers/ocean-routing/graph-runtime";
 
 function parseAvoid(params: URLSearchParams): RouteOptions {
   // Accept either ?avoid=suez,panama or ?avoidSuez=1&avoidPanama=1
@@ -21,10 +22,10 @@ function parseAvoid(params: URLSearchParams): RouteOptions {
   };
 }
 
-// GET /api/sea-distance?from=Amsterdam&to=Augusta&speed=12
-// GET /api/sea-distance?ports=Amsterdam|Augusta|Lagos&speed=12&avoid=suez
-// GET /api/sea-distance?search=amster
-// GET /api/sea-distance?check=Barcelona  (ambiguity check)
+// GET /api/maritime/sea-distance?from=Amsterdam&to=Augusta&speed=12
+// GET /api/maritime/sea-distance?ports=Amsterdam|Augusta|Lagos&speed=12&avoid=suez
+// GET /api/maritime/sea-distance?search=amster
+// GET /api/maritime/sea-distance?check=Barcelona  (ambiguity check)
 export async function GET(req: NextRequest) {
   const params = req.nextUrl.searchParams;
 
@@ -44,23 +45,22 @@ export async function GET(req: NextRequest) {
 
   const opts = parseAvoid(params);
 
-  // Multi-stop mode (pipe-separated to avoid clashing with commas in port names).
-  // Entries starting with `@` are custom coord waypoints, e.g. `@45.2,-12.3`.
-  // Legs that touch a custom waypoint fall back to haversine + great-circle
-  // rendering — see src/lib/sea-distance/waypoints.ts for the rationale.
+  // Multi-stop mode. Entries starting with `@` are custom coord
+  // waypoints (e.g. `@45.2,-12.3`). See two paths below:
+  //   - All named ports: use precomputed paths.json (honors avoid variants).
+  //   - Any custom: use runtime Dijkstra over the full V2 land-safe graph
+  //     (land-safe, but currently ignores avoid variants — see note).
   const portsParam = params.get("ports");
   if (portsParam) {
     const rawEntries = portsParam.split("|").map((p) => p.trim()).filter(Boolean);
     if (rawEntries.length < 2) {
-      return NextResponse.json(
-        { error: "Need at least 2 ports" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Need at least 2 ports" }, { status: 400 });
     }
     const speed = parseFloat(params.get("speed") ?? "12") || 12;
 
-    // Fast path: no custom waypoints → existing provider logic verbatim.
     const hasCustom = rawEntries.some((e) => e.startsWith("@"));
+
+    // Fast path: all named ports → use precomputed paths + variants.
     if (!hasCustom) {
       const result = getMultiStopDistance(rawEntries, opts);
       return NextResponse.json({
@@ -72,71 +72,71 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // Mixed path: resolve each entry to (label, lat, lon). Named ports go
-    // through findPort/getPortCoords; custom entries are parsed directly.
-    // Then for each consecutive pair we either defer to the provider
-    // (both named) or haversine locally (at least one custom).
-    const resolved: Array<{ label: string; lat: number; lon: number; isCustom: boolean; portName: string | null }> = [];
+    // Custom-waypoint path: resolve entries then route through the
+    // runtime land-safe graph. TODO: when any of opts.avoidSuez /
+    // avoidPanama is set we currently silently fall back to the
+    // default variant — to honor them here we'd need to export
+    // separate graph.json files per variant (~1 MB each) and pick
+    // by opts. Acceptable for now because custom waypoints are
+    // already an override — operator is hand-placing a route.
+    const waypoints: Waypoint[] = [];
     for (const entry of rawEntries) {
       const parsed = parseWaypoint(entry);
       if (!parsed) continue;
       if (parsed.type === "custom") {
-        resolved.push({
+        waypoints.push({
+          type: "custom",
           label: formatCustomLabel(parsed.lat, parsed.lon),
           lat: parsed.lat,
           lon: parsed.lon,
-          isCustom: true,
-          portName: null,
         });
       } else {
         const canonical = findPort(parsed.raw);
         if (!canonical) continue;
         const coords = getPortCoords(canonical);
         if (!coords) continue;
-        resolved.push({
+        waypoints.push({
+          type: "port",
           label: canonical,
           lat: coords.lat,
           lon: coords.lon,
-          isCustom: false,
           portName: canonical,
         });
       }
     }
 
-    if (resolved.length < 2) {
+    if (waypoints.length < 2) {
       return NextResponse.json({ error: "Could not resolve waypoints" }, { status: 400 });
     }
 
-    const legs: Array<{ from: string; to: string; distanceNm: number }> = [];
-    let totalNm = 0;
-    for (let i = 0; i < resolved.length - 1; i++) {
-      const from = resolved[i];
-      const to = resolved[i + 1];
-      let distanceNm: number;
-      if (!from.isCustom && !to.isCustom && from.portName && to.portName) {
-        // Both named ports — use the graph-based distance so the leg
-        // respects avoid-passage variants and land-safe routing.
-        const legResult = getSeaDistance(from.portName, to.portName, opts);
-        distanceNm = legResult.totalNm;
-      } else {
-        // At least one endpoint is a custom waypoint. Haversine is the
-        // honest fallback — we can't route through arbitrary coords.
-        distanceNm = haversineNm(from.lat, from.lon, to.lat, to.lon);
+    try {
+      const routed = routeThroughGraph(waypoints);
+      if (!routed) {
+        return NextResponse.json({ error: "Route unreachable" }, { status: 500 });
       }
-      legs.push({ from: from.label, to: to.label, distanceNm: Math.round(distanceNm * 10) / 10 });
-      totalNm += distanceNm;
-    }
-    totalNm = Math.round(totalNm * 10) / 10;
 
-    return NextResponse.json({
-      totalNm,
-      legs,
-      source: "ocean_routing+custom",
-      speedKnots: speed,
-      etaDays: calculateETA(totalNm, speed),
-      etaDisplay: formatETA(calculateETA(totalNm, speed)),
-      avoid: opts,
-    });
+      // Match the shape the client expects (from getMultiStopDistance
+      // result) — totalNm + per-leg distance.
+      return NextResponse.json({
+        totalNm: routed.totalNm,
+        legs: routed.legs.map((l) => ({
+          from: l.from,
+          to: l.to,
+          distanceNm: l.distanceNm,
+        })),
+        source: "ocean_routing_runtime",
+        speedKnots: speed,
+        etaDays: calculateETA(routed.totalNm, speed),
+        etaDisplay: formatETA(calculateETA(routed.totalNm, speed)),
+        avoid: opts,
+      });
+    } catch (err) {
+      console.error("[sea-distance] runtime graph failed:", err);
+      return NextResponse.json(
+        { error: err instanceof Error ? err.message : "Routing failed" },
+        { status: 500 }
+      );
+    }
   }
 
   // Two-port mode
