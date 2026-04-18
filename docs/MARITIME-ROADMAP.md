@@ -62,36 +62,47 @@ interface AIParseProvider  { ... }  // already in place
 - **Drag-to-reorder waypoints** — native HTML5 DnD, no extra deps
 - **Avoid-passage toggles** in planner (Suez, Panama)
 - **Great-circle rendering** of routes (poleward bulge on transatlantic)
+- **Compare 2 routes side-by-side** — planner has a "Compare" toggle
+  that seeds Route B from A, then an A/B tab picker routes all edits
+  to the active one. Map draws both (A cyan, B magenta). Delta panel
+  shows B − A in NM, percent, and time. The deviation-cost calc ops
+  actually asked for.
+- **Click-anywhere waypoint** — click any sea tile → inserts a custom
+  `@ 45°N 12°W` waypoint with a dashed-border marker.
+- **Runtime Dijkstra over full V2 graph for custom waypoints** —
+  when any leg touches a custom `@lat,lon` entry, the API loads the
+  full 10,219-node / 17,204-edge land-safe graph and runs per-leg
+  Dijkstra with the custom waypoint temporarily wired to its k=5
+  nearest graph nodes. Replaces the old straight-great-circle
+  haversine fallback that ignored land and the shipping network.
+  Perf: graph load ~6 ms (once per container), Dijkstra per leg
+  1–4 ms, total added latency ~10 ms. Exported from Python via
+  `scripts/ocean-routing/export_graph.py`.
+- **Worldscale rate saving** — `worldscale_rates` table keyed on
+  (tenant, load_port, discharge_port, year). WorldscalePanel under
+  voyage results lists all saved years for the route + inline form
+  to add. UPSERT on the unique index so re-saving a year updates
+  in place. Historical rows preserved forever.
+- **Port costs** — `port_costs` table keyed on (tenant, port, year,
+  cost_type). PortCostsButton popover on each waypoint row lists
+  saved costs + add form. `cost_type` enum matches DA invoice
+  buckets (canal_toll | port_dues | agency | pilotage | other).
 
 ---
 
 ## 🟢 Next up (no DB needed, quick wins)
 
-### 1. Compare 2 routes side-by-side
-**Why**: Operators routinely evaluate deviation cost of interim ports.
-"If we add Rotterdam as a discharge stop en route, how much extra
-distance/time vs direct Amsterdam → Houston?"
-
-**UX**: planner has two route slots (A and B). Each computes
-independently. Map draws both (A cyan, B magenta). Delta table shows:
-- Distance A / B / Δ (NM and %)
-- ETA A / B / Δ (at input speed)
-- Canal transits differ? (if A avoids Suez, B doesn't)
-
-### 2. Click-anywhere waypoint
-**Why**: Custom waypoints force routing through a specific point —
-useful when AIS tells ops a vessel is physically there, or when
-specific avoidance is needed ("route north of 45°N here").
-
-**UX**: click any sea tile → snap to coords, insert as pseudo-waypoint
-labeled `@ 45.2°N 12.3°W`. Treated as an intermediate node in the
-graph — Dijkstra connects nearest ocean nodes on either side.
+*(empty — all items shipped, see Done list above)*
 
 ---
 
 ## 🟡 Queued (needs DB migration)
 
-### 3. Worldscale rate saving
+*(empty — Worldscale + port costs shipped as of 2026-04-19)*
+
+### Domain reference (kept for future cost-tracking features)
+
+#### Worldscale rates
 **Domain context**: Worldscale Association publishes annual "flat
 rates" (WS100) — nominal $/MT freight for each named tanker route.
 Calculated from distance, port costs, canal fees, bunker prices,
