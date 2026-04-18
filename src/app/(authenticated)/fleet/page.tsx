@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { buildLinkageCards } from "@/app/(authenticated)/dashboard/page";
 import { findPortCoordinates } from "@/lib/geo/ports";
 import { computeMockPosition } from "@/lib/geo/mock-positions";
+import { findPort, getSeaRoutePath, getSeaDistance } from "@/lib/sea-distance";
 import { STATUS_COLORS, STATUS_LABELS } from "./fleet-map";
 import type { FleetVessel, PlannerRouteLeg } from "./fleet-map";
 
@@ -241,11 +242,36 @@ export default function FleetPage() {
     const loadCoords = findPortCoordinates(loadport);
     const dischCoords = findPortCoordinates(dischargePort);
 
-    const position = computeMockPosition(card.status, card.vessel + card.id, loadCoords, dischCoords);
+    // Look up the pre-computed ocean route + distance for time-based
+    // sailing interpolation along the real route geometry.
+    let routePath: [number, number][] | null = null;
+    let totalDistanceNm: number | null = null;
+    if (loadport && dischargePort) {
+      const fromCanon = findPort(loadport);
+      const toCanon = findPort(dischargePort);
+      if (fromCanon && toCanon) {
+        routePath = getSeaRoutePath(fromCanon, toCanon);
+        const dist = getSeaDistance(fromCanon, toCanon);
+        totalDistanceNm = dist.totalNm > 0 ? dist.totalNm : null;
+      }
+    }
+
+    // Departure date estimate = latest laycan_end across the card's deals.
+    const laycanEnds = allCardDeals.map((d) => (d as DealItem).laycanEnd).filter(Boolean).sort();
+    const estimatedDeparture = laycanEnds[laycanEnds.length - 1] ?? null;
+
+    const position = computeMockPosition(
+      card.status,
+      card.vessel + card.id,
+      loadCoords,
+      dischCoords,
+      routePath,
+      estimatedDeparture,
+      totalDistanceNm,
+    );
     if (!position) { unlocated.push(card.vessel); continue; }
 
     const linkageRow = linkageRows.find((r) => r.id === card.id);
-    const laycanEnds = allCardDeals.map((d) => (d as DealItem).laycanEnd).filter(Boolean).sort();
 
     // Urgency: laycan ≤3 days
     const isUrgent = card.earliestLaycan ? daysUntil(card.earliestLaycan) >= 0 && daysUntil(card.earliestLaycan) <= 3 : false;
@@ -272,115 +298,19 @@ export default function FleetPage() {
     });
   }
 
-  // Stats — computed before demo injection so demo vessels also count
+  // Stats for status counts — populated from real vessels below
   const statusCounts: Record<string, number> = {};
-
-  // Inject demo fleet for prototype — but match against real linkages by
-  // vessel name so "Open Linkage" navigates to the actual DB linkage, not
-  // a fake "demo-X" ID. Skip any demo vessel that already resolved from
-  // real data (prevents duplicates).
-  if (!loading) {
-    const realVesselNames = new Set(vessels.map((v) => v.vesselName.toLowerCase()));
-
-    // Build a lookup: vessel name → real linkage ID from the API data
-    const vesselToLinkage = new Map<string, { id: string; code: string }>();
-    for (const row of linkageRows) {
-      if (row.vesselName) {
-        vesselToLinkage.set(row.vesselName.toLowerCase(), {
-          id: row.id,
-          code: row.linkageNumber ?? row.tempName ?? "—",
-        });
-      }
-    }
-
-    // Demo fleet fallback — matches seed.ts deal data exactly.
-    // Positions are mock-placed based on deal status:
-    //   active/loading = near loadport, sailing = en route, discharging = near discharge port
-    const demoFleet: Array<Omit<FleetVessel, "id" | "linkageCode">> = [
-      // 086412GSS — Buy FOB Lavera from Vitol, Sell CIF to Shell → New York
-      // Status: active — vessel near Lavera awaiting clearance
-      {
-        vesselName: "MT Hafnia Polar", vesselImo: "9786543",
-        status: "active", position: { lat: 43.37, lng: 5.02 }, heading: 210,
-        loadport: "Lavera", dischargePort: "New York",
-        buys: [{ counterparty: "Vitol SA", quantityMt: "30000", product: "EBOB" }],
-        sells: [{ counterparty: "Shell Trading", quantityMt: "30000", product: "EBOB" }],
-        earliestLaycan: "2026-04-05", latestLaycanEnd: "2026-04-25",
-        assignedOperatorName: "AT", product: "EBOB", isUrgent: true, etaHours: null,
-      },
-      // TEMP-001 — Buy FOB Ust-Luga from Trafigura, Sell CIF to TotalEnergies + NNPC → Lagos
-      // Status: sailing — vessel passing Strait of Gibraltar
-      {
-        vesselName: "MT West Africa Star", vesselImo: "9654321",
-        status: "sailing", position: { lat: 35.9, lng: -5.5 }, heading: 210,
-        loadport: "Ust-Luga", dischargePort: "Lagos",
-        buys: [{ counterparty: "Trafigura", quantityMt: "35000", product: "EBOB" }],
-        sells: [
-          { counterparty: "TotalEnergies Trading", quantityMt: "23000", product: "EBOB" },
-          { counterparty: "NNPC", quantityMt: "12000", product: "EBOB" },
-        ],
-        earliestLaycan: "2026-03-20", latestLaycanEnd: "2026-04-18",
-        assignedOperatorName: "LK", product: "EBOB", isUrgent: false, etaHours: 168,
-      },
-      // TEMP-002 — Buy FOB Antwerp from Repsol, Sell DAP to BP → Philadelphia
-      // Status: loading — vessel alongside at Antwerp terminal
-      {
-        vesselName: "MT Nordic Breeze", vesselImo: "9812345",
-        status: "loading", position: { lat: 51.27, lng: 4.40 }, heading: 0,
-        loadport: "Antwerp", dischargePort: "Philadelphia",
-        buys: [{ counterparty: "Repsol Trading", quantityMt: "25000", product: "Light Naphtha" }],
-        sells: [{ counterparty: "BP Oil International", quantityMt: "25000", product: "Light Naphtha" }],
-        earliestLaycan: "2026-03-28", latestLaycanEnd: "2026-04-17",
-        assignedOperatorName: "LK", product: "Light Naphtha", isUrgent: false, etaHours: null,
-      },
-      // TEMP-003 — Buy FOB Barcelona from Orlen → Thessaloniki (purchase only, no sale yet)
-      // Status: active — vessel at Barcelona awaiting loadport berth
-      {
-        vesselName: "MT Besiktas Canakkale", vesselImo: "9543211",
-        status: "active", position: { lat: 41.35, lng: 2.17 }, heading: 90,
-        loadport: "Barcelona", dischargePort: "Thessaloniki",
-        buys: [{ counterparty: "Orlen Trading", quantityMt: "20000", product: "EBOB" }],
-        sells: [],
-        earliestLaycan: "2026-03-15", latestLaycanEnd: "2026-03-17",
-        assignedOperatorName: "LK", product: "EBOB", isUrgent: false, etaHours: null,
-      },
-      // TEMP-004 — Sell FOB Antwerp to Equinor → Baltimore
-      // Status: active — vessel at Antwerp awaiting nomination
-      {
-        vesselName: "MT Nordic Ruth", vesselImo: "9234567",
-        status: "active", position: { lat: 51.30, lng: 4.38 }, heading: 180,
-        loadport: "Antwerp", dischargePort: "Baltimore",
-        buys: [],
-        sells: [{ counterparty: "Equinor Trading", quantityMt: "27000", product: "Eurobob Oxy" }],
-        earliestLaycan: "2026-04-08", latestLaycanEnd: "2026-04-10",
-        assignedOperatorName: "LK", product: "Eurobob Oxy", isUrgent: true, etaHours: null,
-      },
-      // TEMP-005 — Sell CIF Antwerp to Glencore → Lomé
-      // Status: sailing — vessel off coast of Morocco heading south
-      {
-        vesselName: "MT Ardmore Seatrader", vesselImo: "9678901",
-        status: "sailing", position: { lat: 30.5, lng: -10.2 }, heading: 200,
-        loadport: "Antwerp", dischargePort: "Lomé",
-        buys: [],
-        sells: [{ counterparty: "Glencore Energy UK", quantityMt: "26000", product: "Eurobob Oxy" }],
-        earliestLaycan: "2026-04-05", latestLaycanEnd: "2026-04-08",
-        assignedOperatorName: "AT", product: "Eurobob Oxy", isUrgent: false, etaHours: 96,
-      },
-    ];
-
-    for (const d of demoFleet) {
-      // Skip if this vessel already resolved from real API data
-      if (realVesselNames.has(d.vesselName.toLowerCase())) continue;
-
-      // Try to match to a real linkage by vessel name
-      const match = vesselToLinkage.get(d.vesselName.toLowerCase());
-      const id = match?.id ?? `demo-${d.vesselName.replace(/\s+/g, "-").toLowerCase()}`;
-      const linkageCode = match?.code ?? d.vesselName;
-
-      vessels.push({ ...d, id, linkageCode } as FleetVessel);
-      statusCounts[d.status] = (statusCounts[d.status] ?? 0) + 1;
-    }
+  for (const v of vessels) {
+    statusCounts[v.status] = (statusCounts[v.status] ?? 0) + 1;
   }
+
+  // Demo vessels were removed. Fleet now reflects only real linkages that
+  // have a vessel attached (linkage.vessel_name). For position we use
+  // computeMockPosition with the pre-computed ocean route + laycan dates,
+  // which places sailing vessels on their actual route (not a straight
+  // line through land) at time-based progress from laycan_end. When real
+  // AIS integration (Marine Traffic clone) lands, that becomes the source
+  // of truth and this estimate becomes a fallback for missing broadcasts.
 
   const selectedVessel = vessels.find((v) => v.id === selectedVesselId) ?? null;
 

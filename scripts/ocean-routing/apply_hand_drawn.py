@@ -98,7 +98,10 @@ def main():
     print(f"\nApplied {applied} override(s). Files updated:")
     print(f"  {distances_path}")
     print(f"  {paths_path}")
-    print(f"\nRemember to copy to src/lib/sea-distance/ before testing.")
+    print(
+        "\nRemember to copy to src/lib/sea-distance/providers/ocean-routing/ "
+        "before testing."
+    )
 
 
 if __name__ == "__main__":
