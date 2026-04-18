@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { checkPortAmbiguity } from "@/lib/sea-distance";
 
 // ============================================================
 // TYPES
@@ -179,11 +180,53 @@ export async function parseDealFromText(rawText: string): Promise<ParsedDealResu
     fieldKeys.map((k) => [k, confidenceScores[k] ?? 0])
   ) as Record<keyof ParsedDealFields, number>;
 
+  // Post-process: lower confidence for ambiguous port names.
+  // If the AI returned just "Barcelona" and PUB 151 has multiple cities
+  // by that name, the score should drop — the AI doesn't actually know
+  // which Barcelona the trader meant.
+  adjustPortConfidence(fields, typedScores);
+
   return {
     fields,
     confidenceScores: typedScores,
     rawResponse: JSON.stringify(input),
   };
+}
+
+// ============================================================
+// PORT AMBIGUITY — confidence adjustment
+// ============================================================
+
+/**
+ * Lower confidence scores for port fields when the name is ambiguous
+ * in PUB 151 (e.g. "Barcelona" matches both Spain and Venezuela).
+ *
+ * If the AI returned a full canonical name (e.g. "Barcelona, Spain")
+ * that resolves to exactly one port, confidence stays as-is. If just
+ * "Barcelona", confidence drops to 0.3 so the operator sees a red
+ * warning and must disambiguate using the PortSelect dropdown.
+ */
+function adjustPortConfidence(
+  fields: ParsedDealFields,
+  scores: Record<keyof ParsedDealFields, number>
+): void {
+  const portFields: (keyof ParsedDealFields)[] = ["loadport", "discharge_port"];
+
+  for (const key of portFields) {
+    const value = fields[key];
+    if (!value || typeof value !== "string") continue;
+
+    const result = checkPortAmbiguity(value);
+
+    if (result.isAmbiguous) {
+      // Multiple ports match this city name — operator must choose
+      scores[key] = Math.min(scores[key], 0.3);
+    } else if (result.candidates.length === 0) {
+      // Unknown port — flag it
+      scores[key] = Math.min(scores[key], 0.2);
+    }
+    // If resolved to exactly one port, keep the AI's confidence as-is
+  }
 }
 
 // ============================================================
@@ -568,6 +611,8 @@ export function parseDealDemo(rawText: string): ParsedDealResult {
   const confidenceScores = Object.fromEntries(
     (Object.keys(fields) as (keyof ParsedDealFields)[]).map((k) => [k, scores[k] ?? 0])
   ) as Record<keyof ParsedDealFields, number>;
+
+  adjustPortConfidence(fields, confidenceScores);
 
   return { fields, confidenceScores, rawResponse: "rule-based" };
 }

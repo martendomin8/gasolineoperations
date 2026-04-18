@@ -14,10 +14,110 @@
  */
 
 import "leaflet/dist/leaflet.css";
-import { MapContainer, TileLayer, Marker, Tooltip, CircleMarker, Polyline } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Tooltip, CircleMarker, Polyline, useMapEvents } from "react-leaflet";
 import L from "leaflet";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { CORE_TERMINALS, findPortCoordinates } from "@/lib/geo/ports";
+import { getAllPorts, getSeaRoutePath, findPort } from "@/lib/sea-distance";
+import greatCircle from "@turf/great-circle";
+// @ts-expect-error — @turf/helpers ships types but doesn't expose them via package.json "exports"
+import { point } from "@turf/helpers";
+
+/**
+ * Expand a polyline to follow great-circle arcs on Earth's surface.
+ *
+ * The map is flat but Earth is round — a straight line on a Mercator map
+ * is a rhumb line, not what a ship actually sails. For each consecutive
+ * pair of waypoints we interpolate a great-circle arc via turf, then
+ * concatenate them into a single polyline.
+ *
+ * Short segments (<50 NM) stay nearly straight because great-circle ≈
+ * rhumb at small scales; long segments (transatlantic etc.) curve poleward
+ * the way a real ship would.
+ */
+function toGeodesic(path: [number, number][], pointsPerSegment = 20): [number, number][] {
+  if (path.length < 2) return path;
+  const result: [number, number][] = [];
+  for (let i = 0; i < path.length - 1; i++) {
+    const from = point([path[i][1], path[i][0]]); // [lon, lat]
+    const to = point([path[i + 1][1], path[i + 1][0]]);
+    try {
+      const arc = greatCircle(from, to, { npoints: pointsPerSegment });
+      const geom = arc.geometry;
+      // turf.greatCircle returns LineString or MultiLineString (when
+      // crossing the antimeridian). Normalize both into a flat array.
+      const rings: number[][][] =
+        geom.type === "MultiLineString"
+          ? (geom.coordinates as number[][][])
+          : [geom.coordinates as number[][]];
+      for (const ring of rings) {
+        for (let j = 0; j < ring.length; j++) {
+          if (result.length > 0 && j === 0) continue; // skip duplicate join
+          result.push([ring[j][1], ring[j][0]]); // back to [lat, lon]
+        }
+      }
+    } catch {
+      // Fall back to straight segment if turf fails
+      result.push(path[i]);
+      result.push(path[i + 1]);
+    }
+  }
+  return result;
+}
+
+// ── Reference ports layer (all 106 curated ports) ────────────
+// Dots are always visible, names appear only at higher zoom levels (like Netpas).
+const REFERENCE_PORTS = getAllPorts();
+const LABEL_MIN_ZOOM = 5;
+
+function ReferencePortsLayer({
+  excludedNames,
+}: {
+  /** Ports already drawn as terminal/agent markers — skip to avoid duplicates */
+  excludedNames: Set<string>;
+}) {
+  const [zoom, setZoom] = useState(4);
+
+  useMapEvents({
+    zoomend: (e) => setZoom(e.target.getZoom()),
+  });
+
+  const showLabels = zoom >= LABEL_MIN_ZOOM;
+
+  return (
+    <>
+      {REFERENCE_PORTS.map((p) => {
+        if (excludedNames.has(p.name.toLowerCase())) return null;
+        return (
+          <CircleMarker
+            key={`ref-${p.name}`}
+            center={[p.lat, p.lon]}
+            radius={2}
+            pathOptions={{
+              color: "#94a3b8",
+              fillColor: "#94a3b8",
+              fillOpacity: 0.55,
+              weight: 0,
+            }}
+          >
+            {showLabels && (
+              <Tooltip
+                permanent
+                direction="right"
+                offset={[6, 0]}
+                className="fleet-port-label fleet-ref-label"
+              >
+                <span style={{ fontSize: "9px", color: "#cbd5e1", fontWeight: 400, opacity: 0.75 }}>
+                  {p.name.split(",")[0]}
+                </span>
+              </Tooltip>
+            )}
+          </CircleMarker>
+        );
+      })}
+    </>
+  );
+}
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -153,11 +253,21 @@ export interface PortMarker {
   lng: number;
 }
 
+export interface PlannerRouteLeg {
+  from: string;
+  to: string;
+  coordinates: [number, number][];
+}
+
 interface FleetMapProps {
   vessels: FleetVessel[];
   portMarkers: PortMarker[];
   selectedVesselId: string | null;
   onSelectVessel: (id: string | null) => void;
+  /** Planner route legs to draw on the map */
+  plannerRouteLegs?: PlannerRouteLeg[];
+  /** Port waypoints from the planner (shown as numbered markers) */
+  plannerWaypoints?: Array<{ name: string; lat: number; lon: number }>;
 }
 
 const PORT_TYPE_COLORS: Record<string, string> = {
@@ -167,8 +277,9 @@ const PORT_TYPE_COLORS: Record<string, string> = {
   broker: "#a855f7",
 };
 
-export function FleetMapInner({ vessels, portMarkers, selectedVesselId, onSelectVessel }: FleetMapProps) {
-  // Compute route lines for vessels with both ports
+export function FleetMapInner({ vessels, portMarkers, selectedVesselId, onSelectVessel, plannerRouteLegs = [], plannerWaypoints = [] }: FleetMapProps) {
+  // Compute route lines for vessels using pre-computed ocean routing paths.
+  // These paths come from our 0.1° water-grid Dijkstra — never cross land.
   const routes = useMemo(() => {
     return vessels
       .filter((v) => v.loadport && v.dischargePort)
@@ -176,10 +287,33 @@ export function FleetMapInner({ vessels, portMarkers, selectedVesselId, onSelect
         const from = findPortCoordinates(v.loadport);
         const to = findPortCoordinates(v.dischargePort);
         if (!from || !to) return null;
+
+        // Resolve canonical port names for our ocean routing lookup
+        const fromCanonical = v.loadport ? findPort(v.loadport) : null;
+        const toCanonical = v.dischargePort ? findPort(v.dischargePort) : null;
+
+        let points: [number, number][] | null = null;
+        if (fromCanonical && toCanonical) {
+          points = getSeaRoutePath(fromCanonical, toCanonical);
+        }
+
+        // Fallback: direct straight segment
+        if (!points) {
+          points = [[from.lat, from.lng], [to.lat, to.lng]];
+        }
+
+        // Always render as great-circle arcs — map is Mercator but the
+        // Earth is round. Each consecutive pair of waypoints becomes a
+        // geodesic arc, producing the characteristic poleward bulge of a
+        // real transatlantic route. Hand-drawn paths are designed with
+        // sparse waypoints so the arcs blend smoothly without visible
+        // kinks at the joins.
+        const renderPoints = toGeodesic(points);
+
         return {
           id: v.id,
           color: STATUS_COLORS[v.status] ?? "#6B7280",
-          points: computeRouteArc(from, to),
+          points: renderPoints,
           isSelected: v.id === selectedVesselId,
         };
       })
@@ -196,8 +330,7 @@ export function FleetMapInner({ vessels, portMarkers, selectedVesselId, onSelect
       center={[42, 10]}
       zoom={4}
       minZoom={2}
-      maxBounds={[[-85, -200], [85, 200]]}
-      maxBoundsViscosity={1.0}
+      worldCopyJump={true}
       style={{ width: "100%", height: "100%", background: "#0a0c10", zIndex: 0 }}
       zoomControl={true}
       attributionControl={true}
@@ -205,6 +338,17 @@ export function FleetMapInner({ vessels, portMarkers, selectedVesselId, onSelect
       <TileLayer
         attribution='&copy; <a href="https://carto.com">CARTO</a>'
         url="https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+        noWrap={false}
+      />
+
+      {/* Reference ports (all 106 curated ports) — dots always, names on zoom */}
+      <ReferencePortsLayer
+        excludedNames={
+          new Set([
+            ...portMarkers.map((p) => p.port.toLowerCase()),
+            ...CORE_TERMINALS.map((t) => t.label.toLowerCase()),
+          ])
+        }
       />
 
       {/* Route polylines — drawn UNDER markers */}
@@ -288,6 +432,43 @@ export function FleetMapInner({ vessels, portMarkers, selectedVesselId, onSelect
           </Marker>
         );
       })}
+
+      {/* Planner route polylines — solid cyan lines (rendered as great-circle arcs) */}
+      {plannerRouteLegs.map((leg, i) => (
+        <Polyline
+          key={`planner-leg-${i}`}
+          positions={toGeodesic(leg.coordinates as [number, number][])}
+          pathOptions={{
+            color: "#22d3ee",
+            weight: 3,
+            opacity: 0.8,
+            dashArray: undefined,
+            lineCap: "round",
+            lineJoin: "round",
+          }}
+        />
+      ))}
+
+      {/* Planner waypoint markers — numbered cyan circles */}
+      {plannerWaypoints.map((wp, i) => (
+        <CircleMarker
+          key={`planner-wp-${i}`}
+          center={[wp.lat, wp.lon]}
+          radius={10}
+          pathOptions={{
+            color: "#22d3ee",
+            fillColor: "#0e1117",
+            fillOpacity: 0.9,
+            weight: 2.5,
+          }}
+        >
+          <Tooltip permanent direction="bottom" offset={[0, 12]} className="fleet-port-label">
+            <span style={{ fontSize: "9px", color: "#22d3ee", fontWeight: 700 }}>
+              {wp.name.split(",")[0].toUpperCase()}
+            </span>
+          </Tooltip>
+        </CircleMarker>
+      ))}
 
       {/* Status legend — bottom-right corner */}
       <div className="leaflet-bottom leaflet-right" style={{ pointerEvents: "none" }}>

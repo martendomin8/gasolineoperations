@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { PortSelect } from "@/components/ui/port-select";
 import {
   Sparkles,
   ArrowLeft,
@@ -362,7 +363,7 @@ interface FieldRowProps {
   value: string;
   score: number;
   onChange: (key: keyof ParsedFields, val: string) => void;
-  type?: "text" | "number" | "select";
+  type?: "text" | "number" | "select" | "port";
   options?: string[];
 }
 
@@ -379,7 +380,14 @@ function FieldRow({ label, fieldKey, value, score, onChange, type = "text", opti
       </div>
 
       <div className="flex-1">
-        {type === "select" && options ? (
+        {type === "port" ? (
+          <PortSelect
+            compact
+            value={value}
+            onChange={(v) => onChange(fieldKey, v)}
+            placeholder="Type port name..."
+          />
+        ) : type === "select" && options ? (
           <select
             value={value}
             onChange={(e) => onChange(fieldKey, e.target.value)}
@@ -991,8 +999,8 @@ Price: Platts CIF NWE -$5/MT`}
                 <FieldRow label="Incoterm"      fieldKey="incoterm"      value={editedFields.incoterm      ?? ""} score={result.confidenceScores.incoterm      ?? 0} onChange={updateField} type="select" options={["FOB", "CIF", "CFR", "DAP"]} />
 
                 <p className="text-[0.6875rem] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider mt-3 mb-1">Logistics</p>
-                <FieldRow label="Loadport"      fieldKey="loadport"      value={editedFields.loadport      ?? ""} score={result.confidenceScores.loadport      ?? 0} onChange={updateField} />
-                <FieldRow label="Discharge Port" fieldKey="discharge_port" value={editedFields.discharge_port ?? ""} score={result.confidenceScores.discharge_port ?? 0} onChange={updateField} />
+                <FieldRow label="Loadport"      fieldKey="loadport"      value={editedFields.loadport      ?? ""} score={result.confidenceScores.loadport      ?? 0} onChange={updateField} type="port" />
+                <FieldRow label="Discharge Port" fieldKey="discharge_port" value={editedFields.discharge_port ?? ""} score={result.confidenceScores.discharge_port ?? 0} onChange={updateField} type="port" />
                 <FieldRow label="Laycan Start"  fieldKey="laycan_start"  value={editedFields.laycan_start  ?? ""} score={result.confidenceScores.laycan_start  ?? 0} onChange={updateField} />
                 <FieldRow label="Laycan End"    fieldKey="laycan_end"    value={editedFields.laycan_end    ?? ""} score={result.confidenceScores.laycan_end    ?? 0} onChange={updateField} />
 

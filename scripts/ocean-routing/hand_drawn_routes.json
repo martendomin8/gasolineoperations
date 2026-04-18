@@ -1,0 +1,174 @@
+{
+  "_meta": {
+    "description": "Hand-drawn offshore shipping routes for common gasoline trade lanes. Each entry is a port-pair with a sparse, strategic waypoint list. Fewer waypoints means less visible angle-kinks when rendered as great-circle arcs on the client. Aim: 6-12 waypoints per route — key inflection points only (port, strait exits, strait/canal entries, ocean-crossing anchors, approach points).",
+    "key_format": "sortedPortA, XX|sortedPortB, YY  — alphabetical to match distances.json keys",
+    "waypoint_format": "[lat, lon] decimal degrees, ordered from first port (alphabetically lower) to second port",
+    "distance_policy": "Distance is haversine-summed over waypoints at build time — no manual entry, stays honest",
+    "author": "NEFGO ops team"
+  },
+
+  "_common_notes": {
+    "ARA_to_NorthSea_exit": "ARA ports (Amsterdam/Rotterdam/Antwerp) → Dover Strait at (51.00, 1.50), then Western Channel exit (49.5, -5.5)",
+    "Atlantic_N_crossing": "English Channel exit → Celtic Sea (49, -10) → Mid-Atlantic peak ~50°N at -20/-30/-40W → Grand Banks south (43, -55) → US approach point (~40, -67)",
+    "Chesapeake_approach": "Offshore (40, -70) → approach (37.0, -75.8) → bay entrance → up to Baltimore",
+    "Delaware_approach": "Offshore (40, -70) → approach (39.0, -74.5) → bay entrance → up to Philadelphia",
+    "NY_approach": "Offshore (40, -70) → (40.5, -72) → Sandy Hook → New York"
+  },
+
+  "Amsterdam, NL|Baltimore, US": {
+    "notes": "ARA → Chesapeake Bay. Sparse waypoints = one big geodesic arc over Atlantic (peaks ~52°N real great circle).",
+    "waypoints": [
+      [52.37,   4.86],
+      [51.00,   1.50],
+      [49.50,  -5.50],
+      [40.00, -68.00],
+      [36.90, -75.80],
+      [39.27, -76.58]
+    ]
+  },
+
+  "Antwerp, BE|Baltimore, US": {
+    "notes": "ARA → Chesapeake Bay. Antwerp exit via Scheldt → Dover → single geodesic arc over Atlantic → Chesapeake approach.",
+    "waypoints": [
+      [51.27,   4.38],
+      [51.45,   3.55],
+      [51.00,   1.50],
+      [49.50,  -5.50],
+      [40.00, -68.00],
+      [36.90, -75.80],
+      [39.27, -76.58]
+    ]
+  },
+
+  "Baltimore, US|Rotterdam, NL": {
+    "notes": "ARA → Chesapeake Bay (Rotterdam origin). Alphabetic sort puts Baltimore first.",
+    "waypoints": [
+      [39.27, -76.58],
+      [36.90, -75.80],
+      [40.00, -68.00],
+      [49.50,  -5.50],
+      [51.00,   1.50],
+      [51.90,   4.48]
+    ]
+  },
+
+  "Amsterdam, NL|New York, US": {
+    "notes": "ARA → New York.",
+    "waypoints": [
+      [52.37,   4.86],
+      [51.00,   1.50],
+      [49.50,  -5.50],
+      [40.50, -72.00],
+      [40.67, -74.03]
+    ]
+  },
+
+  "Antwerp, BE|New York, US": {
+    "notes": "ARA → New York.",
+    "waypoints": [
+      [51.27,   4.38],
+      [51.45,   3.55],
+      [51.00,   1.50],
+      [49.50,  -5.50],
+      [40.50, -72.00],
+      [40.67, -74.03]
+    ]
+  },
+
+  "New York, US|Rotterdam, NL": {
+    "notes": "ARA → New York (Rotterdam origin).",
+    "waypoints": [
+      [40.67, -74.03],
+      [40.50, -72.00],
+      [49.50,  -5.50],
+      [51.00,   1.50],
+      [51.90,   4.48]
+    ]
+  },
+
+  "Lavera, FR|New York, US": {
+    "notes": "Med → US via Gibraltar. Sparse waypoints: Med transit + Gibraltar + ONE big geodesic arc across Atlantic (which renders as the real great-circle bulge peaking ~43°N at -40°W) + NY approach.",
+    "waypoints": [
+      [43.38,   4.98],
+      [42.00,   3.50],
+      [39.50,   0.50],
+      [37.00,  -3.00],
+      [36.00,  -5.50],
+      [36.00,  -9.00],
+      [40.50, -72.00],
+      [40.67, -74.03]
+    ]
+  },
+
+  "Barcelona, ES|Thessaloniki, GR": {
+    "notes": "Med-internal. East from Barcelona, south of Sardinia, through Messina Strait, across Ionian Sea, into Aegean past Peloponnese (south), north through Aegean to Thessaloniki.",
+    "waypoints": [
+      [41.35,   2.17],
+      [40.50,   4.00],
+      [39.50,   7.00],
+      [38.80,  10.00],
+      [38.30,  12.50],
+      [38.20,  15.00],
+      [38.10,  15.65],
+      [37.80,  16.20],
+      [36.80,  18.50],
+      [36.20,  21.00],
+      [36.50,  23.50],
+      [37.50,  24.50],
+      [38.50,  24.50],
+      [39.50,  24.00],
+      [40.30,  23.50],
+      [40.62,  22.93]
+    ]
+  },
+
+  "Lagos, NG|Ust-Luga, RU": {
+    "notes": "Baltic → West Africa. Ust-Luga → Gulf of Finland → Baltic → Danish straits → North Sea → Dover → Channel → S past Biscay offshore → past Portugal → past Canaries (W of 17°W) → direct to Gulf of Guinea → Lagos. Waypoints ordered Lagos → Ust-Luga (alphabetic).",
+    "waypoints": [
+      [ 6.45,   3.38],
+      [ 4.50,   2.50],
+      [ 3.50,  -1.00],
+      [ 5.00,  -8.00],
+      [15.00, -19.00],
+      [28.00, -17.00],
+      [36.00, -10.00],
+      [40.00,  -9.80],
+      [45.00,  -9.50],
+      [48.00,  -7.50],
+      [49.30,  -5.50],
+      [50.50,  -1.00],
+      [51.00,   1.50],
+      [52.00,   3.00],
+      [53.50,   4.20],
+      [55.50,   7.00],
+      [57.70,   9.50],
+      [57.70,  11.00],
+      [55.70,  12.70],
+      [55.30,  15.00],
+      [56.00,  19.00],
+      [58.00,  21.50],
+      [59.50,  25.00],
+      [59.68,  28.38]
+    ]
+  },
+
+  "Antwerp, BE|Lome, TG": {
+    "notes": "ARA → West Africa. Out Scheldt/Dover → Channel → S past Biscay offshore → past Portugal coast → W of Canary Islands (~17°W) → direct diagonal across Atlantic to Gulf of Guinea → Lomé.",
+    "waypoints": [
+      [51.27,   4.38],
+      [51.45,   3.55],
+      [51.00,   1.50],
+      [50.00,  -1.50],
+      [49.30,  -5.50],
+      [45.00,  -9.50],
+      [40.00,  -9.80],
+      [36.00, -10.00],
+      [28.00, -17.00],
+      [15.00, -19.00],
+      [ 5.00,  -8.00],
+      [ 3.00,  -1.00],
+      [ 5.00,   0.50],
+      [ 6.13,   1.28]
+    ]
+  }
+}

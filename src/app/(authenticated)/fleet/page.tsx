@@ -11,17 +11,17 @@
  * - On-map status legend
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
-import { Ship, X, ExternalLink, MapPin, AlertTriangle, Anchor, ArrowRight } from "lucide-react";
+import { Ship, X, ExternalLink, MapPin, AlertTriangle, Anchor, ArrowRight, Route, Trash2, GripVertical, Plus, ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { buildLinkageCards } from "@/app/(authenticated)/dashboard/page";
 import { findPortCoordinates } from "@/lib/geo/ports";
 import { computeMockPosition } from "@/lib/geo/mock-positions";
 import { STATUS_COLORS, STATUS_LABELS } from "./fleet-map";
-import type { FleetVessel } from "./fleet-map";
+import type { FleetVessel, PlannerRouteLeg } from "./fleet-map";
 
 // Dynamic import — Leaflet requires `window`
 const FleetMapInner = dynamic(
@@ -56,6 +56,7 @@ interface DealItem {
   vesselName: string | null;
   status: string;
   dealType: string;
+  sortOrder: number;
   pricingType: string | null;
   pricingFormula: string | null;
   pricingEstimatedDate: string | null;
@@ -117,6 +118,21 @@ export default function FleetPage() {
   const [selectedVesselId, setSelectedVesselId] = useState<string | null>(null);
   const [operatorFilter, setOperatorFilter] = useState<string | null>(null);
 
+  // Planner Mode state
+  const [plannerMode, setPlannerMode] = useState(false);
+  const [plannerPorts, setPlannerPorts] = useState<Array<{ name: string; lat: number; lon: number }>>([]);
+  const [plannerSearch, setPlannerSearch] = useState("");
+  const [plannerResults, setPlannerResults] = useState<Array<{ name: string; lat: number; lon: number }>>([]);
+  const [plannerSpeed, setPlannerSpeed] = useState(12);
+  const [plannerDistance, setPlannerDistance] = useState<{
+    totalNm: number;
+    legs: Array<{ from: string; to: string; distanceNm: number }>;
+    etaDays: number;
+    etaDisplay: string;
+  } | null>(null);
+  const [plannerSearching, setPlannerSearching] = useState(false);
+  const [plannerRouteLegs, setPlannerRouteLegs] = useState<PlannerRouteLeg[]>([]);
+
   // Port markers from parties (terminals, agents, inspectors, brokers)
   const [portMarkers, setPortMarkers] = useState<Array<{ name: string; port: string; type: string; lat: number; lng: number }>>([]);
 
@@ -161,6 +177,50 @@ export default function FleetPage() {
   }, []);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  // Planner: search ports as user types
+  useEffect(() => {
+    if (!plannerSearch.trim() || plannerSearch.length < 2) {
+      setPlannerResults([]);
+      return;
+    }
+    const timer = setTimeout(() => {
+      setPlannerSearching(true);
+      fetch(`/api/sea-distance?search=${encodeURIComponent(plannerSearch)}`)
+        .then((r) => r.json())
+        .then((data: { ports: Array<{ name: string; lat: number; lon: number }> }) => {
+          setPlannerResults(data.ports ?? []);
+        })
+        .finally(() => setPlannerSearching(false));
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [plannerSearch]);
+
+  // Planner: recalculate distance whenever ports or speed change
+  useEffect(() => {
+    if (plannerPorts.length < 2) {
+      setPlannerDistance(null);
+      setPlannerRouteLegs([]);
+      return;
+    }
+    const portNames = plannerPorts.map((p) => p.name).join("|");
+
+    // Fetch distance + route polyline in parallel
+    Promise.all([
+      fetch(`/api/sea-distance?ports=${encodeURIComponent(portNames)}&speed=${plannerSpeed}`)
+        .then((r) => r.json()),
+      fetch(`/api/sea-distance/route-line?ports=${encodeURIComponent(portNames)}`)
+        .then((r) => r.json()),
+    ]).then(([distData, routeData]) => {
+      setPlannerDistance({
+        totalNm: distData.totalNm ?? 0,
+        legs: distData.legs ?? [],
+        etaDays: distData.etaDays ?? 0,
+        etaDisplay: distData.etaDisplay ?? "—",
+      });
+      setPlannerRouteLegs(routeData.legs ?? []);
+    });
+  }, [plannerPorts, plannerSpeed]);
 
   const cards = buildLinkageCards(linkageRows as any, allDeals as any);
 
@@ -233,13 +293,79 @@ export default function FleetPage() {
       }
     }
 
+    // Demo fleet fallback — matches seed.ts deal data exactly.
+    // Positions are mock-placed based on deal status:
+    //   active/loading = near loadport, sailing = en route, discharging = near discharge port
     const demoFleet: Array<Omit<FleetVessel, "id" | "linkageCode">> = [
-      { vesselName: "MT Hafnia Polar", vesselImo: "9786543", status: "sailing", position: { lat: 39.5, lng: 3.2 }, heading: 225, loadport: "Lavera", dischargePort: "Barcelona", buys: [{ counterparty: "SOCAR", quantityMt: "37000", product: "Reformate" }], sells: [{ counterparty: "Shell", quantityMt: "30000", product: "EBOB" }], earliestLaycan: "2026-04-18", latestLaycanEnd: "2026-04-20", assignedOperatorName: "AT", product: "Reformate", isUrgent: true, etaHours: 18 },
-      { vesselName: "MT West Africa Star", vesselImo: "9654321", status: "loading", position: { lat: 43.39, lng: 4.98 }, heading: 180, loadport: "Lavera", dischargePort: "New York", buys: [{ counterparty: "Total Energies", quantityMt: "7000", product: "Gasoline" }], sells: [], earliestLaycan: "2026-04-04", latestLaycanEnd: "2026-04-06", assignedOperatorName: "KK", product: "Gasoline", isUrgent: false, etaHours: null },
-      { vesselName: "MT Nordic Breeze", vesselImo: "9812345", status: "sailing", position: { lat: 48.2, lng: -12.5 }, heading: 260, loadport: "Antwerp", dischargePort: "Houston", buys: [{ counterparty: "Holborn", quantityMt: "11438", product: "Gasoline" }], sells: [{ counterparty: "NNPC", quantityMt: "11438", product: "Gasoline" }], earliestLaycan: "2026-04-20", latestLaycanEnd: "2026-04-25", assignedOperatorName: "MK", product: "Gasoline", isUrgent: false, etaHours: 192 },
-      { vesselName: "MT Besiktas Canakkale", vesselImo: "9543211", status: "active", position: { lat: 51.96, lng: 4.05 }, heading: 90, loadport: "Rotterdam", dischargePort: "Thessaloniki", buys: [{ counterparty: "Vitol", quantityMt: "25000", product: "EBOB" }], sells: [{ counterparty: "Repsol", quantityMt: "25000", product: "EBOB" }], earliestLaycan: "2026-04-22", latestLaycanEnd: "2026-04-24", assignedOperatorName: "AT", product: "EBOB", isUrgent: false, etaHours: null },
-      { vesselName: "MT Nordic Ruth", vesselImo: "9234567", status: "discharging", position: { lat: 41.36, lng: 2.17 }, heading: 0, loadport: "Amsterdam", dischargePort: "Barcelona", buys: [], sells: [{ counterparty: "Cepsa", quantityMt: "15000", product: "Gasoline" }], earliestLaycan: "2026-04-15", latestLaycanEnd: "2026-04-17", assignedOperatorName: "KK", product: "Gasoline", isUrgent: true, etaHours: null },
-      { vesselName: "MT Ardmore Seatrader", vesselImo: "9678901", status: "sailing", position: { lat: 36.8, lng: 14.5 }, heading: 135, loadport: "Lavera", dischargePort: "Augusta", buys: [{ counterparty: "Litasco", quantityMt: "12000", product: "Naphtha" }], sells: [{ counterparty: "Saras", quantityMt: "12000", product: "Naphtha" }], earliestLaycan: "2026-04-25", latestLaycanEnd: "2026-04-27", assignedOperatorName: "MK", product: "Naphtha", isUrgent: false, etaHours: 42 },
+      // 086412GSS — Buy FOB Lavera from Vitol, Sell CIF to Shell → New York
+      // Status: active — vessel near Lavera awaiting clearance
+      {
+        vesselName: "MT Hafnia Polar", vesselImo: "9786543",
+        status: "active", position: { lat: 43.37, lng: 5.02 }, heading: 210,
+        loadport: "Lavera", dischargePort: "New York",
+        buys: [{ counterparty: "Vitol SA", quantityMt: "30000", product: "EBOB" }],
+        sells: [{ counterparty: "Shell Trading", quantityMt: "30000", product: "EBOB" }],
+        earliestLaycan: "2026-04-05", latestLaycanEnd: "2026-04-25",
+        assignedOperatorName: "AT", product: "EBOB", isUrgent: true, etaHours: null,
+      },
+      // TEMP-001 — Buy FOB Ust-Luga from Trafigura, Sell CIF to TotalEnergies + NNPC → Lagos
+      // Status: sailing — vessel passing Strait of Gibraltar
+      {
+        vesselName: "MT West Africa Star", vesselImo: "9654321",
+        status: "sailing", position: { lat: 35.9, lng: -5.5 }, heading: 210,
+        loadport: "Ust-Luga", dischargePort: "Lagos",
+        buys: [{ counterparty: "Trafigura", quantityMt: "35000", product: "EBOB" }],
+        sells: [
+          { counterparty: "TotalEnergies Trading", quantityMt: "23000", product: "EBOB" },
+          { counterparty: "NNPC", quantityMt: "12000", product: "EBOB" },
+        ],
+        earliestLaycan: "2026-03-20", latestLaycanEnd: "2026-04-18",
+        assignedOperatorName: "LK", product: "EBOB", isUrgent: false, etaHours: 168,
+      },
+      // TEMP-002 — Buy FOB Antwerp from Repsol, Sell DAP to BP → Philadelphia
+      // Status: loading — vessel alongside at Antwerp terminal
+      {
+        vesselName: "MT Nordic Breeze", vesselImo: "9812345",
+        status: "loading", position: { lat: 51.27, lng: 4.40 }, heading: 0,
+        loadport: "Antwerp", dischargePort: "Philadelphia",
+        buys: [{ counterparty: "Repsol Trading", quantityMt: "25000", product: "Light Naphtha" }],
+        sells: [{ counterparty: "BP Oil International", quantityMt: "25000", product: "Light Naphtha" }],
+        earliestLaycan: "2026-03-28", latestLaycanEnd: "2026-04-17",
+        assignedOperatorName: "LK", product: "Light Naphtha", isUrgent: false, etaHours: null,
+      },
+      // TEMP-003 — Buy FOB Barcelona from Orlen → Thessaloniki (purchase only, no sale yet)
+      // Status: active — vessel at Barcelona awaiting loadport berth
+      {
+        vesselName: "MT Besiktas Canakkale", vesselImo: "9543211",
+        status: "active", position: { lat: 41.35, lng: 2.17 }, heading: 90,
+        loadport: "Barcelona", dischargePort: "Thessaloniki",
+        buys: [{ counterparty: "Orlen Trading", quantityMt: "20000", product: "EBOB" }],
+        sells: [],
+        earliestLaycan: "2026-03-15", latestLaycanEnd: "2026-03-17",
+        assignedOperatorName: "LK", product: "EBOB", isUrgent: false, etaHours: null,
+      },
+      // TEMP-004 — Sell FOB Antwerp to Equinor → Baltimore
+      // Status: active — vessel at Antwerp awaiting nomination
+      {
+        vesselName: "MT Nordic Ruth", vesselImo: "9234567",
+        status: "active", position: { lat: 51.30, lng: 4.38 }, heading: 180,
+        loadport: "Antwerp", dischargePort: "Baltimore",
+        buys: [],
+        sells: [{ counterparty: "Equinor Trading", quantityMt: "27000", product: "Eurobob Oxy" }],
+        earliestLaycan: "2026-04-08", latestLaycanEnd: "2026-04-10",
+        assignedOperatorName: "LK", product: "Eurobob Oxy", isUrgent: true, etaHours: null,
+      },
+      // TEMP-005 — Sell CIF Antwerp to Glencore → Lomé
+      // Status: sailing — vessel off coast of Morocco heading south
+      {
+        vesselName: "MT Ardmore Seatrader", vesselImo: "9678901",
+        status: "sailing", position: { lat: 30.5, lng: -10.2 }, heading: 200,
+        loadport: "Antwerp", dischargePort: "Lomé",
+        buys: [],
+        sells: [{ counterparty: "Glencore Energy UK", quantityMt: "26000", product: "Eurobob Oxy" }],
+        earliestLaycan: "2026-04-05", latestLaycanEnd: "2026-04-08",
+        assignedOperatorName: "AT", product: "Eurobob Oxy", isUrgent: false, etaHours: 96,
+      },
     ];
 
     for (const d of demoFleet) {
@@ -257,6 +383,54 @@ export default function FleetPage() {
   }
 
   const selectedVessel = vessels.find((v) => v.id === selectedVesselId) ?? null;
+
+  // When a vessel is selected, auto-populate planner with its ports
+  const prevSelectedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!selectedVesselId || selectedVesselId === prevSelectedRef.current) return;
+    prevSelectedRef.current = selectedVesselId;
+
+    const v = vessels.find((vv) => vv.id === selectedVesselId);
+    if (!v) return;
+
+    // Collect unique ports: loadport → discharge ports
+    const ports: string[] = [];
+    if (v.loadport) ports.push(v.loadport);
+    if (v.dischargePort && v.dischargePort !== v.loadport) ports.push(v.dischargePort);
+
+    // Also look for additional discharge ports from other sell deals in the same linkage.
+    // Sorted by sortOrder so the fleet planner shows ports in the operator's chosen sequence.
+    const linkageDeals = allDeals
+      .filter((d) => d.linkageId === v.id)
+      .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+    for (const d of linkageDeals) {
+      if (d.dischargePort && !ports.includes(d.dischargePort)) {
+        ports.push(d.dischargePort);
+      }
+    }
+
+    if (ports.length === 0) {
+      // No ports — open planner empty (user can add manually)
+      setPlannerMode(true);
+      return;
+    }
+
+    // Resolve port names via search API and populate planner
+    Promise.all(
+      ports.map((p) =>
+        fetch(`/api/sea-distance?search=${encodeURIComponent(p)}`)
+          .then((r) => r.json())
+          .then((data: { ports: Array<{ name: string; lat: number; lon: number }> }) => {
+            const match = data.ports?.[0];
+            return match ?? { name: p, lat: 0, lon: 0 };
+          })
+          .catch(() => ({ name: p, lat: 0, lon: 0 }))
+      )
+    ).then((resolved) => {
+      setPlannerPorts(resolved);
+      setPlannerMode(true);
+    });
+  }, [selectedVesselId, vessels, allDeals]);
 
   const operatorOptions = Array.from(
     new Map(
@@ -292,6 +466,20 @@ export default function FleetPage() {
           </div>
         </div>
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => {
+              setPlannerMode(!plannerMode);
+              if (!plannerMode) setSelectedVesselId(null);
+            }}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-[var(--radius-md)] text-xs font-semibold transition-colors cursor-pointer ${
+              plannerMode
+                ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/40"
+                : "bg-[var(--color-surface-2)] text-[var(--color-text-secondary)] border border-[var(--color-border-default)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-border-strong)]"
+            }`}
+          >
+            <Route className="h-3.5 w-3.5" />
+            Planner
+          </button>
           {urgentCount > 0 && (
             <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[var(--color-danger)]/15 text-[var(--color-danger)] text-[0.6875rem] font-semibold animate-pulse">
               <AlertTriangle className="h-3 w-3" />
@@ -333,7 +521,184 @@ export default function FleetPage() {
               portMarkers={portMarkers}
               selectedVesselId={selectedVesselId}
               onSelectVessel={setSelectedVesselId}
+              plannerRouteLegs={plannerRouteLegs}
+              plannerWaypoints={plannerPorts}
             />
+          )}
+        </div>
+
+        {/* Right-side Planner panel */}
+        <div className={`
+          flex-shrink-0 bg-[var(--color-surface-1)] border-l border-[var(--color-border-default)]
+          transition-all duration-300 overflow-hidden
+          ${plannerMode ? "w-80" : "w-0"}
+        `}>
+          {plannerMode && (
+            <div className="w-80 h-full overflow-y-auto">
+              {/* Planner header */}
+              <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--color-border-subtle)] bg-[var(--color-surface-2)]">
+                <div className="flex items-center gap-2">
+                  <Route className="h-4 w-4 text-cyan-400" />
+                  <span className="text-sm font-bold text-[var(--color-text-primary)]">
+                    Distance Planner
+                  </span>
+                </div>
+                <button
+                  onClick={() => setPlannerMode(false)}
+                  className="p-1.5 rounded-[var(--radius-md)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-surface-3)] transition-colors cursor-pointer"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              {/* Port search */}
+              <div className="px-4 py-3 border-b border-[var(--color-border-subtle)]">
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Search port..."
+                    value={plannerSearch}
+                    onChange={(e) => setPlannerSearch(e.target.value)}
+                    className="w-full px-3 py-2 text-xs rounded-[var(--radius-md)] bg-[var(--color-surface-2)] border border-[var(--color-border-default)] text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] outline-none focus:border-cyan-500/50"
+                  />
+                  {plannerSearching && (
+                    <div className="absolute right-2 top-2">
+                      <div className="h-4 w-4 rounded-full border-2 border-cyan-400 border-t-transparent animate-spin" />
+                    </div>
+                  )}
+                </div>
+                {plannerResults.length > 0 && (
+                  <div className="mt-1 max-h-48 overflow-y-auto rounded-[var(--radius-md)] border border-[var(--color-border-default)] bg-[var(--color-surface-2)]">
+                    {plannerResults.map((port) => (
+                      <button
+                        key={port.name}
+                        onClick={() => {
+                          setPlannerPorts((prev) => [...prev, port]);
+                          setPlannerSearch("");
+                          setPlannerResults([]);
+                        }}
+                        className="w-full text-left px-3 py-1.5 text-xs text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-3)] hover:text-[var(--color-text-primary)] transition-colors cursor-pointer"
+                      >
+                        <Plus className="h-3 w-3 inline mr-1.5 text-cyan-400" />
+                        {port.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Waypoint list */}
+              <div className="px-4 py-3 border-b border-[var(--color-border-subtle)]">
+                <div className="text-[0.625rem] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider mb-2">
+                  Waypoints ({plannerPorts.length})
+                </div>
+                {plannerPorts.length === 0 ? (
+                  <div className="text-xs text-[var(--color-text-tertiary)] italic py-4 text-center">
+                    Search and add ports above
+                  </div>
+                ) : (
+                  <div className="space-y-1">
+                    {plannerPorts.map((port, idx) => (
+                      <div
+                        key={`${port.name}-${idx}`}
+                        className="flex items-center gap-2 px-2 py-1.5 rounded-[var(--radius-md)] bg-[var(--color-surface-2)] group"
+                      >
+                        <GripVertical className="h-3 w-3 text-[var(--color-text-tertiary)] flex-shrink-0" />
+                        <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                          <span className="w-4 h-4 rounded-full bg-cyan-500/20 text-cyan-400 text-[0.6rem] font-bold flex items-center justify-center flex-shrink-0">
+                            {idx + 1}
+                          </span>
+                          <span className="text-xs text-[var(--color-text-primary)] truncate">
+                            {port.name.split(",")[0]}
+                          </span>
+                        </div>
+                        {/* Leg distance */}
+                        {plannerDistance && idx > 0 && plannerDistance.legs[idx - 1] && (
+                          <span className="text-[0.6rem] font-mono text-[var(--color-text-tertiary)] flex-shrink-0">
+                            {plannerDistance.legs[idx - 1].distanceNm.toLocaleString()} NM
+                          </span>
+                        )}
+                        <button
+                          onClick={() => setPlannerPorts((prev) => prev.filter((_, i) => i !== idx))}
+                          className="p-0.5 rounded text-[var(--color-text-tertiary)] hover:text-[var(--color-danger)] opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Speed input */}
+              <div className="px-4 py-3 border-b border-[var(--color-border-subtle)]">
+                <label className="text-[0.625rem] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider">
+                  Speed (knots)
+                  <input
+                    type="number"
+                    min={1}
+                    max={25}
+                    step={0.5}
+                    value={plannerSpeed}
+                    onChange={(e) => setPlannerSpeed(Number(e.target.value) || 12)}
+                    className="mt-1 w-full px-3 py-1.5 text-sm font-mono font-bold rounded-[var(--radius-md)] bg-[var(--color-surface-2)] border border-[var(--color-border-default)] text-[var(--color-text-primary)] outline-none focus:border-cyan-500/50"
+                  />
+                </label>
+              </div>
+
+              {/* Results */}
+              {plannerDistance && plannerPorts.length >= 2 && (
+                <div className="px-4 py-4">
+                  <div className="rounded-[var(--radius-md)] border border-cyan-500/30 bg-cyan-500/5 p-4">
+                    {/* ETA — primary info */}
+                    <div className="text-2xl font-mono font-bold text-[var(--color-text-primary)]">
+                      {plannerDistance.etaDisplay}
+                    </div>
+                    <div className="flex items-center gap-2 mt-1 text-xs text-[var(--color-text-tertiary)]">
+                      <span>@ {plannerSpeed} kn</span>
+                      <span className="text-[var(--color-border-default)]">|</span>
+                      <span className="font-mono">{plannerDistance.totalNm.toLocaleString()} NM</span>
+                    </div>
+                    {/* Leg breakdown */}
+                    {plannerDistance.legs.length > 1 && (
+                      <div className="mt-3 pt-3 border-t border-cyan-500/20 space-y-1">
+                        {plannerDistance.legs.map((leg, i) => {
+                          const legEtaDays = plannerSpeed > 0 ? leg.distanceNm / (plannerSpeed * 24) : 0;
+                          const legD = Math.floor(legEtaDays);
+                          const legH = Math.round((legEtaDays - legD) * 24);
+                          const legEta = legD > 0 ? `${legD}d ${legH}h` : `${legH}h`;
+                          return (
+                            <div key={i} className="flex items-center gap-1.5 text-[0.65rem] text-[var(--color-text-tertiary)]">
+                              <ChevronRight className="h-3 w-3 text-cyan-500/50" />
+                              <span className="truncate">{leg.from.split(",")[0]}</span>
+                              <span className="text-cyan-500/50">&rarr;</span>
+                              <span className="truncate">{leg.to.split(",")[0]}</span>
+                              <span className="ml-auto font-mono">{legEta}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Clear all */}
+              {plannerPorts.length > 0 && (
+                <div className="px-4 pb-4">
+                  <button
+                    onClick={() => {
+                      setPlannerPorts([]);
+                      setPlannerDistance(null);
+                      setPlannerRouteLegs([]);
+                    }}
+                    className="w-full px-3 py-2 text-xs font-medium rounded-[var(--radius-md)] border border-[var(--color-border-default)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-border-strong)] transition-colors cursor-pointer"
+                  >
+                    Clear all
+                  </button>
+                </div>
+              )}
+            </div>
           )}
         </div>
 
@@ -341,9 +706,9 @@ export default function FleetPage() {
         <div className={`
           flex-shrink-0 bg-[var(--color-surface-1)] border-l border-[var(--color-border-default)]
           transition-all duration-300 overflow-hidden
-          ${selectedVessel ? "w-80" : "w-0"}
+          ${!plannerMode && selectedVessel ? "w-80" : "w-0"}
         `}>
-          {selectedVessel && (
+          {!plannerMode && selectedVessel && (
             <div className="w-80 h-full overflow-y-auto">
               {/* Panel header */}
               <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--color-border-subtle)] bg-[var(--color-surface-2)]">

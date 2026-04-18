@@ -4,7 +4,7 @@ import { withTenantDb } from "@/lib/db";
 import { deals, linkages, linkageSteps, auditLogs, users, workflowInstances, workflowSteps, type Deal } from "@/lib/db/schema";
 import { matchTemplate, instantiateWorkflow } from "@/lib/workflow-engine";
 import { createDealSchema, dealFilterSchema } from "@/lib/types/deal";
-import { eq, and, ilike, or, desc, sql, like } from "drizzle-orm";
+import { eq, and, ilike, or, desc, asc, sql, like } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 
 /** Map workflow step status to display value for Excel view */
@@ -125,6 +125,7 @@ export const GET = withAuth(async (req, _ctx, session) => {
           excelStatuses: deals.excelStatuses,
           operatorName: sql<string | null>`coalesce(${linkagePrimaryOp.name}, ${primaryOp.name})`,
           secondaryOperatorName: sql<string | null>`coalesce(${linkageSecondaryOp.name}, ${secondaryOp.name})`,
+          sortOrder: deals.sortOrder,
           createdAt: deals.createdAt,
         })
         .from(deals)
@@ -134,7 +135,7 @@ export const GET = withAuth(async (req, _ctx, session) => {
         .leftJoin(linkagePrimaryOp, eq(linkages.assignedOperatorId, linkagePrimaryOp.id))
         .leftJoin(linkageSecondaryOp, eq(linkages.secondaryOperatorId, linkageSecondaryOp.id))
         .where(and(...conditions))
-        .orderBy(desc(deals.createdAt))
+        .orderBy(asc(deals.sortOrder), desc(deals.createdAt))
         .limit(filters.perPage)
         .offset(offset),
       db

@@ -247,6 +247,7 @@ export const deals = pgTable(
     estimatedBlNorDate: date("estimated_bl_nor_date"),
     specialInstructions: text("special_instructions"),
     excelStatuses: jsonb("excel_statuses").default({}).$type<Record<string, string | null>>(),
+    sortOrder: integer("sort_order").default(0).notNull(),
     version: integer("version").default(1).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),

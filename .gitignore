@@ -31,10 +31,17 @@ yarn-error.log*
 
 # archives
 *.zip
+*.tgz
 
 # local-only dev artefacts
 /public/uploads
 /Q88
+
+# Claude Code runtime files
+.claude/scheduled_tasks.lock
+
+# Ocean routing source data (Natural Earth shapefiles, redownloadable — 12MB)
+/scripts/ocean-routing/data/
 
 # vercel
 .vercel

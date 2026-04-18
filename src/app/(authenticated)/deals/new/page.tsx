@@ -3,6 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { PortSelect } from "@/components/ui/port-select";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -51,6 +52,8 @@ export default function NewDealPage() {
   const [manualLinkageCode, setManualLinkageCode] = useState("");
   const [activeLinkageCodes, setActiveLinkageCodes] = useState<string[]>([]);
   const [pricingPeriodType, setPricingPeriodType] = useState("");
+  const [loadport, setLoadport] = useState("");
+  const [dischargePort, setDischargePort] = useState("");
 
   // Fetch operators for the Secondary Operator select
   useEffect(() => {
@@ -73,8 +76,8 @@ export default function NewDealPage() {
       contractedQty: fd.get("contractedQty") as string || null,
       nominatedQty: fd.get("nominatedQty") ? Number(fd.get("nominatedQty")) : null,
       incoterm: fd.get("incoterm") as string,
-      loadport: fd.get("loadport") as string,
-      dischargePort: fd.get("dischargePort") as string || null,
+      loadport: loadport,
+      dischargePort: dischargePort || null,
       laycanStart: fd.get("laycanStart") as string,
       laycanEnd: fd.get("laycanEnd") as string,
       vesselName: fd.get("vesselName") as string || null,
@@ -234,8 +237,8 @@ export default function NewDealPage() {
           </CardHeader>
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
-              <Input label="Loadport" name="loadport" required placeholder="e.g. Amsterdam" error={errors.loadport} />
-              <Input label="Discharge Port" name="dischargePort" placeholder="e.g. New York" error={errors.dischargePort} />
+              <PortSelect label="Loadport" name="loadport" required placeholder="e.g. Amsterdam" value={loadport} onChange={setLoadport} error={errors.loadport} />
+              <PortSelect label="Discharge Port" name="dischargePort" placeholder="e.g. New York" value={dischargePort} onChange={setDischargePort} error={errors.dischargePort} />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <Input label="Laycan Start" name="laycanStart" type="date" required error={errors.laycanStart} />

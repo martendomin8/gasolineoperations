@@ -40,6 +40,7 @@ import {
   ChevronRight,
   Layers,
   Loader2,
+  GripVertical,
 } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
@@ -116,6 +117,7 @@ interface DealSummary {
   status: string;
   dealType: string;
   vesselName: string | null;
+  sortOrder: number;
 }
 
 interface WorkflowStep {
@@ -228,6 +230,11 @@ export default function LinkageDetailPage() {
     };
   }, [fetchData]);
 
+  // ── Drag & drop reorder state (must be before early returns) ──
+  const [dragSide, setDragSide] = useState<"buy" | "sell" | null>(null);
+  const [dragIdx, setDragIdx] = useState<number | null>(null);
+  const [overIdx, setOverIdx] = useState<number | null>(null);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-24">
@@ -245,10 +252,58 @@ export default function LinkageDetailPage() {
   }
 
   const displayName = linkage.linkageNumber ?? linkage.tempName;
-  const buyDeals = deals.filter((d) => d.direction === "buy");
-  const sellDeals = deals.filter((d) => d.direction === "sell");
-  const buyTotal = deals.filter((d) => d.direction === "buy").reduce((s, d) => s + parseFloat(d.quantityMt || "0"), 0);
-  const sellTotal = deals.filter((d) => d.direction === "sell").reduce((s, d) => s + parseFloat(d.quantityMt || "0"), 0);
+  const buyDeals = deals.filter((d) => d.direction === "buy").sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+  const sellDeals = deals.filter((d) => d.direction === "sell").sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+  const buyTotal = buyDeals.reduce((s, d) => s + parseFloat(d.quantityMt || "0"), 0);
+  const sellTotal = sellDeals.reduce((s, d) => s + parseFloat(d.quantityMt || "0"), 0);
+
+  const handleDragStart = (side: "buy" | "sell", idx: number) => {
+    setDragSide(side);
+    setDragIdx(idx);
+  };
+
+  const handleDragOver = (e: React.DragEvent, idx: number) => {
+    e.preventDefault();
+    setOverIdx(idx);
+  };
+
+  const handleDragEnd = () => {
+    setDragSide(null);
+    setDragIdx(null);
+    setOverIdx(null);
+  };
+
+  const handleDrop = async (side: "buy" | "sell", dropIdx: number) => {
+    if (dragSide !== side || dragIdx === null || dragIdx === dropIdx) {
+      handleDragEnd();
+      return;
+    }
+    const list = side === "buy" ? [...buyDeals] : [...sellDeals];
+    const [moved] = list.splice(dragIdx, 1);
+    list.splice(dropIdx, 0, moved);
+    handleDragEnd();
+
+    // Optimistic update: reorder in local state
+    const reorderedIds = list.map((d) => d.id);
+    const updatedDeals = deals.map((d) => {
+      const idx = reorderedIds.indexOf(d.id);
+      if (idx !== -1) return { ...d, sortOrder: idx };
+      return d;
+    });
+    setDeals(updatedDeals);
+
+    // Persist to backend
+    try {
+      await fetch("/api/deals/reorder", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dealIds: reorderedIds }),
+      });
+    } catch {
+      toast.error("Failed to save order");
+      fetchData();
+    }
+  };
 
   return (
     <div className="max-w-6xl space-y-5">
@@ -321,8 +376,8 @@ export default function LinkageDetailPage() {
       {/* Two-column grid: Buy + Sell */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Buy side */}
-        <div className="space-y-3">
-          <h2 className="text-sm font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide flex items-center gap-2">
+        <div className="space-y-3 pl-5">
+          <h2 className="text-sm font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide flex items-center gap-2 -ml-5">
             <span className="h-2 w-2 rounded-full bg-blue-500/60" />
             Purchase / Load
             <span className="text-xs font-normal text-[var(--color-text-tertiary)] ml-1">
@@ -339,7 +394,26 @@ export default function LinkageDetailPage() {
             )
           ) : (
             <>
-              {buyDeals.map((d) => <DealCard key={d.id} deal={d} steps={workflows[d.id] ?? []} onDeleted={fetchData} canDelete={isOperator} />)}
+              {buyDeals.map((d, i) => (
+                <div
+                  key={d.id}
+                  draggable={isOperator && buyDeals.length > 1}
+                  onDragStart={() => handleDragStart("buy", i)}
+                  onDragOver={(e) => handleDragOver(e, i)}
+                  onDragEnd={handleDragEnd}
+                  onDrop={() => handleDrop("buy", i)}
+                  className={`relative transition-opacity ${
+                    dragSide === "buy" && dragIdx === i ? "opacity-40" : ""
+                  } ${dragSide === "buy" && overIdx === i && dragIdx !== i ? "ring-2 ring-blue-500/40 rounded-[var(--radius-md)]" : ""}`}
+                >
+                  {isOperator && buyDeals.length > 1 && (
+                    <div className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-5 cursor-grab active:cursor-grabbing text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]">
+                      <GripVertical className="h-4 w-4" />
+                    </div>
+                  )}
+                  <DealCard deal={d} steps={workflows[d.id] ?? []} onDeleted={fetchData} canDelete={isOperator} />
+                </div>
+              ))}
               {isOperator && (
                 <AddDealMenu linkageId={linkage.id} linkageCode={displayName} variant="compact" side="buy" />
               )}
@@ -348,8 +422,8 @@ export default function LinkageDetailPage() {
         </div>
 
         {/* Sell side */}
-        <div className="space-y-3">
-          <h2 className="text-sm font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide flex items-center gap-2">
+        <div className="space-y-3 pl-5">
+          <h2 className="text-sm font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide flex items-center gap-2 -ml-5">
             <span className="h-2 w-2 rounded-full bg-amber-500/60" />
             Sale / Discharge
             <span className="text-xs font-normal text-[var(--color-text-tertiary)] ml-1">
@@ -366,7 +440,26 @@ export default function LinkageDetailPage() {
             )
           ) : (
             <>
-              {sellDeals.map((d) => <DealCard key={d.id} deal={d} steps={workflows[d.id] ?? []} onDeleted={fetchData} canDelete={isOperator} />)}
+              {sellDeals.map((d, i) => (
+                <div
+                  key={d.id}
+                  draggable={isOperator && sellDeals.length > 1}
+                  onDragStart={() => handleDragStart("sell", i)}
+                  onDragOver={(e) => handleDragOver(e, i)}
+                  onDragEnd={handleDragEnd}
+                  onDrop={() => handleDrop("sell", i)}
+                  className={`relative transition-opacity ${
+                    dragSide === "sell" && dragIdx === i ? "opacity-40" : ""
+                  } ${dragSide === "sell" && overIdx === i && dragIdx !== i ? "ring-2 ring-amber-500/40 rounded-[var(--radius-md)]" : ""}`}
+                >
+                  {isOperator && sellDeals.length > 1 && (
+                    <div className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-5 cursor-grab active:cursor-grabbing text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]">
+                      <GripVertical className="h-4 w-4" />
+                    </div>
+                  )}
+                  <DealCard deal={d} steps={workflows[d.id] ?? []} onDeleted={fetchData} canDelete={isOperator} />
+                </div>
+              ))}
               {isOperator && (
                 <AddDealMenu linkageId={linkage.id} linkageCode={displayName} variant="compact" side="sell" />
               )}

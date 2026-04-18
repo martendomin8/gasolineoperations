@@ -3,6 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { PortSelect } from "@/components/ui/port-select";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -51,11 +52,13 @@ export default function EditDealPage() {
   const [saving, setSaving] = useState(false);
   const [operators, setOperators] = useState<Array<{ id: string; name: string }>>([]);
   const [pricingPeriodType, setPricingPeriodType] = useState("");
+  const [editLoadport, setEditLoadport] = useState("");
+  const [editDischargePort, setEditDischargePort] = useState("");
 
   useEffect(() => {
     fetch(`/api/deals/${id}`)
       .then((r) => r.json())
-      .then((data) => { setDeal(data); setPricingPeriodType(data?.pricingPeriodType || data?.pricingType || ""); setLoading(false); })
+      .then((data) => { setDeal(data); setPricingPeriodType(data?.pricingPeriodType || data?.pricingType || ""); setEditLoadport(data?.loadport || ""); setEditDischargePort(data?.dischargePort || ""); setLoading(false); })
       .catch(() => setLoading(false));
     fetch("/api/users?role=operator")
       .then((r) => r.json())
@@ -100,8 +103,8 @@ export default function EditDealPage() {
       updates.contractedQty = fd.get("contractedQty") || null;
       updates.nominatedQty = fd.get("nominatedQty") ? Number(fd.get("nominatedQty")) : null;
       updates.incoterm = fd.get("incoterm");
-      updates.loadport = fd.get("loadport");
-      updates.dischargePort = fd.get("dischargePort") || null;
+      updates.loadport = editLoadport;
+      updates.dischargePort = editDischargePort || null;
       updates.laycanStart = fd.get("laycanStart");
       updates.laycanEnd = fd.get("laycanEnd");
       updates.status = fd.get("status");
@@ -267,8 +270,8 @@ export default function EditDealPage() {
             <CardHeader><CardTitle>Logistics</CardTitle></CardHeader>
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
-                <Input label="Loadport" name="loadport" required defaultValue={deal.loadport} />
-                <Input label="Discharge Port" name="dischargePort" defaultValue={deal.dischargePort || ""} />
+                <PortSelect label="Loadport" name="loadport" required value={editLoadport} onChange={setEditLoadport} />
+                <PortSelect label="Discharge Port" name="dischargePort" value={editDischargePort} onChange={setEditDischargePort} />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <Input label="Laycan Start" name="laycanStart" type="date" required defaultValue={deal.laycanStart} />
