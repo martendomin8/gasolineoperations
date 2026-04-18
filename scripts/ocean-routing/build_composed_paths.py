@@ -218,6 +218,27 @@ CORRIDORS = {
     # ENGLISH CHANNEL — Channel exit to Dover Strait
     "channel_transit": [[49.50, -5.50], [49.80, -3.00], [50.50, -0.50], [51.00, 1.50]],
 
+    # NORTH SCOTLAND TRANSIT — around top of Scotland (Pentland Firth area)
+    # for Irish Sea / NI ports to reach Scottish east / North Sea without
+    # cutting across the Scottish mainland.
+    "scotland_north_transit": [
+        [54.90, -5.30], [55.30, -6.00], [56.50, -7.00], [58.00, -6.50],
+        [58.80, -4.50], [58.80, -2.50], [57.50, -1.50], [56.30, -1.00]
+    ],
+
+    # BALTIC OPEN SEA — between Gulf of Finland and south Baltic (Klaipeda,
+    # Gdansk) without cutting across Estonia / Latvia mainland.
+    "baltic_open_sea": [
+        [59.60, 24.00], [58.50, 22.00], [57.00, 20.50], [56.00, 19.50],
+        [55.30, 19.80], [55.70, 21.00]
+    ],
+
+    # IRISH SEA SOUTH — Belfast/Dublin to Channel via south of Ireland
+    "irish_sea_to_channel": [
+        [54.90, -5.30], [53.50, -5.60], [52.00, -6.20], [51.00, -7.00],
+        [49.80, -6.00], [49.50, -5.50]
+    ],
+
     # NORTH SEA — Dover to Skaw / Kattegat / Baltic.
     # Intermediate (57.80, 10.60) keeps the path offshore north of Jutland.
     "north_sea_kattegat_baltic": [
@@ -439,6 +460,56 @@ REGION_GRAPH = {
 }
 
 
+# Same-region port-pair overrides — for routes within one ocean region
+# where geography forces the path to loop around islands/peninsulas
+# (British Isles, Jutland, Baltic east coast, etc.). Keyed by a frozenset
+# of the two port names so direction doesn't matter.
+SAME_REGION_CORRIDORS = {
+    # UK west ↔ UK east — around Scotland north
+    frozenset(["Belfast, GB", "Grangemouth, GB"]): ["scotland_north_transit"],
+    frozenset(["Belfast, GB", "Teesport, GB"]): ["scotland_north_transit"],
+    frozenset(["Belfast, GB", "Immingham, GB"]): ["scotland_north_transit"],
+    frozenset(["Belfast, GB", "London, GB"]): ["scotland_north_transit"],
+    frozenset(["Belfast, GB", "Thames, GB"]): ["scotland_north_transit"],
+    frozenset(["Belfast, GB", "Hamburg, DE"]): ["scotland_north_transit"],
+    frozenset(["Belfast, GB", "Amsterdam, NL"]): ["scotland_north_transit"],
+    frozenset(["Belfast, GB", "Rotterdam, NL"]): ["scotland_north_transit"],
+    frozenset(["Belfast, GB", "Antwerp, BE"]): ["scotland_north_transit"],
+    frozenset(["Dublin, IE", "Grangemouth, GB"]): ["scotland_north_transit"],
+    frozenset(["Dublin, IE", "Teesport, GB"]): ["scotland_north_transit"],
+    frozenset(["Dublin, IE", "Immingham, GB"]): ["scotland_north_transit"],
+    frozenset(["Dublin, IE", "London, GB"]): ["scotland_north_transit"],
+    frozenset(["Dublin, IE", "Thames, GB"]): ["scotland_north_transit"],
+    frozenset(["Dublin, IE", "Hamburg, DE"]): ["scotland_north_transit"],
+    frozenset(["Dublin, IE", "Amsterdam, NL"]): ["scotland_north_transit"],
+    frozenset(["Dublin, IE", "Rotterdam, NL"]): ["scotland_north_transit"],
+    frozenset(["Dublin, IE", "Antwerp, BE"]): ["scotland_north_transit"],
+    frozenset(["Falmouth, GB", "Grangemouth, GB"]): ["scotland_north_transit"],
+    frozenset(["Falmouth, GB", "Teesport, GB"]): ["channel_transit"],
+    frozenset(["Falmouth, GB", "Immingham, GB"]): ["channel_transit"],
+    frozenset(["Milford Haven, GB", "Grangemouth, GB"]): ["scotland_north_transit"],
+    frozenset(["Milford Haven, GB", "Teesport, GB"]): ["scotland_north_transit"],
+    frozenset(["Milford Haven, GB", "Immingham, GB"]): ["scotland_north_transit"],
+    frozenset(["Pembroke, GB", "Grangemouth, GB"]): ["scotland_north_transit"],
+    frozenset(["Pembroke, GB", "Teesport, GB"]): ["scotland_north_transit"],
+    frozenset(["Pembroke, GB", "Immingham, GB"]): ["scotland_north_transit"],
+    # Baltic east coast — Tallinn / Sankt-Peterburg / Ust-Luga to Klaipeda / Gdansk
+    # — through open Baltic sea, not across Latvia/Lithuania
+    frozenset(["Tallinn, EE", "Klaipeda, LT"]): ["baltic_open_sea"],
+    frozenset(["Tallinn, EE", "Gdansk, PL"]): ["baltic_open_sea"],
+    frozenset(["Tallinn, EE", "Ventspils, LV"]): ["baltic_open_sea"],
+    frozenset(["Ust-Luga, RU", "Klaipeda, LT"]): ["baltic_open_sea"],
+    frozenset(["Ust-Luga, RU", "Gdansk, PL"]): ["baltic_open_sea"],
+    frozenset(["Sankt-Peterburg, RU", "Klaipeda, LT"]): ["baltic_open_sea"],
+    frozenset(["Sankt-Peterburg, RU", "Gdansk, PL"]): ["baltic_open_sea"],
+    frozenset(["Primorsk, RU", "Klaipeda, LT"]): ["baltic_open_sea"],
+    frozenset(["Porvoo, FI", "Klaipeda, LT"]): ["baltic_open_sea"],
+    frozenset(["Porvoo, FI", "Gdansk, PL"]): ["baltic_open_sea"],
+    frozenset(["Ventspils, LV", "Gdansk, PL"]): ["baltic_open_sea"],
+    frozenset(["Ventspils, LV", "Klaipeda, LT"]): ["baltic_open_sea"],
+}
+
+
 def find_corridor_chain(region_a: str, region_b: str) -> list:
     """BFS in the region graph; returns list of corridor names to traverse."""
     if region_a == region_b:
@@ -500,7 +571,13 @@ def compose_path(port_a: str, port_b: str) -> list:
     if not pa or not pb:
         return None
 
-    chain = find_corridor_chain(pa["region"], pb["region"])
+    # Port-pair-specific override for same-region routes where geography
+    # forces a loop around islands/peninsulas (British Isles, Baltic etc.)
+    override_key = frozenset([port_a, port_b])
+    if pa["region"] == pb["region"] and override_key in SAME_REGION_CORRIDORS:
+        chain = SAME_REGION_CORRIDORS[override_key]
+    else:
+        chain = find_corridor_chain(pa["region"], pb["region"])
     if chain is None:
         return None
 
