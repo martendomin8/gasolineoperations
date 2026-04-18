@@ -308,7 +308,7 @@ REGION_GRAPH = {
     # NE_ATLANTIC connects to:
     ("NE_ATLANTIC", "NW_ATLANTIC"): ["channel_transit", "atlantic_n_crossing"],
     ("NE_ATLANTIC", "IBERIA"): ["channel_transit", "iberia_offshore"],
-    ("NE_ATLANTIC", "MED_WEST"): ["channel_transit", "iberia_offshore", "gibraltar_transit"],
+    ("NE_ATLANTIC", "MED_WEST"): ["channel_transit", "iberia_offshore", "gibraltar_transit", "med_west_transit"],
     ("NE_ATLANTIC", "W_AFRICA"): ["channel_transit", "iberia_offshore", "canaries_bypass", "west_africa_offshore"],
     ("NE_ATLANTIC", "BALTIC"): ["north_sea_kattegat_baltic"],
     ("NE_ATLANTIC", "MED_EAST"): ["channel_transit", "iberia_offshore", "gibraltar_transit", "med_west_transit", "sicilian_channel_ionian", "aegean_transit"],
@@ -322,7 +322,7 @@ REGION_GRAPH = {
     # channel_transit leg (they're already offshore Atlantic).
     ("IBERIA", "NE_ATLANTIC"): ["iberia_offshore", "channel_transit"],
     ("IBERIA", "NW_ATLANTIC"): ["iberia_offshore", "atlantic_n_crossing"],
-    ("IBERIA", "MED_WEST"): ["gibraltar_transit"],
+    ("IBERIA", "MED_WEST"): ["gibraltar_transit", "med_west_transit"],
     ("IBERIA", "MED_EAST"): ["gibraltar_transit", "med_west_transit", "sicilian_channel_ionian", "aegean_transit"],
     ("IBERIA", "W_AFRICA"): ["canaries_bypass", "west_africa_offshore"],
     ("IBERIA", "S_ATLANTIC"): ["canaries_bypass", "west_africa_offshore", "cape_of_good_hope"],
@@ -383,6 +383,10 @@ REGION_GRAPH = {
     ("W_AFRICA", "RED_SEA"): ["west_africa_offshore", "canaries_bypass", "gibraltar_transit", "med_west_transit", "sicilian_channel_ionian", "aegean_transit", "suez_red_sea"],
     ("W_AFRICA", "BALTIC"): ["west_africa_offshore", "canaries_bypass", "iberia_offshore", "channel_transit", "north_sea_kattegat_baltic"],
     ("W_AFRICA", "NW_ATLANTIC"): ["west_africa_offshore", "canaries_bypass", "atlantic_n_crossing"],
+    ("W_AFRICA", "PACIFIC_NA"): ["west_africa_offshore", "canaries_bypass", "atlantic_n_crossing", "us_east_coast", "caribbean_transit", "panama_canal", "pacific_na_coast"],
+    ("W_AFRICA", "PACIFIC_SA"): ["west_africa_offshore", "canaries_bypass", "atlantic_n_crossing", "us_east_coast", "caribbean_transit", "panama_canal", "pacific_sa_coast"],
+    ("W_AFRICA", "CARIBBEAN"): ["west_africa_offshore", "canaries_bypass", "atlantic_n_crossing", "us_east_coast", "caribbean_transit"],
+    ("W_AFRICA", "GULF_OF_MEXICO"): ["west_africa_offshore", "canaries_bypass", "atlantic_n_crossing", "us_east_coast", "florida_strait", "gulf_of_mexico_interior"],
     ("SE_ASIA", "INDIAN_OCEAN"): ["indian_ocean_malacca"],
 
     # BALTIC:
