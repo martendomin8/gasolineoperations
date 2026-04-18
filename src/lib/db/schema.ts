@@ -112,6 +112,21 @@ export const workflowStepTypeEnum = pgEnum("workflow_step_type", [
 ]);
 export const emailDraftStatusEnum = pgEnum("email_draft_status", ["draft", "reviewed", "sent"]);
 
+/**
+ * Categories for per-port costs entered by ops. Matches the real-world
+ * cost buckets a voyage accountant sees on disbursement account
+ * invoices — canal transit tolls, port dues, agency fees, pilotage.
+ * `other` is a catch-all for things like light dues, tug assist,
+ * inspection fees, etc. that don't warrant their own bucket yet.
+ */
+export const portCostTypeEnum = pgEnum("port_cost_type", [
+  "canal_toll",
+  "port_dues",
+  "agency",
+  "pilotage",
+  "other",
+]);
+
 // ============================================================
 // TABLES — Phase 1 (fully used)
 // ============================================================
@@ -475,6 +490,112 @@ export const documents = pgTable(
   (table) => [
     index("documents_deal_idx").on(table.dealId),
     index("documents_linkage_idx").on(table.linkageId),
+  ]
+);
+
+// ============================================================
+// VOYAGE ECONOMICS (Worldscale rates + port costs)
+// ============================================================
+
+/**
+ * Worldscale flat rates (WS100) per (load port, discharge port, year).
+ *
+ * Worldscale Association publishes a new flat-rate book every January
+ * 1st — a $/MT freight rate for each named tanker route, baked from
+ * distance + port costs + canal fees + nominal bunker + 14.5-kn speed
+ * + laytime. Charters are quoted as percentages of this number
+ * (WS150 = 150% of flat). Ops looks the flat rate up from the
+ * subscription book and pastes it here so next year they don't need
+ * to look it up again for the same lane.
+ *
+ * Historical rows are never auto-deleted — the point of the feature
+ * is to show "what the flat was in 2024 vs 2025" at a glance.
+ */
+export const worldscaleRates = pgTable(
+  "worldscale_rates",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .references(() => tenants.id, { onDelete: "cascade" })
+      .notNull(),
+    /**
+     * Canonical port names from our distance provider (e.g.
+     * "Rotterdam, NL"). We store the exact display name rather than
+     * an FK to a `ports` table so the rate survives port-data
+     * refreshes; lookup by exact equality.
+     */
+    loadPort: varchar("load_port", { length: 120 }).notNull(),
+    dischargePort: varchar("discharge_port", { length: 120 }).notNull(),
+    /** Worldscale book year, e.g. 2025. */
+    year: integer("year").notNull(),
+    /**
+     * WS100 flat rate in USD per metric ton, to 4 decimals (Worldscale
+     * publishes to 2 decimals but we allow headroom for edge cases).
+     */
+    flatRateUsdMt: decimal("flat_rate_usd_mt", { precision: 12, scale: 4 }).notNull(),
+    /** Free-form ops notes — e.g. "verified against printed book v2025.1". */
+    notes: text("notes"),
+    createdBy: uuid("created_by").references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    // One flat rate per (load, discharge, year) within a tenant. Edits
+    // go through UPDATE of the existing row, not INSERT of a duplicate.
+    uniqueIndex("worldscale_rates_unique").on(
+      table.tenantId,
+      table.loadPort,
+      table.dischargePort,
+      table.year
+    ),
+    // Fast lookup by "all rates for this port pair" (shown in the
+    // planner when a voyage is computed).
+    index("worldscale_rates_pair_idx").on(
+      table.tenantId,
+      table.loadPort,
+      table.dischargePort
+    ),
+  ]
+);
+
+/**
+ * Per-port operating costs entered by ops. Unlike Worldscale rates
+ * (which are external reference data), these are things ops actually
+ * paid / were quoted — canal transit tolls, port dues, agency fees,
+ * pilotage — and vary year to year. Keyed by (tenant, port, year,
+ * cost_type) so multiple cost types can coexist for one port-year.
+ */
+export const portCosts = pgTable(
+  "port_costs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .references(() => tenants.id, { onDelete: "cascade" })
+      .notNull(),
+    /** Canonical port name from the distance provider. */
+    port: varchar("port", { length: 120 }).notNull(),
+    year: integer("year").notNull(),
+    costType: portCostTypeEnum("cost_type").notNull(),
+    /** Amount in USD, 2 decimals (up to ~$9.9B per row — plenty). */
+    amountUsd: decimal("amount_usd", { precision: 12, scale: 2 }).notNull(),
+    /** Free-form context — e.g. "MR tanker, 38kt cargo, 1 gang". */
+    notes: text("notes"),
+    createdBy: uuid("created_by").references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    // One row per (port, year, cost_type) within a tenant — editing
+    // an existing cost updates the row, doesn't duplicate it.
+    uniqueIndex("port_costs_unique").on(
+      table.tenantId,
+      table.port,
+      table.year,
+      table.costType
+    ),
+    // Fast lookup by "all costs for this port" (shown in the port
+    // click popup).
+    index("port_costs_port_idx").on(table.tenantId, table.port),
   ]
 );
 

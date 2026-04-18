@@ -14,15 +14,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
-import { Ship, X, ExternalLink, MapPin, AlertTriangle, Anchor, ArrowRight, Route, Trash2, GripVertical, Plus, ChevronRight } from "lucide-react";
+import { Ship, X, ExternalLink, MapPin, AlertTriangle, Anchor, ArrowRight, Route, Trash2, GripVertical, Plus, ChevronRight, GitCompareArrows } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { buildLinkageCards } from "@/app/(authenticated)/dashboard/page";
 import { findPortCoordinates } from "@/lib/geo/ports";
 import { computeMockPosition } from "@/lib/geo/mock-positions";
-import { findPort, getSeaRoutePath, getSeaDistance } from "@/lib/sea-distance";
+import { findPort, getSeaRoutePath, getSeaDistance } from "@/lib/maritime/sea-distance";
 import { STATUS_COLORS, STATUS_LABELS } from "./fleet-map";
 import type { FleetVessel, PlannerRouteLeg } from "./fleet-map";
+import { WorldscalePanel } from "./worldscale-panel";
+import { PortCostsButton } from "./port-costs-button";
 
 // Dynamic import — Leaflet requires `window`
 const FleetMapInner = dynamic(
@@ -148,6 +150,31 @@ export default function FleetPage() {
   const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
 
+  // ── Compare-routes state ────────────────────────────────
+  // When on, a second route is edited + rendered in parallel with the
+  // first. Used for "deviation cost" analysis — e.g. "Rotterdam →
+  // Houston direct vs. Rotterdam → Amsterdam → Houston: how much
+  // extra in miles and days?".
+  const [compareMode, setCompareMode] = useState(false);
+  const [plannerPortsB, setPlannerPortsB] = useState<Array<{ name: string; lat: number; lon: number }>>([]);
+  const [plannerDistanceB, setPlannerDistanceB] = useState<{
+    totalNm: number;
+    legs: Array<{ from: string; to: string; distanceNm: number }>;
+    etaDays: number;
+    etaDisplay: string;
+  } | null>(null);
+  const [plannerRouteLegsB, setPlannerRouteLegsB] = useState<PlannerRouteLeg[]>([]);
+  // Which route port-adds, drag-reorders, and waypoint-list edits
+  // target. Always "A" when compareMode is off.
+  const [activeRoute, setActiveRoute] = useState<"A" | "B">("A");
+
+  // Derived active-route state — all existing "add port", "drag",
+  // "remove" handlers read/write through these so we don't need to
+  // branch at every call site. When compareMode is off this is
+  // always the A route (preserves pre-compare behaviour).
+  const activePorts = activeRoute === "B" ? plannerPortsB : plannerPorts;
+  const setActivePorts = activeRoute === "B" ? setPlannerPortsB : setPlannerPorts;
+
   // Port markers from parties (terminals, agents, inspectors, brokers)
   const [portMarkers, setPortMarkers] = useState<Array<{ name: string; port: string; type: string; lat: number; lng: number }>>([]);
 
@@ -201,7 +228,7 @@ export default function FleetPage() {
     }
     const timer = setTimeout(() => {
       setPlannerSearching(true);
-      fetch(`/api/sea-distance?search=${encodeURIComponent(plannerSearch)}`)
+      fetch(`/api/maritime/sea-distance?search=${encodeURIComponent(plannerSearch)}`)
         .then((r) => r.json())
         .then((data: { ports: Array<{ name: string; lat: number; lon: number }> }) => {
           setPlannerResults(data.ports ?? []);
@@ -212,34 +239,65 @@ export default function FleetPage() {
   }, [plannerSearch]);
 
   // Planner: recalculate distance whenever ports, speed, or passage
-  // avoidance toggles change.
+  // avoidance toggles change. When compareMode is on, computes Route B
+  // in parallel under the same speed + avoid settings (the whole point
+  // of compare-mode is "same conditions, different waypoint list").
   useEffect(() => {
-    if (plannerPorts.length < 2) {
-      setPlannerDistance(null);
-      setPlannerRouteLegs([]);
-      return;
-    }
-    const portNames = plannerPorts.map((p) => p.name).join("|");
     const avoids: string[] = [];
     if (avoidSuez) avoids.push("suez");
     if (avoidPanama) avoids.push("panama");
     const avoidParam = avoids.length ? `&avoid=${avoids.join(",")}` : "";
 
-    Promise.all([
-      fetch(`/api/sea-distance?ports=${encodeURIComponent(portNames)}&speed=${plannerSpeed}${avoidParam}`)
-        .then((r) => r.json()),
-      fetch(`/api/sea-distance/route-line?ports=${encodeURIComponent(portNames)}${avoidParam}`)
-        .then((r) => r.json()),
-    ]).then(([distData, routeData]) => {
-      setPlannerDistance({
-        totalNm: distData.totalNm ?? 0,
-        legs: distData.legs ?? [],
-        etaDays: distData.etaDays ?? 0,
-        etaDisplay: distData.etaDisplay ?? "—",
-      });
-      setPlannerRouteLegs(routeData.legs ?? []);
+    // Shared helper to call both APIs for a given route's waypoint list.
+    const computeRoute = async (ports: Array<{ name: string; lat: number; lon: number }>) => {
+      if (ports.length < 2) return null;
+      const portNames = ports
+        .map((p) => (p.name.startsWith("@") ? `@${p.lat},${p.lon}` : p.name))
+        .join("|");
+      const [distData, routeData] = await Promise.all([
+        fetch(`/api/maritime/sea-distance?ports=${encodeURIComponent(portNames)}&speed=${plannerSpeed}${avoidParam}`)
+          .then((r) => r.json()),
+        fetch(`/api/maritime/sea-distance/route-line?ports=${encodeURIComponent(portNames)}${avoidParam}`)
+          .then((r) => r.json()),
+      ]);
+      return {
+        distance: {
+          totalNm: distData.totalNm ?? 0,
+          legs: distData.legs ?? [],
+          etaDays: distData.etaDays ?? 0,
+          etaDisplay: distData.etaDisplay ?? "—",
+        },
+        legs: (routeData.legs ?? []) as PlannerRouteLeg[],
+      };
+    };
+
+    // Route A
+    computeRoute(plannerPorts).then((res) => {
+      if (res) {
+        setPlannerDistance(res.distance);
+        setPlannerRouteLegs(res.legs);
+      } else {
+        setPlannerDistance(null);
+        setPlannerRouteLegs([]);
+      }
     });
-  }, [plannerPorts, plannerSpeed, avoidSuez, avoidPanama]);
+
+    // Route B — only when compare mode is active
+    if (compareMode) {
+      computeRoute(plannerPortsB).then((res) => {
+        if (res) {
+          setPlannerDistanceB(res.distance);
+          setPlannerRouteLegsB(res.legs);
+        } else {
+          setPlannerDistanceB(null);
+          setPlannerRouteLegsB([]);
+        }
+      });
+    } else {
+      setPlannerDistanceB(null);
+      setPlannerRouteLegsB([]);
+    }
+  }, [plannerPorts, plannerPortsB, plannerSpeed, avoidSuez, avoidPanama, compareMode]);
 
   const cards = buildLinkageCards(linkageRows as any, allDeals as any);
 
@@ -366,7 +424,7 @@ export default function FleetPage() {
     // Resolve port names via search API and populate planner
     Promise.all(
       ports.map((p) =>
-        fetch(`/api/sea-distance?search=${encodeURIComponent(p)}`)
+        fetch(`/api/maritime/sea-distance?search=${encodeURIComponent(p)}`)
           .then((r) => r.json())
           .then((data: { ports: Array<{ name: string; lat: number; lon: number }> }) => {
             const match = data.ports?.[0];
@@ -469,19 +527,50 @@ export default function FleetPage() {
               portMarkers={portMarkers}
               selectedVesselId={selectedVesselId}
               onSelectVessel={setSelectedVesselId}
-              plannerRouteLegs={plannerRouteLegs}
-              plannerWaypoints={plannerPorts}
+              // Combine both routes into a single legs array. Route A
+              // stays default cyan, Route B is explicitly magenta so
+              // compare-mode is visually obvious. Waypoints follow
+              // the same convention so numbered markers match legs.
+              plannerRouteLegs={[
+                ...plannerRouteLegs.map((leg) => ({ ...leg, color: "#22d3ee" })),
+                ...(compareMode
+                  ? plannerRouteLegsB.map((leg) => ({ ...leg, color: "#f472b6" }))
+                  : []),
+              ]}
+              plannerWaypoints={[
+                ...plannerPorts.map((p) => ({ ...p, color: "#22d3ee" })),
+                ...(compareMode
+                  ? plannerPortsB.map((p) => ({ ...p, color: "#f472b6" }))
+                  : []),
+              ]}
               showEmissionZones={showEmissionZones}
               showRiskZones={showRiskZones}
               onPortClick={
                 // Only clickable when planner panel is open — otherwise
                 // accidental clicks while just panning would be noisy.
+                // Routes to the active route (A or B in compare-mode).
                 plannerMode
                   ? (port) =>
-                      setPlannerPorts((prev) =>
+                      setActivePorts((prev) =>
                         // Dedup: don't add if already in the list
                         prev.some((p) => p.name === port.name) ? prev : [...prev, port]
                       )
+                  : undefined
+              }
+              onMapClick={
+                // Click on open water (not a port) inserts a custom
+                // waypoint into the active route. Only active in
+                // planner mode.
+                plannerMode
+                  ? ({ lat, lon }) => {
+                      const nsSuffix = lat >= 0 ? "N" : "S";
+                      const ewSuffix = lon >= 0 ? "E" : "W";
+                      const label = `@ ${Math.abs(lat).toFixed(2)}°${nsSuffix} ${Math.abs(lon).toFixed(2)}°${ewSuffix}`;
+                      setActivePorts((prev) => [
+                        ...prev,
+                        { name: label, lat, lon },
+                      ]);
+                    }
                   : undefined
               }
             />
@@ -504,12 +593,38 @@ export default function FleetPage() {
                     Distance Planner
                   </span>
                 </div>
-                <button
-                  onClick={() => setPlannerMode(false)}
-                  className="p-1.5 rounded-[var(--radius-md)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-surface-3)] transition-colors cursor-pointer"
-                >
-                  <X className="h-4 w-4" />
-                </button>
+                <div className="flex items-center gap-1">
+                  {/* Compare-routes toggle — seeds Route B from Route A
+                      on first activation so comparing "+ interim port"
+                      vs "direct" is a one-click mutation from that
+                      starting state. */}
+                  <button
+                    onClick={() => {
+                      if (!compareMode) {
+                        // Seed B = A so the operator tweaks B from the
+                        // existing route rather than building from zero
+                        setPlannerPortsB(plannerPorts.map((p) => ({ ...p })));
+                      }
+                      setCompareMode(!compareMode);
+                      setActiveRoute("A");
+                    }}
+                    title={compareMode ? "Exit compare mode" : "Compare two routes side-by-side"}
+                    className={`flex items-center gap-1 px-2 py-1 rounded-[var(--radius-md)] text-[0.65rem] font-semibold transition-colors cursor-pointer ${
+                      compareMode
+                        ? "bg-pink-500/20 text-pink-400 border border-pink-500/40"
+                        : "bg-[var(--color-surface-3)] text-[var(--color-text-tertiary)] border border-[var(--color-border-default)] hover:text-[var(--color-text-primary)]"
+                    }`}
+                  >
+                    <GitCompareArrows className="h-3 w-3" />
+                    Compare
+                  </button>
+                  <button
+                    onClick={() => setPlannerMode(false)}
+                    className="p-1.5 rounded-[var(--radius-md)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-surface-3)] transition-colors cursor-pointer"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
 
               {/* Port search */}
@@ -540,7 +655,8 @@ export default function FleetPage() {
                         <button
                           key={port.name}
                           onClick={() => {
-                            setPlannerPorts((prev) => [...prev, port]);
+                            // Targets active route (A or B in compare-mode)
+                            setActivePorts((prev) => [...prev, port]);
                             setPlannerSearch("");
                             setPlannerResults([]);
                           }}
@@ -560,91 +676,150 @@ export default function FleetPage() {
                 )}
               </div>
 
-              {/* Waypoint list */}
-              <div className="px-4 py-3 border-b border-[var(--color-border-subtle)]">
-                <div className="text-[0.625rem] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider mb-2">
-                  Waypoints ({plannerPorts.length})
+              {/* Compare-mode route picker — shown only when compare
+                  is on. Switches which route new adds/drags target. */}
+              {compareMode && (
+                <div className="px-4 py-2 border-b border-[var(--color-border-subtle)] bg-[var(--color-surface-2)]">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[0.625rem] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider">
+                      Editing:
+                    </span>
+                    <div className="flex rounded-[var(--radius-md)] overflow-hidden border border-[var(--color-border-default)]">
+                      <button
+                        onClick={() => setActiveRoute("A")}
+                        className={`px-3 py-1 text-xs font-bold transition-colors cursor-pointer ${
+                          activeRoute === "A"
+                            ? "bg-cyan-500/20 text-cyan-400"
+                            : "text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]"
+                        }`}
+                      >
+                        Route A
+                      </button>
+                      <button
+                        onClick={() => setActiveRoute("B")}
+                        className={`px-3 py-1 text-xs font-bold transition-colors cursor-pointer ${
+                          activeRoute === "B"
+                            ? "bg-pink-500/20 text-pink-400"
+                            : "text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]"
+                        }`}
+                      >
+                        Route B
+                      </button>
+                    </div>
+                  </div>
                 </div>
-                {plannerPorts.length === 0 ? (
-                  <div className="text-xs text-[var(--color-text-tertiary)] italic py-4 text-center">
-                    Search and add ports above
+              )}
+
+              {/* Waypoint list — renders the active route's waypoints
+                  (or just Route A when compare is off). The `activeRoute`
+                  color key (cyan for A, pink for B) matches what the map
+                  renders, so ops can always trust the color association. */}
+              {(() => {
+                const activeDistance = activeRoute === "B" ? plannerDistanceB : plannerDistance;
+                // Tailwind can't see dynamic ring-${color} classes at
+                // build time, so we pre-select the full className string
+                // based on the active route.
+                const dropRingClass = activeRoute === "B"
+                  ? "ring-2 ring-pink-400/60 ring-offset-1 ring-offset-[var(--color-surface-1)]"
+                  : "ring-2 ring-cyan-400/60 ring-offset-1 ring-offset-[var(--color-surface-1)]";
+                return (
+                  <div className="px-4 py-3 border-b border-[var(--color-border-subtle)]">
+                    <div className="text-[0.625rem] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                      <span
+                        className="inline-block w-2 h-2 rounded-full"
+                        style={{ backgroundColor: activeRoute === "B" ? "#f472b6" : "#22d3ee" }}
+                      />
+                      {compareMode && `Route ${activeRoute} — `}
+                      Waypoints ({activePorts.length})
+                    </div>
+                    {activePorts.length === 0 ? (
+                      <div className="text-xs text-[var(--color-text-tertiary)] italic py-4 text-center">
+                        Search + add, or click a port / empty sea on the map
+                      </div>
+                    ) : (
+                      <div className="space-y-1">
+                        {activePorts.map((port, idx) => {
+                          const isDragged = draggedIdx === idx;
+                          const isDragTarget = dragOverIdx === idx && draggedIdx !== idx;
+                          return (
+                            <div
+                              key={`${port.name}-${idx}`}
+                              draggable
+                              onDragStart={(e) => {
+                                setDraggedIdx(idx);
+                                e.dataTransfer.effectAllowed = "move";
+                                e.dataTransfer.setData("text/plain", String(idx));
+                              }}
+                              onDragOver={(e) => {
+                                e.preventDefault();
+                                e.dataTransfer.dropEffect = "move";
+                                if (dragOverIdx !== idx) setDragOverIdx(idx);
+                              }}
+                              onDragLeave={() => {
+                                if (dragOverIdx === idx) setDragOverIdx(null);
+                              }}
+                              onDrop={(e) => {
+                                e.preventDefault();
+                                const from = draggedIdx;
+                                const to = idx;
+                                setDraggedIdx(null);
+                                setDragOverIdx(null);
+                                if (from === null || from === to) return;
+                                setActivePorts((prev) => {
+                                  const next = prev.slice();
+                                  const [moved] = next.splice(from, 1);
+                                  next.splice(to, 0, moved);
+                                  return next;
+                                });
+                              }}
+                              onDragEnd={() => {
+                                setDraggedIdx(null);
+                                setDragOverIdx(null);
+                              }}
+                              className={`flex items-center gap-2 px-2 py-1.5 rounded-[var(--radius-md)] bg-[var(--color-surface-2)] group cursor-grab active:cursor-grabbing transition-opacity ${
+                                isDragged ? "opacity-40" : ""
+                              } ${isDragTarget ? dropRingClass : ""}`}
+                            >
+                              <GripVertical className="h-3 w-3 text-[var(--color-text-tertiary)] flex-shrink-0" />
+                              <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                                <span
+                                  className={`w-4 h-4 rounded-full text-[0.6rem] font-bold flex items-center justify-center flex-shrink-0 ${
+                                    activeRoute === "B"
+                                      ? "bg-pink-500/20 text-pink-400"
+                                      : "bg-cyan-500/20 text-cyan-400"
+                                  }`}
+                                >
+                                  {idx + 1}
+                                </span>
+                                <span className="text-xs text-[var(--color-text-primary)] truncate">
+                                  {port.name.startsWith("@")
+                                    ? port.name
+                                    : port.name.split(",")[0]}
+                                </span>
+                              </div>
+                              {/* Leg distance from active route */}
+                              {activeDistance && idx > 0 && activeDistance.legs[idx - 1] && (
+                                <span className="text-[0.6rem] font-mono text-[var(--color-text-tertiary)] flex-shrink-0">
+                                  {activeDistance.legs[idx - 1].distanceNm.toLocaleString()} NM
+                                </span>
+                              )}
+                              {/* Port costs popover — hidden for custom
+                                  waypoints (handled by PortCostsButton). */}
+                              <PortCostsButton portName={port.name} />
+                              <button
+                                onClick={() => setActivePorts((prev) => prev.filter((_, i) => i !== idx))}
+                                className="p-0.5 rounded text-[var(--color-text-tertiary)] hover:text-[var(--color-danger)] opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
-                ) : (
-                  <div className="space-y-1">
-                    {plannerPorts.map((port, idx) => {
-                      const isDragged = draggedIdx === idx;
-                      const isDragTarget = dragOverIdx === idx && draggedIdx !== idx;
-                      return (
-                        <div
-                          key={`${port.name}-${idx}`}
-                          draggable
-                          onDragStart={(e) => {
-                            setDraggedIdx(idx);
-                            // Firefox needs data for the drag to initiate
-                            e.dataTransfer.effectAllowed = "move";
-                            e.dataTransfer.setData("text/plain", String(idx));
-                          }}
-                          onDragOver={(e) => {
-                            e.preventDefault();
-                            e.dataTransfer.dropEffect = "move";
-                            if (dragOverIdx !== idx) setDragOverIdx(idx);
-                          }}
-                          onDragLeave={() => {
-                            if (dragOverIdx === idx) setDragOverIdx(null);
-                          }}
-                          onDrop={(e) => {
-                            e.preventDefault();
-                            const from = draggedIdx;
-                            const to = idx;
-                            setDraggedIdx(null);
-                            setDragOverIdx(null);
-                            if (from === null || from === to) return;
-                            setPlannerPorts((prev) => {
-                              const next = prev.slice();
-                              const [moved] = next.splice(from, 1);
-                              next.splice(to, 0, moved);
-                              return next;
-                            });
-                          }}
-                          onDragEnd={() => {
-                            setDraggedIdx(null);
-                            setDragOverIdx(null);
-                          }}
-                          className={`flex items-center gap-2 px-2 py-1.5 rounded-[var(--radius-md)] bg-[var(--color-surface-2)] group cursor-grab active:cursor-grabbing transition-opacity ${
-                            isDragged ? "opacity-40" : ""
-                          } ${
-                            isDragTarget
-                              ? "ring-2 ring-cyan-400/60 ring-offset-1 ring-offset-[var(--color-surface-1)]"
-                              : ""
-                          }`}
-                        >
-                          <GripVertical className="h-3 w-3 text-[var(--color-text-tertiary)] flex-shrink-0" />
-                          <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                            <span className="w-4 h-4 rounded-full bg-cyan-500/20 text-cyan-400 text-[0.6rem] font-bold flex items-center justify-center flex-shrink-0">
-                              {idx + 1}
-                            </span>
-                            <span className="text-xs text-[var(--color-text-primary)] truncate">
-                              {port.name.split(",")[0]}
-                            </span>
-                          </div>
-                          {/* Leg distance */}
-                          {plannerDistance && idx > 0 && plannerDistance.legs[idx - 1] && (
-                            <span className="text-[0.6rem] font-mono text-[var(--color-text-tertiary)] flex-shrink-0">
-                              {plannerDistance.legs[idx - 1].distanceNm.toLocaleString()} NM
-                            </span>
-                          )}
-                          <button
-                            onClick={() => setPlannerPorts((prev) => prev.filter((_, i) => i !== idx))}
-                            className="p-0.5 rounded text-[var(--color-text-tertiary)] hover:text-[var(--color-danger)] opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
+                );
+              })()}
 
               {/* Speed input */}
               <div className="px-4 py-3 border-b border-[var(--color-border-subtle)]">
@@ -734,8 +909,9 @@ export default function FleetPage() {
                 </label>
               </div>
 
-              {/* Results */}
-              {plannerDistance && plannerPorts.length >= 2 && (
+              {/* Results — single card when compare is off; stacked
+                  A + B cards + delta summary when compare is on. */}
+              {plannerDistance && plannerPorts.length >= 2 && !compareMode && (
                 <div className="px-4 py-4">
                   <div className="rounded-[var(--radius-md)] border border-cyan-500/30 bg-cyan-500/5 p-4">
                     {/* ETA — primary info */}
@@ -771,18 +947,126 @@ export default function FleetPage() {
                 </div>
               )}
 
-              {/* Clear all */}
-              {plannerPorts.length > 0 && (
+              {/* Compare-mode results — two cards stacked + delta */}
+              {compareMode && (
+                <div className="px-4 py-4 space-y-3">
+                  {/* Route A card */}
+                  <div className="rounded-[var(--radius-md)] border border-cyan-500/30 bg-cyan-500/5 p-3">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="inline-block w-2 h-2 rounded-full bg-cyan-400" />
+                      <span className="text-[0.65rem] font-bold text-cyan-400 uppercase tracking-wider">
+                        Route A
+                      </span>
+                    </div>
+                    {plannerDistance && plannerPorts.length >= 2 ? (
+                      <div>
+                        <div className="text-lg font-mono font-bold text-[var(--color-text-primary)]">
+                          {plannerDistance.etaDisplay}
+                          <span className="text-xs font-normal text-[var(--color-text-tertiary)] ml-2">
+                            · {plannerDistance.totalNm.toLocaleString()} NM
+                          </span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-xs text-[var(--color-text-tertiary)] italic">
+                        Add at least 2 waypoints to Route A
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Route B card */}
+                  <div className="rounded-[var(--radius-md)] border border-pink-500/30 bg-pink-500/5 p-3">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="inline-block w-2 h-2 rounded-full bg-pink-400" />
+                      <span className="text-[0.65rem] font-bold text-pink-400 uppercase tracking-wider">
+                        Route B
+                      </span>
+                    </div>
+                    {plannerDistanceB && plannerPortsB.length >= 2 ? (
+                      <div>
+                        <div className="text-lg font-mono font-bold text-[var(--color-text-primary)]">
+                          {plannerDistanceB.etaDisplay}
+                          <span className="text-xs font-normal text-[var(--color-text-tertiary)] ml-2">
+                            · {plannerDistanceB.totalNm.toLocaleString()} NM
+                          </span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-xs text-[var(--color-text-tertiary)] italic">
+                        Add at least 2 waypoints to Route B
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Delta — only when both routes computed */}
+                  {plannerDistance && plannerDistanceB &&
+                    plannerPorts.length >= 2 && plannerPortsB.length >= 2 && (() => {
+                    const deltaNm = plannerDistanceB.totalNm - plannerDistance.totalNm;
+                    const deltaDays = plannerDistanceB.etaDays - plannerDistance.etaDays;
+                    const deltaPct = plannerDistance.totalNm > 0
+                      ? (deltaNm / plannerDistance.totalNm) * 100
+                      : 0;
+                    const positive = deltaNm > 0;
+                    const sign = deltaNm > 0 ? "+" : "";
+                    // Absolute values for time display (we show sign separately).
+                    const absDays = Math.abs(deltaDays);
+                    const dD = Math.floor(absDays);
+                    const dH = Math.round((absDays - dD) * 24);
+                    const deltaTimeStr = dD > 0 ? `${dD}d ${dH}h` : `${dH}h`;
+                    return (
+                      <div className="rounded-[var(--radius-md)] border border-[var(--color-border-default)] bg-[var(--color-surface-2)] p-3">
+                        <div className="text-[0.65rem] font-bold text-[var(--color-text-tertiary)] uppercase tracking-wider mb-2">
+                          B − A (Deviation)
+                        </div>
+                        <div className="flex items-baseline gap-3">
+                          <span className={`text-base font-mono font-bold ${
+                            positive ? "text-[var(--color-warning)]" : "text-[var(--color-success)]"
+                          }`}>
+                            {sign}{Math.round(deltaNm).toLocaleString()} NM
+                          </span>
+                          <span className={`text-xs font-mono ${
+                            positive ? "text-[var(--color-warning)]" : "text-[var(--color-success)]"
+                          }`}>
+                            ({sign}{deltaPct.toFixed(1)}%)
+                          </span>
+                        </div>
+                        <div className={`text-xs mt-1 ${
+                          positive ? "text-[var(--color-warning)]/80" : "text-[var(--color-success)]/80"
+                        }`}>
+                          {sign}{deltaTimeStr} @ {plannerSpeed} kn
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+
+              {/* Worldscale rates — shown for Route A's endpoints when
+                  there are at least 2 waypoints. Always uses Route A
+                  (the "main" route) even in compare mode, since WS
+                  rates are per (load, discharge) pair not per variant. */}
+              {plannerPorts.length >= 2 && (
+                <WorldscalePanel
+                  loadPort={plannerPorts[0]?.name ?? null}
+                  dischargePort={plannerPorts[plannerPorts.length - 1]?.name ?? null}
+                />
+              )}
+
+              {/* Clear all — clears both routes when compare is on */}
+              {(plannerPorts.length > 0 || plannerPortsB.length > 0) && (
                 <div className="px-4 pb-4">
                   <button
                     onClick={() => {
                       setPlannerPorts([]);
                       setPlannerDistance(null);
                       setPlannerRouteLegs([]);
+                      setPlannerPortsB([]);
+                      setPlannerDistanceB(null);
+                      setPlannerRouteLegsB([]);
                     }}
                     className="w-full px-3 py-2 text-xs font-medium rounded-[var(--radius-md)] border border-[var(--color-border-default)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-border-strong)] transition-colors cursor-pointer"
                   >
-                    Clear all
+                    Clear {compareMode ? "both routes" : "all"}
                   </button>
                 </div>
               )}

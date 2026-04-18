@@ -18,9 +18,9 @@ import { MapContainer, TileLayer, Marker, Tooltip, CircleMarker, Polyline, Polyg
 import L from "leaflet";
 import { useMemo, useState } from "react";
 import { findPortCoordinates } from "@/lib/geo/ports";
-import { getAllPorts, getSeaRoutePath, findPort } from "@/lib/sea-distance";
-import { EMISSION_ZONES, ECA_FILL_STYLE, ECA_BOUNDARY_STYLE } from "@/lib/emission-zones";
-import { RISK_ZONES, RISK_STYLES, RISK_TYPE_LABELS } from "@/lib/risk-zones";
+import { getAllPorts, getSeaRoutePath, findPort } from "@/lib/maritime/sea-distance";
+import { EMISSION_ZONES, ECA_FILL_STYLE, ECA_BOUNDARY_STYLE } from "@/lib/maritime/emission-zones";
+import { RISK_ZONES, RISK_STYLES, RISK_TYPE_LABELS } from "@/lib/maritime/risk-zones";
 import greatCircle from "@turf/great-circle";
 // @ts-expect-error — @turf/helpers ships types but doesn't expose them via package.json "exports"
 import { point } from "@turf/helpers";
@@ -65,6 +65,25 @@ function toGeodesic(path: [number, number][], pointsPerSegment = 20): [number, n
     }
   }
   return result;
+}
+
+// ── Map-click capture (invisible helper) ─────────────────────
+// `useMapEvents` must be inside <MapContainer>, so we wrap it in a
+// tiny component that renders nothing and just forwards clicks to
+// the parent's onMapClick handler. When the handler is undefined
+// (planner closed), clicks pass through untouched.
+function MapClickCapture({
+  onMapClick,
+}: {
+  onMapClick?: (coords: { lat: number; lon: number }) => void;
+}) {
+  useMapEvents({
+    click: (e) => {
+      if (!onMapClick) return;
+      onMapClick({ lat: e.latlng.lat, lon: e.latlng.lng });
+    },
+  });
+  return null;
 }
 
 // ── Reference ports layer (all 106 curated ports) ────────────
@@ -288,6 +307,8 @@ export interface PlannerRouteLeg {
   from: string;
   to: string;
   coordinates: [number, number][];
+  /** Optional per-leg color — used by compare-mode to tint Route B. */
+  color?: string;
 }
 
 interface FleetMapProps {
@@ -297,8 +318,12 @@ interface FleetMapProps {
   onSelectVessel: (id: string | null) => void;
   /** Planner route legs to draw on the map */
   plannerRouteLegs?: PlannerRouteLeg[];
-  /** Port waypoints from the planner (shown as numbered markers) */
-  plannerWaypoints?: Array<{ name: string; lat: number; lon: number }>;
+  /**
+   * Port waypoints from the planner (shown as numbered markers).
+   * Optional per-waypoint color so compare-mode can render Route A
+   * waypoints in cyan and Route B waypoints in magenta.
+   */
+  plannerWaypoints?: Array<{ name: string; lat: number; lon: number; color?: string }>;
   /** Render the ECA/SECA emission-zone polygons as a translucent overlay. */
   showEmissionZones?: boolean;
   /** Render the piracy / war-risk / tension zones as a red-family overlay. */
@@ -308,6 +333,11 @@ interface FleetMapProps {
    * the picked port's name + coords. Wired by the page to planner mode.
    */
   onPortClick?: (port: { name: string; lat: number; lon: number }) => void;
+  /**
+   * When set, clicking on empty water (not a port) fires this with the
+   * click coordinates. Used by the planner to insert a custom waypoint.
+   */
+  onMapClick?: (coords: { lat: number; lon: number }) => void;
 }
 
 export function FleetMapInner({
@@ -320,6 +350,7 @@ export function FleetMapInner({
   showEmissionZones = false,
   showRiskZones = false,
   onPortClick,
+  onMapClick,
 }: FleetMapProps) {
   // Compute route lines for vessels using pre-computed ocean routing paths.
   // These paths come from our 0.1° water-grid Dijkstra — never cross land.
@@ -468,6 +499,11 @@ export function FleetMapInner({
           visuals. */}
       <ReferencePortsLayer excludedNames={new Set<string>()} onPortClick={onPortClick} />
 
+      {/* Map-click capture — fires only when the planner passes
+          an onMapClick handler (so this is a no-op when the
+          planner panel is closed). */}
+      <MapClickCapture onMapClick={onMapClick} />
+
       {/* Route polylines — drawn UNDER markers */}
       {routes.map((r) => (
         <Polyline
@@ -521,13 +557,16 @@ export function FleetMapInner({
         );
       })}
 
-      {/* Planner route polylines — solid cyan lines (rendered as great-circle arcs) */}
+      {/* Planner route polylines — rendered as great-circle arcs so
+          long-haul legs bulge poleward correctly on the Mercator base.
+          Per-leg color lets compare-mode draw Route A (cyan) and
+          Route B (magenta) distinctly on the same map. */}
       {plannerRouteLegs.map((leg, i) => (
         <Polyline
           key={`planner-leg-${i}`}
           positions={toGeodesic(leg.coordinates as [number, number][])}
           pathOptions={{
-            color: "#22d3ee",
+            color: leg.color ?? "#22d3ee",
             weight: 3,
             opacity: 0.8,
             dashArray: undefined,
@@ -538,25 +577,36 @@ export function FleetMapInner({
       ))}
 
       {/* Planner waypoint markers — numbered cyan circles */}
-      {plannerWaypoints.map((wp, i) => (
-        <CircleMarker
-          key={`planner-wp-${i}`}
-          center={[wp.lat, wp.lon]}
-          radius={10}
-          pathOptions={{
-            color: "#22d3ee",
-            fillColor: "#0e1117",
-            fillOpacity: 0.9,
-            weight: 2.5,
-          }}
-        >
-          <Tooltip permanent direction="bottom" offset={[0, 12]} className="fleet-port-label">
-            <span style={{ fontSize: "9px", color: "#22d3ee", fontWeight: 700 }}>
-              {wp.name.split(",")[0].toUpperCase()}
-            </span>
-          </Tooltip>
-        </CircleMarker>
-      ))}
+      {plannerWaypoints.map((wp, i) => {
+        // Custom waypoints (name starts with "@") render with a dashed
+        // border + diamond-feel to visually distinguish them from real
+        // ports. Label shows coordinates rather than a city name.
+        // Per-waypoint `color` lets compare-mode tint Route B magenta.
+        const isCustom = wp.name.startsWith("@");
+        const color = wp.color ?? "#22d3ee";
+        return (
+          <CircleMarker
+            key={`planner-wp-${i}`}
+            center={[wp.lat, wp.lon]}
+            radius={10}
+            pathOptions={{
+              color,
+              fillColor: isCustom ? "#1e293b" : "#0e1117",
+              fillOpacity: 0.9,
+              weight: 2.5,
+              dashArray: isCustom ? "3 3" : undefined,
+            }}
+          >
+            <Tooltip permanent direction="bottom" offset={[0, 12]} className="fleet-port-label">
+              <span style={{ fontSize: "9px", color, fontWeight: 700 }}>
+                {isCustom
+                  ? wp.name.replace(/^@\s*/, "").toUpperCase()
+                  : wp.name.split(",")[0].toUpperCase()}
+              </span>
+            </Tooltip>
+          </CircleMarker>
+        );
+      })}
 
       {/* Status legend — bottom-right corner */}
       <div className="leaflet-bottom leaflet-right" style={{ pointerEvents: "none" }}>
