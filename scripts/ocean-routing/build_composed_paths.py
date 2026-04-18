@@ -98,8 +98,10 @@ PORTS = {
     "Skikda, DZ":      {"approach": [[36.88, 6.90]],                                      "gateway": [37.10, 6.90], "region": "MED_WEST"},
     "Genoa, IT":       {"approach": [[44.40, 8.92]],                                      "gateway": [44.20, 8.80], "region": "MED_WEST"},
     "Sarroch, IT":     {"approach": [[39.07, 9.02]],                                      "gateway": [38.80, 9.00], "region": "MED_WEST"},
-    "Naples, IT":      {"approach": [[40.83, 14.27]],                                     "gateway": [40.50, 14.20], "region": "MED_WEST"},
-    "Augusta, IT":     {"approach": [[37.22, 15.22]],                                     "gateway": [37.00, 15.40], "region": "MED_WEST"},
+    # Naples: approach via Bocche di Bonifacio south (west of Italy mainland)
+    "Naples, IT":      {"approach": [[40.83, 14.27], [40.20, 13.80], [39.50, 12.80]],     "gateway": [39.00, 11.50], "region": "MED_WEST"},
+    # Augusta (Sicily east): loop south of Sicily into the Sicilian Channel
+    "Augusta, IT":     {"approach": [[37.22, 15.22], [36.80, 15.20], [36.30, 14.70]],     "gateway": [36.00, 13.50], "region": "MED_WEST"},
     "Benghazi, LY":    {"approach": [[32.12, 20.07]],                                     "gateway": [32.30, 20.00], "region": "MED_WEST"},
 
     # Med East / Aegean
