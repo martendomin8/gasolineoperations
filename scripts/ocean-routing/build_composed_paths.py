@@ -276,8 +276,9 @@ CORRIDORS = {
     # YUCATAN CHANNEL — between Cuba and Mexico, connects Caribbean to Gulf
     "yucatan_channel": [[12.00, -72.00], [18.00, -82.00], [21.50, -85.00], [25.00, -86.00]],
 
-    # CAPE OF GOOD HOPE
-    "cape_of_good_hope": [[-33.00, 17.00], [-35.00, 19.00], [-35.00, 25.00]],
+    # CAPE OF GOOD HOPE — Indian Ocean crossing south of Madagascar,
+    # around the Cape, up Atlantic Africa coast offshore.
+    "cape_of_good_hope": [[12.00, 50.00], [0.00, 55.00], [-20.00, 50.00], [-30.00, 35.00], [-34.00, 22.00], [-35.00, 18.00], [-35.00, 5.00]],
 
     # US EAST COAST offshore — east of Outer Banks, east of Bahamas chain.
     "us_east_coast": [[40.30, -73.50], [38.80, -74.60], [36.80, -75.40], [35.00, -74.00], [30.00, -73.00], [27.00, -72.50]],
