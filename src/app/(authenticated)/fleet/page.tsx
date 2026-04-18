@@ -133,6 +133,20 @@ export default function FleetPage() {
   } | null>(null);
   const [plannerSearching, setPlannerSearching] = useState(false);
   const [plannerRouteLegs, setPlannerRouteLegs] = useState<PlannerRouteLeg[]>([]);
+  // Passage-avoidance toggles — switches route variants on the fly.
+  const [avoidSuez, setAvoidSuez] = useState(false);
+  const [avoidPanama, setAvoidPanama] = useState(false);
+  // ECA/SECA overlay — purely visual, does not influence routing.
+  const [showEmissionZones, setShowEmissionZones] = useState(false);
+  // Piracy / war-risk / tension overlay — also purely visual. If an
+  // operator needs to actually route around the Red Sea, they use the
+  // existing "Avoid Suez" passage toggle.
+  const [showRiskZones, setShowRiskZones] = useState(false);
+  // Drag-and-drop state for reordering planner waypoints. `draggedIdx`
+  // is the source row's index (null when not dragging); `dragOverIdx`
+  // is the hovered drop target so we can render an insertion indicator.
+  const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
 
   // Port markers from parties (terminals, agents, inspectors, brokers)
   const [portMarkers, setPortMarkers] = useState<Array<{ name: string; port: string; type: string; lat: number; lng: number }>>([]);
@@ -197,7 +211,8 @@ export default function FleetPage() {
     return () => clearTimeout(timer);
   }, [plannerSearch]);
 
-  // Planner: recalculate distance whenever ports or speed change
+  // Planner: recalculate distance whenever ports, speed, or passage
+  // avoidance toggles change.
   useEffect(() => {
     if (plannerPorts.length < 2) {
       setPlannerDistance(null);
@@ -205,12 +220,15 @@ export default function FleetPage() {
       return;
     }
     const portNames = plannerPorts.map((p) => p.name).join("|");
+    const avoids: string[] = [];
+    if (avoidSuez) avoids.push("suez");
+    if (avoidPanama) avoids.push("panama");
+    const avoidParam = avoids.length ? `&avoid=${avoids.join(",")}` : "";
 
-    // Fetch distance + route polyline in parallel
     Promise.all([
-      fetch(`/api/sea-distance?ports=${encodeURIComponent(portNames)}&speed=${plannerSpeed}`)
+      fetch(`/api/sea-distance?ports=${encodeURIComponent(portNames)}&speed=${plannerSpeed}${avoidParam}`)
         .then((r) => r.json()),
-      fetch(`/api/sea-distance/route-line?ports=${encodeURIComponent(portNames)}`)
+      fetch(`/api/sea-distance/route-line?ports=${encodeURIComponent(portNames)}${avoidParam}`)
         .then((r) => r.json()),
     ]).then(([distData, routeData]) => {
       setPlannerDistance({
@@ -221,7 +239,7 @@ export default function FleetPage() {
       });
       setPlannerRouteLegs(routeData.legs ?? []);
     });
-  }, [plannerPorts, plannerSpeed]);
+  }, [plannerPorts, plannerSpeed, avoidSuez, avoidPanama]);
 
   const cards = buildLinkageCards(linkageRows as any, allDeals as any);
 
@@ -453,6 +471,19 @@ export default function FleetPage() {
               onSelectVessel={setSelectedVesselId}
               plannerRouteLegs={plannerRouteLegs}
               plannerWaypoints={plannerPorts}
+              showEmissionZones={showEmissionZones}
+              showRiskZones={showRiskZones}
+              onPortClick={
+                // Only clickable when planner panel is open — otherwise
+                // accidental clicks while just panning would be noisy.
+                plannerMode
+                  ? (port) =>
+                      setPlannerPorts((prev) =>
+                        // Dedup: don't add if already in the list
+                        prev.some((p) => p.name === port.name) ? prev : [...prev, port]
+                      )
+                  : undefined
+              }
             />
           )}
         </div>
@@ -499,20 +530,32 @@ export default function FleetPage() {
                 </div>
                 {plannerResults.length > 0 && (
                   <div className="mt-1 max-h-48 overflow-y-auto rounded-[var(--radius-md)] border border-[var(--color-border-default)] bg-[var(--color-surface-2)]">
-                    {plannerResults.map((port) => (
-                      <button
-                        key={port.name}
-                        onClick={() => {
-                          setPlannerPorts((prev) => [...prev, port]);
-                          setPlannerSearch("");
-                          setPlannerResults([]);
-                        }}
-                        className="w-full text-left px-3 py-1.5 text-xs text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-3)] hover:text-[var(--color-text-primary)] transition-colors cursor-pointer"
-                      >
-                        <Plus className="h-3 w-3 inline mr-1.5 text-cyan-400" />
-                        {port.name}
-                      </button>
-                    ))}
+                    {plannerResults.map((port) => {
+                      // If the user's query matched an alias, show it
+                      // explicitly so e.g. typing "Fos" surfaces as
+                      // "Lavera, FR — same port area as Fos"; otherwise
+                      // the suggestion looks like a silent substitution.
+                      const alias = (port as { matchedAlias?: string | null }).matchedAlias;
+                      return (
+                        <button
+                          key={port.name}
+                          onClick={() => {
+                            setPlannerPorts((prev) => [...prev, port]);
+                            setPlannerSearch("");
+                            setPlannerResults([]);
+                          }}
+                          className="w-full text-left px-3 py-1.5 text-xs text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-3)] hover:text-[var(--color-text-primary)] transition-colors cursor-pointer"
+                        >
+                          <Plus className="h-3 w-3 inline mr-1.5 text-cyan-400" />
+                          {port.name}
+                          {alias && (
+                            <span className="ml-1.5 text-[var(--color-text-tertiary)] text-[0.6875rem]">
+                              — same port area as {alias.replace(/\b\w/g, (c) => c.toUpperCase())}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -528,34 +571,77 @@ export default function FleetPage() {
                   </div>
                 ) : (
                   <div className="space-y-1">
-                    {plannerPorts.map((port, idx) => (
-                      <div
-                        key={`${port.name}-${idx}`}
-                        className="flex items-center gap-2 px-2 py-1.5 rounded-[var(--radius-md)] bg-[var(--color-surface-2)] group"
-                      >
-                        <GripVertical className="h-3 w-3 text-[var(--color-text-tertiary)] flex-shrink-0" />
-                        <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                          <span className="w-4 h-4 rounded-full bg-cyan-500/20 text-cyan-400 text-[0.6rem] font-bold flex items-center justify-center flex-shrink-0">
-                            {idx + 1}
-                          </span>
-                          <span className="text-xs text-[var(--color-text-primary)] truncate">
-                            {port.name.split(",")[0]}
-                          </span>
-                        </div>
-                        {/* Leg distance */}
-                        {plannerDistance && idx > 0 && plannerDistance.legs[idx - 1] && (
-                          <span className="text-[0.6rem] font-mono text-[var(--color-text-tertiary)] flex-shrink-0">
-                            {plannerDistance.legs[idx - 1].distanceNm.toLocaleString()} NM
-                          </span>
-                        )}
-                        <button
-                          onClick={() => setPlannerPorts((prev) => prev.filter((_, i) => i !== idx))}
-                          className="p-0.5 rounded text-[var(--color-text-tertiary)] hover:text-[var(--color-danger)] opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                    {plannerPorts.map((port, idx) => {
+                      const isDragged = draggedIdx === idx;
+                      const isDragTarget = dragOverIdx === idx && draggedIdx !== idx;
+                      return (
+                        <div
+                          key={`${port.name}-${idx}`}
+                          draggable
+                          onDragStart={(e) => {
+                            setDraggedIdx(idx);
+                            // Firefox needs data for the drag to initiate
+                            e.dataTransfer.effectAllowed = "move";
+                            e.dataTransfer.setData("text/plain", String(idx));
+                          }}
+                          onDragOver={(e) => {
+                            e.preventDefault();
+                            e.dataTransfer.dropEffect = "move";
+                            if (dragOverIdx !== idx) setDragOverIdx(idx);
+                          }}
+                          onDragLeave={() => {
+                            if (dragOverIdx === idx) setDragOverIdx(null);
+                          }}
+                          onDrop={(e) => {
+                            e.preventDefault();
+                            const from = draggedIdx;
+                            const to = idx;
+                            setDraggedIdx(null);
+                            setDragOverIdx(null);
+                            if (from === null || from === to) return;
+                            setPlannerPorts((prev) => {
+                              const next = prev.slice();
+                              const [moved] = next.splice(from, 1);
+                              next.splice(to, 0, moved);
+                              return next;
+                            });
+                          }}
+                          onDragEnd={() => {
+                            setDraggedIdx(null);
+                            setDragOverIdx(null);
+                          }}
+                          className={`flex items-center gap-2 px-2 py-1.5 rounded-[var(--radius-md)] bg-[var(--color-surface-2)] group cursor-grab active:cursor-grabbing transition-opacity ${
+                            isDragged ? "opacity-40" : ""
+                          } ${
+                            isDragTarget
+                              ? "ring-2 ring-cyan-400/60 ring-offset-1 ring-offset-[var(--color-surface-1)]"
+                              : ""
+                          }`}
                         >
-                          <Trash2 className="h-3 w-3" />
-                        </button>
-                      </div>
-                    ))}
+                          <GripVertical className="h-3 w-3 text-[var(--color-text-tertiary)] flex-shrink-0" />
+                          <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                            <span className="w-4 h-4 rounded-full bg-cyan-500/20 text-cyan-400 text-[0.6rem] font-bold flex items-center justify-center flex-shrink-0">
+                              {idx + 1}
+                            </span>
+                            <span className="text-xs text-[var(--color-text-primary)] truncate">
+                              {port.name.split(",")[0]}
+                            </span>
+                          </div>
+                          {/* Leg distance */}
+                          {plannerDistance && idx > 0 && plannerDistance.legs[idx - 1] && (
+                            <span className="text-[0.6rem] font-mono text-[var(--color-text-tertiary)] flex-shrink-0">
+                              {plannerDistance.legs[idx - 1].distanceNm.toLocaleString()} NM
+                            </span>
+                          )}
+                          <button
+                            onClick={() => setPlannerPorts((prev) => prev.filter((_, i) => i !== idx))}
+                            className="p-0.5 rounded text-[var(--color-text-tertiary)] hover:text-[var(--color-danger)] opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -573,6 +659,78 @@ export default function FleetPage() {
                     onChange={(e) => setPlannerSpeed(Number(e.target.value) || 12)}
                     className="mt-1 w-full px-3 py-1.5 text-sm font-mono font-bold rounded-[var(--radius-md)] bg-[var(--color-surface-2)] border border-[var(--color-border-default)] text-[var(--color-text-primary)] outline-none focus:border-cyan-500/50"
                   />
+                </label>
+              </div>
+
+              {/* Passage-avoidance toggles — Suez (Red Sea), Panama. */}
+              <div className="px-4 py-3 border-b border-[var(--color-border-subtle)]">
+                <div className="text-[0.625rem] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider mb-2">
+                  Avoid passages
+                </div>
+                <label className="flex items-center gap-2 text-xs text-[var(--color-text-secondary)] cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={avoidSuez}
+                    onChange={(e) => setAvoidSuez(e.target.checked)}
+                    className="accent-cyan-500 cursor-pointer"
+                  />
+                  <span>Avoid Suez (Cape of Good Hope)</span>
+                </label>
+                <label className="flex items-center gap-2 text-xs text-[var(--color-text-secondary)] cursor-pointer mt-1.5">
+                  <input
+                    type="checkbox"
+                    checked={avoidPanama}
+                    onChange={(e) => setAvoidPanama(e.target.checked)}
+                    className="accent-cyan-500 cursor-pointer"
+                  />
+                  <span>Avoid Panama</span>
+                </label>
+              </div>
+
+              {/* Map overlays — purely visual, not tied to routing.
+                  ECA/SECA = MARPOL Annex VI emission control areas where
+                  low-sulphur / low-NOx fuel rules apply. Operators want
+                  these visible while planning to anticipate fuel-switch
+                  points. Not a legal substitute for official charts. */}
+              <div className="px-4 py-3 border-b border-[var(--color-border-subtle)]">
+                <div className="text-[0.625rem] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider mb-2">
+                  Map overlays
+                </div>
+                <label className="flex items-center gap-2 text-xs text-[var(--color-text-secondary)] cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={showEmissionZones}
+                    onChange={(e) => setShowEmissionZones(e.target.checked)}
+                    className="accent-orange-500 cursor-pointer"
+                  />
+                  <span className="flex items-center gap-1.5">
+                    <span
+                      className="inline-block w-3 h-3 rounded-sm"
+                      style={{
+                        // Outlined swatch matches the outline-only map style.
+                        border: "2px solid #f97316",
+                      }}
+                    />
+                    Emission zones (ECA/SECA)
+                  </span>
+                </label>
+                <label className="flex items-center gap-2 text-xs text-[var(--color-text-secondary)] cursor-pointer mt-1.5">
+                  <input
+                    type="checkbox"
+                    checked={showRiskZones}
+                    onChange={(e) => setShowRiskZones(e.target.checked)}
+                    className="accent-red-500 cursor-pointer"
+                  />
+                  <span className="flex items-center gap-1.5">
+                    <span
+                      className="inline-block w-3 h-3 rounded-sm"
+                      style={{
+                        backgroundColor: "rgba(220, 38, 38, 0.25)",
+                        border: "2px solid #dc2626",
+                      }}
+                    />
+                    Risk zones (piracy / war)
+                  </span>
                 </label>
               </div>
 

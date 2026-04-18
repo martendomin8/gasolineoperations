@@ -14,11 +14,13 @@
  */
 
 import "leaflet/dist/leaflet.css";
-import { MapContainer, TileLayer, Marker, Tooltip, CircleMarker, Polyline, useMapEvents } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Tooltip, CircleMarker, Polyline, Polygon, useMapEvents } from "react-leaflet";
 import L from "leaflet";
 import { useMemo, useState } from "react";
-import { CORE_TERMINALS, findPortCoordinates } from "@/lib/geo/ports";
+import { findPortCoordinates } from "@/lib/geo/ports";
 import { getAllPorts, getSeaRoutePath, findPort } from "@/lib/sea-distance";
+import { EMISSION_ZONES, ECA_FILL_STYLE, ECA_BOUNDARY_STYLE } from "@/lib/emission-zones";
+import { RISK_ZONES, RISK_STYLES, RISK_TYPE_LABELS } from "@/lib/risk-zones";
 import greatCircle from "@turf/great-circle";
 // @ts-expect-error — @turf/helpers ships types but doesn't expose them via package.json "exports"
 import { point } from "@turf/helpers";
@@ -72,9 +74,17 @@ const LABEL_MIN_ZOOM = 5;
 
 function ReferencePortsLayer({
   excludedNames,
+  onPortClick,
 }: {
   /** Ports already drawn as terminal/agent markers — skip to avoid duplicates */
   excludedNames: Set<string>;
+  /**
+   * If provided, reference-port dots become clickable and fire this
+   * callback with the port's canonical name + coords. Planner mode
+   * wires this to append the port to the waypoint list. When absent,
+   * dots are inert (hover-only visual reference).
+   */
+  onPortClick?: (port: { name: string; lat: number; lon: number }) => void;
 }) {
   const [zoom, setZoom] = useState(4);
 
@@ -83,6 +93,7 @@ function ReferencePortsLayer({
   });
 
   const showLabels = zoom >= LABEL_MIN_ZOOM;
+  const clickable = Boolean(onPortClick);
 
   return (
     <>
@@ -92,25 +103,45 @@ function ReferencePortsLayer({
           <CircleMarker
             key={`ref-${p.name}`}
             center={[p.lat, p.lon]}
-            radius={2}
+            // Slightly larger + brighter when clickable so operators
+            // get visual affordance that they can tap a port to add it
+            // to the planner. Otherwise these stay subtle (radius 2).
+            radius={clickable ? 4 : 2}
             pathOptions={{
-              color: "#94a3b8",
-              fillColor: "#94a3b8",
-              fillOpacity: 0.55,
+              color: clickable ? "#22d3ee" : "#94a3b8",
+              fillColor: clickable ? "#22d3ee" : "#94a3b8",
+              fillOpacity: clickable ? 0.75 : 0.55,
               weight: 0,
+              // Leaflet uses this CSS cursor on the SVG path
+              className: clickable ? "fleet-port-clickable" : undefined,
             }}
+            eventHandlers={
+              onPortClick
+                ? { click: () => onPortClick({ name: p.name, lat: p.lat, lon: p.lon }) }
+                : undefined
+            }
           >
-            {showLabels && (
-              <Tooltip
-                permanent
-                direction="right"
-                offset={[6, 0]}
-                className="fleet-port-label fleet-ref-label"
-              >
-                <span style={{ fontSize: "9px", color: "#cbd5e1", fontWeight: 400, opacity: 0.75 }}>
-                  {p.name.split(",")[0]}
+            {clickable ? (
+              // Hover tooltip (not permanent) — shows full port name so
+              // the operator can confirm before clicking.
+              <Tooltip direction="top" offset={[0, -6]} className="fleet-port-label">
+                <span style={{ fontSize: "10px", color: "#22d3ee", fontWeight: 600 }}>
+                  + {p.name}
                 </span>
               </Tooltip>
+            ) : (
+              showLabels && (
+                <Tooltip
+                  permanent
+                  direction="right"
+                  offset={[6, 0]}
+                  className="fleet-port-label fleet-ref-label"
+                >
+                  <span style={{ fontSize: "9px", color: "#cbd5e1", fontWeight: 400, opacity: 0.75 }}>
+                    {p.name.split(",")[0]}
+                  </span>
+                </Tooltip>
+              )
             )}
           </CircleMarker>
         );
@@ -268,16 +299,28 @@ interface FleetMapProps {
   plannerRouteLegs?: PlannerRouteLeg[];
   /** Port waypoints from the planner (shown as numbered markers) */
   plannerWaypoints?: Array<{ name: string; lat: number; lon: number }>;
+  /** Render the ECA/SECA emission-zone polygons as a translucent overlay. */
+  showEmissionZones?: boolean;
+  /** Render the piracy / war-risk / tension zones as a red-family overlay. */
+  showRiskZones?: boolean;
+  /**
+   * When set, reference-port dots become clickable and invoke this with
+   * the picked port's name + coords. Wired by the page to planner mode.
+   */
+  onPortClick?: (port: { name: string; lat: number; lon: number }) => void;
 }
 
-const PORT_TYPE_COLORS: Record<string, string> = {
-  terminal: "#FFB000",
-  agent: "#3b82f6",
-  inspector: "#22c55e",
-  broker: "#a855f7",
-};
-
-export function FleetMapInner({ vessels, portMarkers, selectedVesselId, onSelectVessel, plannerRouteLegs = [], plannerWaypoints = [] }: FleetMapProps) {
+export function FleetMapInner({
+  vessels,
+  portMarkers,
+  selectedVesselId,
+  onSelectVessel,
+  plannerRouteLegs = [],
+  plannerWaypoints = [],
+  showEmissionZones = false,
+  showRiskZones = false,
+  onPortClick,
+}: FleetMapProps) {
   // Compute route lines for vessels using pre-computed ocean routing paths.
   // These paths come from our 0.1° water-grid Dijkstra — never cross land.
   const routes = useMemo(() => {
@@ -336,20 +379,94 @@ export function FleetMapInner({ vessels, portMarkers, selectedVesselId, onSelect
       attributionControl={true}
     >
       <TileLayer
-        attribution='&copy; <a href="https://carto.com">CARTO</a>'
+        // Dual attribution — CARTO hosts + styles the tiles, OpenStreetMap
+        // contributors provide the underlying map data. Both are legally
+        // required (ODbL for OSM, CARTO free-tier terms for the basemap).
+        attribution='&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions" target="_blank" rel="noreferrer">CARTO</a>'
         url="https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
         noWrap={false}
       />
 
-      {/* Reference ports (all 106 curated ports) — dots always, names on zoom */}
-      <ReferencePortsLayer
-        excludedNames={
-          new Set([
-            ...portMarkers.map((p) => p.port.toLowerCase()),
-            ...CORE_TERMINALS.map((t) => t.label.toLowerCase()),
-          ])
-        }
-      />
+      {/* ECA/SECA emission-zone overlay — Netpas-style rendering:
+          (1) a soft orange fill over the full regulatory area, and
+          (2) the straight regulatory boundary lines drawn on top.
+          Coastal borders are not drawn — the basemap's own coastlines
+          already mark where water ends, so extra lines there would be
+          redundant. Pure visual: does not influence routing. */}
+      {showEmissionZones && EMISSION_ZONES.map((zone) => (
+        <Polygon
+          key={`eca-fill-${zone.id}`}
+          positions={zone.fillPolygon}
+          pathOptions={ECA_FILL_STYLE}
+        >
+          <Tooltip direction="center" sticky className="fleet-port-label">
+            <div>
+              <div style={{ fontSize: "11px", fontWeight: 700, color: "#f97316" }}>
+                {zone.name}
+              </div>
+              <div style={{ fontSize: "9px", color: "#fbbf24", fontFamily: "JetBrains Mono, monospace" }}>
+                {zone.type} · {zone.effective}
+              </div>
+            </div>
+          </Tooltip>
+        </Polygon>
+      ))}
+      {showEmissionZones && EMISSION_ZONES.flatMap((zone) =>
+        zone.boundaries.map((line, i) => (
+          <Polyline
+            key={`eca-line-${zone.id}-${i}`}
+            positions={line}
+            pathOptions={ECA_BOUNDARY_STYLE}
+          />
+        ))
+      )}
+
+      {/* Risk-zone overlay — piracy / war / tension areas in red/amber.
+          Rendered AFTER ECA so danger zones stay visible when an
+          operator has both overlays enabled (e.g. Red Sea SECA + Houthi
+          war risk co-exist and should both be legible). Same visual
+          pattern: filled polygon + tooltip with hover info. No
+          boundary polylines — the polygon stroke doubles as the
+          boundary, and the shape is the information. */}
+      {showRiskZones && RISK_ZONES.map((zone) => {
+        const style = RISK_STYLES[zone.type];
+        return (
+          <Polygon
+            key={`risk-${zone.id}`}
+            positions={zone.fillPolygon}
+            pathOptions={{
+              color: style.borderColor,
+              opacity: style.borderOpacity,
+              weight: style.weight,
+              fillColor: style.fillColor,
+              fillOpacity: style.fillOpacity,
+            }}
+          >
+            <Tooltip direction="center" sticky className="fleet-port-label">
+              <div>
+                <div style={{ fontSize: "11px", fontWeight: 700, color: style.borderColor }}>
+                  {zone.name}
+                </div>
+                <div style={{ fontSize: "9px", color: "#fca5a5", fontFamily: "JetBrains Mono, monospace" }}>
+                  {RISK_TYPE_LABELS[zone.type]} · since {zone.since}
+                </div>
+                <div style={{ fontSize: "9px", color: "#9aa0ad", marginTop: "2px" }}>
+                  {zone.note}
+                </div>
+              </div>
+            </Tooltip>
+          </Polygon>
+        );
+      })}
+
+      {/* Reference ports (all 190 curated ports) — small gray dots at
+          every zoom, names appearing at zoom ≥5. When the planner is
+          open, dots become cyan-highlighted and clickable (click = add
+          port to waypoints). We no longer exclude core terminals or
+          party ports since they're not drawn as separate markers
+          anymore — reference dots are the single source of port
+          visuals. */}
+      <ReferencePortsLayer excludedNames={new Set<string>()} onPortClick={onPortClick} />
 
       {/* Route polylines — drawn UNDER markers */}
       {routes.map((r) => (
@@ -366,43 +483,14 @@ export function FleetMapInner({ vessels, portMarkers, selectedVesselId, onSelect
         />
       ))}
 
-      {/* Port markers from Parties database */}
-      {portMarkers.map((p) => {
-        const color = PORT_TYPE_COLORS[p.type] ?? "#6B7280";
-        return (
-          <CircleMarker
-            key={`${p.port}-${p.type}`}
-            center={[p.lat, p.lng]}
-            radius={p.type === "terminal" ? 5 : 4}
-            pathOptions={{
-              color: `${color}60`,
-              fillColor: color,
-              fillOpacity: p.type === "terminal" ? 0.3 : 0.15,
-              weight: 1,
-            }}
-          >
-            <Tooltip permanent={p.type === "terminal"} direction="bottom" offset={[0, 8]} className="fleet-port-label">
-              <span style={{ fontSize: "8px", color, fontWeight: 600, letterSpacing: "0.5px", opacity: 0.7 }}>
-                {p.port.toUpperCase()}
-              </span>
-            </Tooltip>
-          </CircleMarker>
-        );
-      })}
-
-      {/* Fallback: core terminals if no parties loaded */}
-      {portMarkers.length === 0 && CORE_TERMINALS.map((t) => (
-        <CircleMarker
-          key={t.label}
-          center={[t.lat, t.lng]}
-          radius={5}
-          pathOptions={{ color: "#FFB00060", fillColor: "#FFB000", fillOpacity: 0.2, weight: 1 }}
-        >
-          <Tooltip permanent direction="right" offset={[10, 0]}>
-            <span style={{ fontSize: "10px", color: "#FFB000", fontWeight: 500 }}>{t.label.toUpperCase()}</span>
-          </Tooltip>
-        </CircleMarker>
-      ))}
+      {/* Party-port markers (core terminals, agents, inspectors, brokers)
+          were previously drawn here as colored CircleMarkers — terminals
+          in orange with permanent labels, others in blue/green/purple.
+          Removed per operator feedback: the orange terminal labels didn't
+          add value over the basemap city labels + the REFERENCE_PORTS dot
+          layer, and they cluttered the map near ARA ports. Data is still
+          fetched into `portMarkers` state (see page.tsx) in case we bring
+          this back with a different visual treatment. */}
 
       {/* Vessel markers */}
       {vessels.map((v) => {
