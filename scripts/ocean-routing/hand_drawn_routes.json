@@ -53,11 +53,12 @@
   },
 
   "Amsterdam, NL|New York, US": {
-    "notes": "ARA → New York.",
+    "notes": "ARA → New York. Intermediate (42, -55) keeps the geodesic south of Newfoundland's Avalon Peninsula.",
     "waypoints": [
       [52.37,   4.86],
       [51.00,   1.50],
       [49.50,  -5.50],
+      [42.00, -55.00],
       [40.50, -72.00],
       [40.67, -74.03]
     ]
@@ -70,6 +71,7 @@
       [51.45,   3.55],
       [51.00,   1.50],
       [49.50,  -5.50],
+      [42.00, -55.00],
       [40.50, -72.00],
       [40.67, -74.03]
     ]
@@ -80,6 +82,7 @@
     "waypoints": [
       [40.67, -74.03],
       [40.50, -72.00],
+      [42.00, -55.00],
       [49.50,  -5.50],
       [51.00,   1.50],
       [51.90,   4.48]
@@ -133,49 +136,52 @@
   },
 
   "Lavera, FR|New York, US": {
-    "notes": "Med → US via Gibraltar. All waypoints verified offshore (was bugged: (37,-3) landed in Granada/Almería interior). Med transit along Spanish Med coast offshore, Alboran Sea, Gibraltar, single geodesic arc across Atlantic, NY approach.",
+    "notes": "Med → US via Gibraltar. Extra waypoint east of Cap de la Nau (Spanish peninsula) keeps geodesic offshore there, and (42, -55) keeps Atlantic crossing south of Newfoundland.",
     "waypoints": [
       [43.38,   4.98],
-      [41.00,   3.20],
-      [38.50,  -0.30],
-      [36.30,  -4.00],
+      [41.50,   3.80],
+      [39.50,   0.50],
+      [38.20,   0.60],
+      [37.60,  -0.30],
+      [36.80,  -2.50],
+      [36.00,  -4.50],
       [35.95,  -5.70],
       [36.00,  -9.00],
+      [42.00, -55.00],
       [40.50, -72.00],
       [40.67, -74.03]
     ]
   },
 
   "Barcelona, ES|Thessaloniki, GR": {
-    "notes": "Med-internal. East from Barcelona, south of Sardinia, through Messina Strait, across Ionian Sea, into Aegean past Peloponnese (south), north through Aegean to Thessaloniki.",
+    "notes": "Med-internal: Barcelona → south of Sardinia → Sicilian Channel (south of Sicily, between Tunisia & Malta) → Ionian → around Cape Matapan (Peloponnese) → up the Aegean to Thessaloniki. All waypoints verified offshore (earlier version cut across southern Sardinia at Cagliari).",
     "waypoints": [
       [41.35,   2.17],
-      [40.50,   4.00],
-      [39.50,   7.00],
-      [38.80,  10.00],
-      [38.30,  12.50],
-      [38.20,  15.00],
-      [38.10,  15.65],
-      [37.80,  16.20],
-      [36.80,  18.50],
-      [36.20,  21.00],
-      [36.50,  23.50],
-      [37.50,  24.50],
+      [40.20,   4.00],
+      [38.50,   7.50],
+      [37.70,  11.30],
+      [36.50,  13.50],
+      [36.00,  16.50],
+      [35.80,  20.00],
+      [36.00,  22.00],
+      [36.50,  23.00],
+      [37.50,  24.00],
       [38.50,  24.50],
-      [39.50,  24.00],
+      [39.80,  24.00],
       [40.30,  23.50],
       [40.62,  22.93]
     ]
   },
 
   "Lagos, NG|Ust-Luga, RU": {
-    "notes": "Baltic → West Africa. Ust-Luga → Gulf of Finland → Baltic → Danish straits → North Sea → Dover → Channel → S past Biscay offshore → past Portugal → past Canaries (W of 17°W) → direct to Gulf of Guinea → Lagos. Waypoints ordered Lagos → Ust-Luga (alphabetic).",
+    "notes": "Baltic → West Africa. Mirror of Antwerp-Lome for the Atlantic leg (safely offshore of the Sierra Leone/Guinea bulge) plus Baltic transit. Waypoints ordered Lagos → Ust-Luga (alphabetic).",
     "waypoints": [
       [ 6.45,   3.38],
-      [ 4.50,   2.50],
-      [ 3.50,  -1.00],
-      [ 5.00,  -8.00],
-      [15.00, -19.00],
+      [ 3.50,   0.20],
+      [ 2.50,  -2.00],
+      [ 3.00,  -8.00],
+      [ 8.00, -18.00],
+      [15.00, -20.00],
       [28.00, -17.00],
       [36.00, -10.00],
       [40.00,  -9.80],
@@ -184,22 +190,28 @@
       [49.30,  -5.50],
       [50.50,  -1.00],
       [51.00,   1.50],
-      [52.00,   3.00],
-      [53.50,   4.20],
-      [55.50,   7.00],
-      [57.70,   9.50],
-      [57.70,  11.00],
-      [55.70,  12.70],
-      [55.30,  15.00],
+      [52.50,   3.00],
+      [54.00,   4.00],
+      [56.00,   5.50],
+      [57.80,   8.00],
+      [57.75,  10.60],
+      [57.70,  11.30],
+      [55.90,  12.70],
+      [55.40,  12.85],
+      [55.10,  13.80],
+      [54.70,  14.70],
+      [54.80,  16.00],
       [56.00,  19.00],
-      [58.00,  21.50],
-      [59.50,  25.00],
+      [57.50,  20.50],
+      [59.20,  22.30],
+      [59.70,  24.50],
+      [59.70,  27.00],
       [59.68,  28.38]
     ]
   },
 
   "Antwerp, BE|Lome, TG": {
-    "notes": "ARA → West Africa. Out Scheldt/Dover → Channel → S past Biscay offshore → past Portugal coast → W of Canary Islands (~17°W) → direct diagonal across Atlantic to Gulf of Guinea → Lomé.",
+    "notes": "ARA → West Africa. Channel → offshore Biscay/Portugal → W of Canaries → W of Cape Verde latitudes → safely offshore Guinea coast → across open Gulf of Guinea → Lomé. Waypoints kept well offshore of the bulge between Sierra Leone and Ivory Coast — earlier version cut through Guinea/Sierra Leone interior and grazed Ivory Coast coast.",
     "waypoints": [
       [51.27,   4.38],
       [51.45,   3.55],
@@ -210,10 +222,11 @@
       [40.00,  -9.80],
       [36.00, -10.00],
       [28.00, -17.00],
-      [15.00, -19.00],
-      [ 5.00,  -8.00],
-      [ 3.00,  -1.00],
-      [ 5.00,   0.50],
+      [15.00, -20.00],
+      [ 8.00, -18.00],
+      [ 3.00,  -8.00],
+      [ 2.50,  -2.00],
+      [ 3.50,   0.20],
       [ 6.13,   1.28]
     ]
   }
