@@ -371,7 +371,7 @@
   "Lavera, FR|London, GB": 2027.8,
   "Lavera, FR|Lome, TG": 3679.4,
   "Lavera, FR|Tema, GH": 3589.3,
-  "Lavera, FR|New York, US": 3848.6,
+  "Lavera, FR|New York, US": 3862.1,
   "Lavera, FR|Savannah, US": 4502.9,
   "Lavera, FR|Singapore, SG": 6824.7,
   "Lavera, FR|Ruwais, AE": 4816.0,
@@ -5458,5 +5458,8 @@
   "Dublin, IE|Vassiliko, CY": 3215.6,
   "Dublin, IE|La Libertad, EC": 10048.7,
   "Dublin, IE|Quebec, CA": 2687.8,
-  "Dublin, IE|Montreal, CA": 2809.5
+  "Dublin, IE|Montreal, CA": 2809.5,
+  "Amsterdam, NL|Philadelphia, US": 3486.6,
+  "Antwerp, BE|Philadelphia, US": 3451.6,
+  "Philadelphia, US|Rotterdam, NL": 3460.8
 }

@@ -86,14 +86,60 @@
     ]
   },
 
+  "Amsterdam, NL|Philadelphia, US": {
+    "notes": "ARA → Delaware Bay (Philadelphia up the Delaware River).",
+    "waypoints": [
+      [52.37,   4.86],
+      [51.00,   1.50],
+      [49.50,  -5.50],
+      [40.00, -68.00],
+      [38.80, -74.60],
+      [38.78, -75.05],
+      [39.25, -75.30],
+      [39.70, -75.20],
+      [39.93, -75.13]
+    ]
+  },
+
+  "Antwerp, BE|Philadelphia, US": {
+    "notes": "ARA → Delaware Bay. Antwerp exit via Scheldt.",
+    "waypoints": [
+      [51.27,   4.38],
+      [51.45,   3.55],
+      [51.00,   1.50],
+      [49.50,  -5.50],
+      [40.00, -68.00],
+      [38.80, -74.60],
+      [38.78, -75.05],
+      [39.25, -75.30],
+      [39.70, -75.20],
+      [39.93, -75.13]
+    ]
+  },
+
+  "Philadelphia, US|Rotterdam, NL": {
+    "notes": "ARA → Delaware Bay (Rotterdam origin). Alphabetical sort puts Philadelphia first.",
+    "waypoints": [
+      [39.93, -75.13],
+      [39.70, -75.20],
+      [39.25, -75.30],
+      [38.78, -75.05],
+      [38.80, -74.60],
+      [40.00, -68.00],
+      [49.50,  -5.50],
+      [51.00,   1.50],
+      [51.90,   4.48]
+    ]
+  },
+
   "Lavera, FR|New York, US": {
-    "notes": "Med → US via Gibraltar. Sparse waypoints: Med transit + Gibraltar + ONE big geodesic arc across Atlantic (which renders as the real great-circle bulge peaking ~43°N at -40°W) + NY approach.",
+    "notes": "Med → US via Gibraltar. All waypoints verified offshore (was bugged: (37,-3) landed in Granada/Almería interior). Med transit along Spanish Med coast offshore, Alboran Sea, Gibraltar, single geodesic arc across Atlantic, NY approach.",
     "waypoints": [
       [43.38,   4.98],
-      [42.00,   3.50],
-      [39.50,   0.50],
-      [37.00,  -3.00],
-      [36.00,  -5.50],
+      [41.00,   3.20],
+      [38.50,  -0.30],
+      [36.30,  -4.00],
+      [35.95,  -5.70],
       [36.00,  -9.00],
       [40.50, -72.00],
       [40.67, -74.03]
