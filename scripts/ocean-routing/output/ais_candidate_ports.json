@@ -1,0 +1,1898 @@
+[
+  {
+    "lat": 29.400000000000002,
+    "lon": -93.60000000000001,
+    "hits": 21699,
+    "distinct_tankers": 16,
+    "nearest_port": "Port Arthur, US",
+    "dist_nm": 22.2,
+    "top_names": [
+      [
+        "MARITIME GUARDIAN",
+        1838
+      ],
+      [
+        "NEW ADVANCE",
+        1832
+      ],
+      [
+        "TORM SARA",
+        1801
+      ],
+      [
+        "MERSINI",
+        1764
+      ],
+      [
+        "UNITY VENTURE",
+        1736
+      ]
+    ]
+  },
+  {
+    "lat": 29.700000000000003,
+    "lon": -95.2,
+    "hits": 15711,
+    "distinct_tankers": 25,
+    "nearest_port": "Houston, US",
+    "dist_nm": 33.5,
+    "top_names": [
+      [
+        "PACIFIC MARS",
+        1739
+      ],
+      [
+        "ION M",
+        1561
+      ],
+      [
+        "SOLAR TINE",
+        1318
+      ],
+      [
+        "EIGER EXPLORER",
+        1254
+      ],
+      [
+        "CARTAGENA",
+        1224
+      ]
+    ]
+  },
+  {
+    "lat": 29.700000000000003,
+    "lon": -95.10000000000001,
+    "hits": 15317,
+    "distinct_tankers": 30,
+    "nearest_port": "Houston, US",
+    "dist_nm": 29.6,
+    "top_names": [
+      [
+        "BERGE NANTONG",
+        1431
+      ],
+      [
+        "EAGLE TEXAS",
+        1131
+      ],
+      [
+        "FRONT CRYSTAL",
+        1126
+      ],
+      [
+        "G ARETE",
+        1081
+      ],
+      [
+        "ENERGY CHANCELLOR",
+        1014
+      ]
+    ]
+  },
+  {
+    "lat": 27.900000000000002,
+    "lon": -82.4,
+    "hits": 11333,
+    "distinct_tankers": 11,
+    "nearest_port": "Tampa, US",
+    "dist_nm": 35.2,
+    "top_names": [
+      [
+        "MILLVILLE",
+        1923
+      ],
+      [
+        "EVERGLADES",
+        1829
+      ],
+      [
+        "OVERSEAS LOS ANGELES",
+        1767
+      ],
+      [
+        "ORANGE SUN",
+        1709
+      ],
+      [
+        "OVERSEAS NEW YORK",
+        1236
+      ]
+    ]
+  },
+  {
+    "lat": 30.0,
+    "lon": -94.0,
+    "hits": 8760,
+    "distinct_tankers": 11,
+    "nearest_port": "Port Arthur, US",
+    "dist_nm": 19.6,
+    "top_names": [
+      [
+        "CAPTAIN JOHN NP",
+        1443
+      ],
+      [
+        "BW MAGELLAN",
+        1422
+      ],
+      [
+        "CLERMONT",
+        1399
+      ],
+      [
+        "PARAMOUNT HATTERAS",
+        1331
+      ],
+      [
+        "CRYSTAL OASIS",
+        1253
+      ]
+    ]
+  },
+  {
+    "lat": 29.400000000000002,
+    "lon": -93.7,
+    "hits": 8347,
+    "distinct_tankers": 7,
+    "nearest_port": "Port Arthur, US",
+    "dist_nm": 19.6,
+    "top_names": [
+      [
+        "BOUGAINVILLE",
+        1791
+      ],
+      [
+        "SEAFRONTIER",
+        1519
+      ],
+      [
+        "LNGSHIPS ATHENA",
+        1493
+      ],
+      [
+        "GASLOG WELLINGTON",
+        1337
+      ],
+      [
+        "HELLAS REVENGER",
+        1125
+      ]
+    ]
+  },
+  {
+    "lat": 27.8,
+    "lon": -97.4,
+    "hits": 7865,
+    "distinct_tankers": 14,
+    "nearest_port": "Corpus Christi, US",
+    "dist_nm": 21.2,
+    "top_names": [
+      [
+        "EAGLE SAN PEDRO",
+        1129
+      ],
+      [
+        "VIRGEN DEL QUINCHE",
+        901
+      ],
+      [
+        "JIN ZHOU WAN",
+        877
+      ],
+      [
+        "MP MR TANKER1",
+        828
+      ],
+      [
+        "BLUE SEA",
+        811
+      ]
+    ]
+  },
+  {
+    "lat": 30.0,
+    "lon": -90.30000000000001,
+    "hits": 7282,
+    "distinct_tankers": 12,
+    "nearest_port": "New Orleans, US",
+    "dist_nm": 73.7,
+    "top_names": [
+      [
+        "PHILOTIMOS",
+        854
+      ],
+      [
+        "PENNSYLVANIA",
+        819
+      ],
+      [
+        "BOW ENGINEER",
+        802
+      ],
+      [
+        "STI MODEST",
+        775
+      ],
+      [
+        "HONG KONG DAWN",
+        743
+      ]
+    ]
+  },
+  {
+    "lat": 29.1,
+    "lon": -94.60000000000001,
+    "hits": 6951,
+    "distinct_tankers": 5,
+    "nearest_port": "Houston, US",
+    "dist_nm": 15.9,
+    "top_names": [
+      [
+        "LEO SUN",
+        1824
+      ],
+      [
+        "SAGA",
+        1799
+      ],
+      [
+        "TARBET SPIRIT",
+        1130
+      ],
+      [
+        "NAVIGATOR TRITON",
+        1118
+      ],
+      [
+        "CHEMICAL HUNTER",
+        1080
+      ]
+    ]
+  },
+  {
+    "lat": 28.400000000000002,
+    "lon": -96.2,
+    "hits": 6884,
+    "distinct_tankers": 6,
+    "nearest_port": "Corpus Christi, US",
+    "dist_nm": 55.6,
+    "top_names": [
+      [
+        "NORDIC AMI",
+        1509
+      ],
+      [
+        "BOW SAGA",
+        1501
+      ],
+      [
+        "STOLT SKUA",
+        1391
+      ],
+      [
+        "SHAMROCK JUPITER",
+        1107
+      ],
+      [
+        "WINNIPEG",
+        753
+      ]
+    ]
+  },
+  {
+    "lat": 28.700000000000003,
+    "lon": -94.7,
+    "hits": 6591,
+    "distinct_tankers": 9,
+    "nearest_port": "Houston, US",
+    "dist_nm": 39.0,
+    "top_names": [
+      [
+        "FURUHOLMEN",
+        1678
+      ],
+      [
+        "BRENTHOLMEN",
+        1398
+      ],
+      [
+        "BLUEFIN",
+        1079
+      ],
+      [
+        "GREEN AURA",
+        614
+      ],
+      [
+        "ELBHOFF",
+        569
+      ]
+    ]
+  },
+  {
+    "lat": 28.8,
+    "lon": -95.2,
+    "hits": 5965,
+    "distinct_tankers": 5,
+    "nearest_port": "Houston, US",
+    "dist_nm": 42.2,
+    "top_names": [
+      [
+        "PRISM DIVERSITY",
+        1881
+      ],
+      [
+        "PRISM COURAGE",
+        1527
+      ],
+      [
+        "ELLI",
+        1325
+      ],
+      [
+        "STOLT HALCON",
+        963
+      ],
+      [
+        "GARRINCHA",
+        269
+      ]
+    ]
+  },
+  {
+    "lat": 30.0,
+    "lon": -93.9,
+    "hits": 5089,
+    "distinct_tankers": 6,
+    "nearest_port": "Port Arthur, US",
+    "dist_nm": 18.2,
+    "top_names": [
+      [
+        "SERI EVEREST",
+        1529
+      ],
+      [
+        "EAGLE KINABALU",
+        1340
+      ],
+      [
+        "PACIFIC PEARL",
+        1303
+      ],
+      [
+        "OVERSEAS HOUSTON",
+        562
+      ],
+      [
+        "LOUIS P",
+        228
+      ]
+    ]
+  },
+  {
+    "lat": 29.900000000000002,
+    "lon": -89.9,
+    "hits": 4936,
+    "distinct_tankers": 8,
+    "nearest_port": "New Orleans, US",
+    "dist_nm": 55.0,
+    "top_names": [
+      [
+        "RONG HUA WAN",
+        1388
+      ],
+      [
+        "FAIRCHEM BLADE",
+        946
+      ],
+      [
+        "NAVE LUMINOSITY",
+        927
+      ],
+      [
+        "DORIC BREEZE",
+        706
+      ],
+      [
+        "CLEAROCEAN MERIBEL",
+        357
+      ]
+    ]
+  },
+  {
+    "lat": 29.3,
+    "lon": -93.10000000000001,
+    "hits": 4798,
+    "distinct_tankers": 3,
+    "nearest_port": "Lake Charles, US",
+    "dist_nm": 29.6,
+    "top_names": [
+      [
+        "MARAN GAS AMORGOS",
+        1795
+      ],
+      [
+        "DIAMOND GAS VICTORIA",
+        1708
+      ],
+      [
+        "BRITISH SPONSOR",
+        1295
+      ]
+    ]
+  },
+  {
+    "lat": 29.200000000000003,
+    "lon": -94.4,
+    "hits": 4792,
+    "distinct_tankers": 6,
+    "nearest_port": "Houston, US",
+    "dist_nm": 18.1,
+    "top_names": [
+      [
+        "DAYTONA",
+        1772
+      ],
+      [
+        "LEONTIOS H",
+        1748
+      ],
+      [
+        "BW BOBCAT",
+        589
+      ],
+      [
+        "GASCHEM NARWHAL",
+        303
+      ],
+      [
+        "EURO",
+        266
+      ]
+    ]
+  },
+  {
+    "lat": 30.400000000000002,
+    "lon": -91.2,
+    "hits": 4739,
+    "distinct_tankers": 3,
+    "nearest_port": "Lake Charles, US",
+    "dist_nm": 117.3,
+    "top_names": [
+      [
+        "KANPUR",
+        3241
+      ],
+      [
+        "JAZZ",
+        777
+      ],
+      [
+        "WHITE HORSE",
+        721
+      ]
+    ]
+  },
+  {
+    "lat": 44.1,
+    "lon": -69.10000000000001,
+    "hits": 4714,
+    "distinct_tankers": 0,
+    "nearest_port": "Portland, US",
+    "dist_nm": 52.7,
+    "top_names": [
+      [
+        "CAPT RAY O'NEAL",
+        4714
+      ]
+    ]
+  },
+  {
+    "lat": 30.200000000000003,
+    "lon": -93.30000000000001,
+    "hits": 4647,
+    "distinct_tankers": 9,
+    "nearest_port": "Lake Charles, US",
+    "dist_nm": 27.1,
+    "top_names": [
+      [
+        "HAFNIA ANDROMEDA",
+        760
+      ],
+      [
+        "LONESTAR STATE",
+        758
+      ],
+      [
+        "LA DIGUE",
+        585
+      ],
+      [
+        "CHEMICAL MASTER",
+        551
+      ],
+      [
+        "MARITIME JINGAN",
+        519
+      ]
+    ]
+  },
+  {
+    "lat": 29.1,
+    "lon": -94.5,
+    "hits": 4580,
+    "distinct_tankers": 5,
+    "nearest_port": "Houston, US",
+    "dist_nm": 18.3,
+    "top_names": [
+      [
+        "GRACE FREESIA",
+        1683
+      ],
+      [
+        "ARTEMIS",
+        1065
+      ],
+      [
+        "CHEMTRANS NOVA",
+        957
+      ],
+      [
+        "DONEGAL SPIRIT",
+        697
+      ],
+      [
+        "RIDGEBURY JOHN B",
+        178
+      ]
+    ]
+  },
+  {
+    "lat": 30.0,
+    "lon": -90.4,
+    "hits": 4506,
+    "distinct_tankers": 7,
+    "nearest_port": "New Orleans, US",
+    "dist_nm": 77.6,
+    "top_names": [
+      [
+        "OVERSEAS TAMPA",
+        978
+      ],
+      [
+        "WELVIEW",
+        780
+      ],
+      [
+        "CHALLENGE PARAGON",
+        737
+      ],
+      [
+        "SEAWAYS EAGLE",
+        673
+      ],
+      [
+        "SEAWAYS SIFNOS",
+        672
+      ]
+    ]
+  },
+  {
+    "lat": 36.800000000000004,
+    "lon": -76.3,
+    "hits": 4245,
+    "distinct_tankers": 0,
+    "nearest_port": "Norfolk, US",
+    "dist_nm": 16.4,
+    "top_names": [
+      [
+        "SUNNY WILLIAMS",
+        4245
+      ]
+    ]
+  },
+  {
+    "lat": 28.5,
+    "lon": -94.30000000000001,
+    "hits": 3767,
+    "distinct_tankers": 4,
+    "nearest_port": "Houston, US",
+    "dist_nm": 55.2,
+    "top_names": [
+      [
+        "AROSA",
+        1518
+      ],
+      [
+        "JALADI",
+        831
+      ],
+      [
+        "PARAMOUNT HAMILTON",
+        772
+      ],
+      [
+        "EAGLE TEXAS",
+        646
+      ]
+    ]
+  },
+  {
+    "lat": 39.0,
+    "lon": -75.2,
+    "hits": 3714,
+    "distinct_tankers": 2,
+    "nearest_port": "Philadelphia, US",
+    "dist_nm": 15.2,
+    "top_names": [
+      [
+        "PACIFIC",
+        1890
+      ],
+      [
+        "CHEMTRANS POLARIS",
+        1824
+      ]
+    ]
+  },
+  {
+    "lat": 28.900000000000002,
+    "lon": -89.30000000000001,
+    "hits": 3372,
+    "distinct_tankers": 5,
+    "nearest_port": "New Orleans, US",
+    "dist_nm": 17.0,
+    "top_names": [
+      [
+        "EVRIDIKI",
+        1715
+      ],
+      [
+        "HELLESPONT PROTECTOR",
+        760
+      ],
+      [
+        "CELSIUS MALAGA",
+        471
+      ],
+      [
+        "STOLT EXCELLENCE",
+        299
+      ],
+      [
+        "SOLAR RUO YUN",
+        127
+      ]
+    ]
+  },
+  {
+    "lat": 26.1,
+    "lon": -80.10000000000001,
+    "hits": 3364,
+    "distinct_tankers": 5,
+    "nearest_port": "Tampa, US",
+    "dist_nm": 181.0,
+    "top_names": [
+      [
+        "NAUTICAL DEBORAH",
+        1455
+      ],
+      [
+        "GARDEN STATE",
+        783
+      ],
+      [
+        "OVERSEAS NIKISKI",
+        669
+      ],
+      [
+        "AMERICAN PRIDE",
+        386
+      ],
+      [
+        "CAPE TAMPA",
+        71
+      ]
+    ]
+  },
+  {
+    "lat": 48.6,
+    "lon": -122.60000000000001,
+    "hits": 3282,
+    "distinct_tankers": 2,
+    "nearest_port": "San Francisco, US",
+    "dist_nm": 648.5,
+    "top_names": [
+      [
+        "CAPTAIN MICHAEL",
+        1832
+      ],
+      [
+        "ORIENTAL KING",
+        1450
+      ]
+    ]
+  },
+  {
+    "lat": 13.5,
+    "lon": 144.70000000000002,
+    "hits": 3040,
+    "distinct_tankers": 5,
+    "nearest_port": "Singapore, SG",
+    "dist_nm": 2539.4,
+    "top_names": [
+      [
+        "SLOMAN THETIS",
+        927
+      ],
+      [
+        "USNS GUADALUPE",
+        915
+      ],
+      [
+        "YUKON",
+        861
+      ],
+      [
+        "YAYOI EXPRESS",
+        220
+      ],
+      [
+        "HIGH TIDE",
+        117
+      ]
+    ]
+  },
+  {
+    "lat": 39.800000000000004,
+    "lon": -75.4,
+    "hits": 3024,
+    "distinct_tankers": 7,
+    "nearest_port": "Philadelphia, US",
+    "dist_nm": 62.9,
+    "top_names": [
+      [
+        "AMERICAN LIBERTY",
+        952
+      ],
+      [
+        "ORIENTAL JUBILEE",
+        669
+      ],
+      [
+        "GASCHEM PACIFIC",
+        423
+      ],
+      [
+        "ASTOMOS EARTH",
+        323
+      ],
+      [
+        "JS INEOS INNOVATION",
+        298
+      ]
+    ]
+  },
+  {
+    "lat": 29.900000000000002,
+    "lon": -90.30000000000001,
+    "hits": 2922,
+    "distinct_tankers": 3,
+    "nearest_port": "New Orleans, US",
+    "dist_nm": 69.8,
+    "top_names": [
+      [
+        "ZAHRA",
+        1028
+      ],
+      [
+        "HONG KONG DAWN",
+        957
+      ],
+      [
+        "FAIRCHEM BLADE",
+        937
+      ]
+    ]
+  },
+  {
+    "lat": 27.8,
+    "lon": -97.5,
+    "hits": 2774,
+    "distinct_tankers": 7,
+    "nearest_port": "Corpus Christi, US",
+    "dist_nm": 26.6,
+    "top_names": [
+      [
+        "ALPINE MARIA",
+        558
+      ],
+      [
+        "GOLDEN STATE",
+        548
+      ],
+      [
+        "ESTHER SPIRIT",
+        484
+      ],
+      [
+        "SEA TIGER",
+        447
+      ],
+      [
+        "CARIBE LIZA",
+        390
+      ]
+    ]
+  },
+  {
+    "lat": 30.400000000000002,
+    "lon": -81.60000000000001,
+    "hits": 2755,
+    "distinct_tankers": 5,
+    "nearest_port": "Savannah, US",
+    "dist_nm": 101.7,
+    "top_names": [
+      [
+        "SUNSHINE STATE",
+        913
+      ],
+      [
+        "POLARIS",
+        620
+      ],
+      [
+        "OVERSEAS LONG BEACH",
+        507
+      ],
+      [
+        "UACC MIRDIF",
+        365
+      ],
+      [
+        "FLORIDA VOYAGER",
+        350
+      ]
+    ]
+  },
+  {
+    "lat": 30.1,
+    "lon": -90.60000000000001,
+    "hits": 2740,
+    "distinct_tankers": 4,
+    "nearest_port": "New Orleans, US",
+    "dist_nm": 89.5,
+    "top_names": [
+      [
+        "ARDMORE ENDEAVOUR",
+        841
+      ],
+      [
+        "STI MODEST",
+        785
+      ],
+      [
+        "SEA FRACTUS",
+        762
+      ],
+      [
+        "SKY",
+        352
+      ]
+    ]
+  },
+  {
+    "lat": 30.5,
+    "lon": -91.2,
+    "hits": 2712,
+    "distinct_tankers": 4,
+    "nearest_port": "Lake Charles, US",
+    "dist_nm": 119.4,
+    "top_names": [
+      [
+        "RHAPSODY",
+        787
+      ],
+      [
+        "PENNSYLVANIA",
+        730
+      ],
+      [
+        "COIPO",
+        707
+      ],
+      [
+        "ARENDAL",
+        488
+      ]
+    ]
+  },
+  {
+    "lat": 29.700000000000003,
+    "lon": -95.0,
+    "hits": 2677,
+    "distinct_tankers": 9,
+    "nearest_port": "Houston, US",
+    "dist_nm": 26.2,
+    "top_names": [
+      [
+        "PETREL PACIFIC",
+        676
+      ],
+      [
+        "PACIFIC SATURN",
+        601
+      ],
+      [
+        "CARIBE LIZA",
+        448
+      ],
+      [
+        "YAMATO SPIRIT",
+        440
+      ],
+      [
+        "ELLINGTON",
+        345
+      ]
+    ]
+  },
+  {
+    "lat": 28.900000000000002,
+    "lon": -95.10000000000001,
+    "hits": 2676,
+    "distinct_tankers": 2,
+    "nearest_port": "Houston, US",
+    "dist_nm": 34.2,
+    "top_names": [
+      [
+        "ELISA LARUS",
+        1815
+      ],
+      [
+        "SUMIRE GAS",
+        861
+      ]
+    ]
+  },
+  {
+    "lat": 42.800000000000004,
+    "lon": -80.0,
+    "hits": 2675,
+    "distinct_tankers": 3,
+    "nearest_port": "New York, US",
+    "dist_nm": 311.9,
+    "top_names": [
+      [
+        "ALGONOVA",
+        1176
+      ],
+      [
+        "ALGOTERRA",
+        946
+      ],
+      [
+        "ALGOCANADA",
+        553
+      ]
+    ]
+  },
+  {
+    "lat": 29.6,
+    "lon": -95.0,
+    "hits": 2607,
+    "distinct_tankers": 8,
+    "nearest_port": "Houston, US",
+    "dist_nm": 21.7,
+    "top_names": [
+      [
+        "GINGA PUMA",
+        511
+      ],
+      [
+        "STOLT INTEGRITY",
+        468
+      ],
+      [
+        "STOLT EFFORT",
+        457
+      ],
+      [
+        "GRAND WINNER 3",
+        344
+      ],
+      [
+        "CHEMICAL ENTERPRISE",
+        336
+      ]
+    ]
+  },
+  {
+    "lat": 29.6,
+    "lon": -89.80000000000001,
+    "hits": 2548,
+    "distinct_tankers": 4,
+    "nearest_port": "New Orleans, US",
+    "dist_nm": 38.3,
+    "top_names": [
+      [
+        "SKY",
+        1132
+      ],
+      [
+        "STI FONTVIEILLE",
+        868
+      ],
+      [
+        "STOLT SNELAND",
+        359
+      ],
+      [
+        "COIPO",
+        189
+      ]
+    ]
+  },
+  {
+    "lat": 38.1,
+    "lon": -122.30000000000001,
+    "hits": 2508,
+    "distinct_tankers": 2,
+    "nearest_port": "San Francisco, US",
+    "dist_nm": 20.3,
+    "top_names": [
+      [
+        "USNS PECOS",
+        1895
+      ],
+      [
+        "SFL SABINE",
+        613
+      ]
+    ]
+  },
+  {
+    "lat": 28.900000000000002,
+    "lon": -95.30000000000001,
+    "hits": 2446,
+    "distinct_tankers": 7,
+    "nearest_port": "Houston, US",
+    "dist_nm": 41.5,
+    "top_names": [
+      [
+        "NORDIC ANN",
+        896
+      ],
+      [
+        "GULLIT",
+        627
+      ],
+      [
+        "STOLT HALCON",
+        368
+      ],
+      [
+        "STOLT TEAL",
+        329
+      ],
+      [
+        "ELLI",
+        154
+      ]
+    ]
+  },
+  {
+    "lat": 30.1,
+    "lon": -94.10000000000001,
+    "hits": 2380,
+    "distinct_tankers": 3,
+    "nearest_port": "Port Arthur, US",
+    "dist_nm": 27.3,
+    "top_names": [
+      [
+        "YASA PELICAN",
+        1152
+      ],
+      [
+        "CLEAROCEAN MUSIC",
+        1041
+      ],
+      [
+        "ARIADNE",
+        187
+      ]
+    ]
+  },
+  {
+    "lat": 38.0,
+    "lon": -122.10000000000001,
+    "hits": 2377,
+    "distinct_tankers": 3,
+    "nearest_port": "San Francisco, US",
+    "dist_nm": 22.4,
+    "top_names": [
+      [
+        "IONIC ARIADNE",
+        860
+      ],
+      [
+        "ALPINE MATHILDE",
+        775
+      ],
+      [
+        "OVERSEAS BOSTON",
+        742
+      ]
+    ]
+  },
+  {
+    "lat": 40.6,
+    "lon": -74.2,
+    "hits": 2351,
+    "distinct_tankers": 6,
+    "nearest_port": "New York, US",
+    "dist_nm": 20.4,
+    "top_names": [
+      [
+        "PHOENIX ADMIRAL",
+        732
+      ],
+      [
+        "HAFNIA CRUX",
+        426
+      ],
+      [
+        "OVERSEAS SANTORINI",
+        362
+      ],
+      [
+        "NORDBAY",
+        344
+      ],
+      [
+        "BW PETREL",
+        250
+      ]
+    ]
+  },
+  {
+    "lat": 28.900000000000002,
+    "lon": -95.2,
+    "hits": 2296,
+    "distinct_tankers": 4,
+    "nearest_port": "Houston, US",
+    "dist_nm": 37.7,
+    "top_names": [
+      [
+        "STOLT TEAL",
+        1303
+      ],
+      [
+        "NORDIC ANN",
+        778
+      ],
+      [
+        "MTM SINGAPORE",
+        212
+      ],
+      [
+        "GULLIT",
+        3
+      ]
+    ]
+  },
+  {
+    "lat": 30.1,
+    "lon": -88.5,
+    "hits": 2286,
+    "distinct_tankers": 3,
+    "nearest_port": "New Orleans, US",
+    "dist_nm": 67.7,
+    "top_names": [
+      [
+        "SEA EAGLE",
+        1113
+      ],
+      [
+        "EMERALD SPIRIT",
+        609
+      ],
+      [
+        "OVERSEAS SUN COAST",
+        564
+      ]
+    ]
+  },
+  {
+    "lat": 29.8,
+    "lon": -90.0,
+    "hits": 2247,
+    "distinct_tankers": 7,
+    "nearest_port": "New Orleans, US",
+    "dist_nm": 54.1,
+    "top_names": [
+      [
+        "SAVONETTA SUN",
+        891
+      ],
+      [
+        "STARLING",
+        405
+      ],
+      [
+        "ARENDAL",
+        344
+      ],
+      [
+        "WELVIEW",
+        319
+      ],
+      [
+        "ZAHRA",
+        241
+      ]
+    ]
+  },
+  {
+    "lat": 30.3,
+    "lon": -88.5,
+    "hits": 2188,
+    "distinct_tankers": 4,
+    "nearest_port": "New Orleans, US",
+    "dist_nm": 77.8,
+    "top_names": [
+      [
+        "BAY STATE",
+        854
+      ],
+      [
+        "ORWELL",
+        796
+      ],
+      [
+        "SEA EAGLE",
+        496
+      ],
+      [
+        "EMERALD SPIRIT",
+        42
+      ]
+    ]
+  },
+  {
+    "lat": 28.700000000000003,
+    "lon": -94.5,
+    "hits": 2181,
+    "distinct_tankers": 3,
+    "nearest_port": "Houston, US",
+    "dist_nm": 40.4,
+    "top_names": [
+      [
+        "SEAGUARDIAN",
+        2061
+      ],
+      [
+        "BLUEFIN",
+        115
+      ],
+      [
+        "NORDIC STAR",
+        5
+      ]
+    ]
+  },
+  {
+    "lat": 40.7,
+    "lon": -74.10000000000001,
+    "hits": 2168,
+    "distinct_tankers": 2,
+    "nearest_port": "New York, US",
+    "dist_nm": 20.3,
+    "top_names": [
+      [
+        "ORANGE BLOSSOM 2",
+        944
+      ],
+      [
+        "SEA PANTHER",
+        754
+      ],
+      [
+        "EMMA MILLER",
+        470
+      ]
+    ]
+  },
+  {
+    "lat": 28.700000000000003,
+    "lon": -94.60000000000001,
+    "hits": 2081,
+    "distinct_tankers": 3,
+    "nearest_port": "Houston, US",
+    "dist_nm": 39.4,
+    "top_names": [
+      [
+        "SFL FRASER",
+        955
+      ],
+      [
+        "MINERVA OLYMPIA",
+        879
+      ],
+      [
+        "FURUHOLMEN",
+        247
+      ]
+    ]
+  },
+  {
+    "lat": 30.1,
+    "lon": -88.60000000000001,
+    "hits": 1971,
+    "distinct_tankers": 2,
+    "nearest_port": "New Orleans, US",
+    "dist_nm": 64.8,
+    "top_names": [
+      [
+        "HAMBURG STAR",
+        1017
+      ],
+      [
+        "AMALTHEA",
+        954
+      ]
+    ]
+  },
+  {
+    "lat": 30.200000000000003,
+    "lon": -91.0,
+    "hits": 1863,
+    "distinct_tankers": 4,
+    "nearest_port": "New Orleans, US",
+    "dist_nm": 109.9,
+    "top_names": [
+      [
+        "LADYBOWER",
+        685
+      ],
+      [
+        "GINGA LIGER",
+        640
+      ],
+      [
+        "SAVONETTA SUN",
+        410
+      ],
+      [
+        "CHEM NORMA",
+        128
+      ]
+    ]
+  },
+  {
+    "lat": 29.700000000000003,
+    "lon": -91.10000000000001,
+    "hits": 1826,
+    "distinct_tankers": 1,
+    "nearest_port": "New Orleans, US",
+    "dist_nm": 101.6,
+    "top_names": [
+      [
+        "GAS INSPIRATION",
+        1826
+      ]
+    ]
+  },
+  {
+    "lat": 42.900000000000006,
+    "lon": -82.4,
+    "hits": 1821,
+    "distinct_tankers": 1,
+    "nearest_port": "New York, US",
+    "dist_nm": 412.5,
+    "top_names": [
+      [
+        "IVER BRIGHT",
+        1821
+      ]
+    ]
+  },
+  {
+    "lat": 28.6,
+    "lon": -94.7,
+    "hits": 1776,
+    "distinct_tankers": 1,
+    "nearest_port": "Houston, US",
+    "dist_nm": 45.0,
+    "top_names": [
+      [
+        "ADAMANTIOS",
+        1776
+      ]
+    ]
+  },
+  {
+    "lat": 43.0,
+    "lon": -82.4,
+    "hits": 1764,
+    "distinct_tankers": 2,
+    "nearest_port": "New York, US",
+    "dist_nm": 414.4,
+    "top_names": [
+      [
+        "ALGOSEA",
+        1540
+      ],
+      [
+        "ALGOTERRA",
+        224
+      ]
+    ]
+  },
+  {
+    "lat": 29.700000000000003,
+    "lon": -95.30000000000001,
+    "hits": 1758,
+    "distinct_tankers": 3,
+    "nearest_port": "Houston, US",
+    "dist_nm": 37.7,
+    "top_names": [
+      [
+        "GINGA PUMA",
+        1186
+      ],
+      [
+        "ARDMORE CHEROKEE",
+        329
+      ],
+      [
+        "BOCHEM LONDON",
+        243
+      ]
+    ]
+  },
+  {
+    "lat": 29.3,
+    "lon": -93.7,
+    "hits": 1755,
+    "distinct_tankers": 1,
+    "nearest_port": "Port Arthur, US",
+    "dist_nm": 25.3,
+    "top_names": [
+      [
+        "MEGACORE PHILOMENA",
+        1755
+      ]
+    ]
+  },
+  {
+    "lat": 21.400000000000002,
+    "lon": -157.9,
+    "hits": 1753,
+    "distinct_tankers": 1,
+    "nearest_port": "San Francisco, US",
+    "dist_nm": 2076.4,
+    "top_names": [
+      [
+        "MAERSK PEARY",
+        1753
+      ]
+    ]
+  },
+  {
+    "lat": 45.6,
+    "lon": -122.7,
+    "hits": 1740,
+    "distinct_tankers": 2,
+    "nearest_port": "San Francisco, US",
+    "dist_nm": 468.4,
+    "top_names": [
+      [
+        "AMERICAN ENDURANCE",
+        1178
+      ],
+      [
+        "ARGENT HIBISCUS",
+        562
+      ]
+    ]
+  },
+  {
+    "lat": 21.3,
+    "lon": -157.9,
+    "hits": 1718,
+    "distinct_tankers": 2,
+    "nearest_port": "San Francisco, US",
+    "dist_nm": 2079.9,
+    "top_names": [
+      [
+        "PLOUTOS",
+        1439
+      ],
+      [
+        "STI RUBY",
+        279
+      ]
+    ]
+  },
+  {
+    "lat": 32.1,
+    "lon": -81.10000000000001,
+    "hits": 1694,
+    "distinct_tankers": 2,
+    "nearest_port": "Savannah, US",
+    "dist_nm": 17.7,
+    "top_names": [
+      [
+        "BUNGO CROWN",
+        1262
+      ],
+      [
+        "CAPE TAMPA",
+        432
+      ]
+    ]
+  },
+  {
+    "lat": 32.300000000000004,
+    "lon": -117.10000000000001,
+    "hits": 1665,
+    "distinct_tankers": 2,
+    "nearest_port": "Long Beach, US",
+    "dist_nm": 103.2,
+    "top_names": [
+      [
+        "STI LA BOCA",
+        1308
+      ],
+      [
+        "VALLE LUNA",
+        357
+      ]
+    ]
+  },
+  {
+    "lat": 47.300000000000004,
+    "lon": -122.4,
+    "hits": 1646,
+    "distinct_tankers": 1,
+    "nearest_port": "San Francisco, US",
+    "dist_nm": 570.4,
+    "top_names": [
+      [
+        "FLORIDA",
+        1646
+      ]
+    ]
+  },
+  {
+    "lat": 32.7,
+    "lon": -117.10000000000001,
+    "hits": 1643,
+    "distinct_tankers": 1,
+    "nearest_port": "Long Beach, US",
+    "dist_nm": 84.0,
+    "top_names": [
+      [
+        "HARVEY MILK",
+        1643
+      ]
+    ]
+  },
+  {
+    "lat": 29.5,
+    "lon": -89.80000000000001,
+    "hits": 1620,
+    "distinct_tankers": 2,
+    "nearest_port": "New Orleans, US",
+    "dist_nm": 34.6,
+    "top_names": [
+      [
+        "PGC IKAROS",
+        1258
+      ],
+      [
+        "DORIC BREEZE",
+        362
+      ]
+    ]
+  },
+  {
+    "lat": 28.6,
+    "lon": -94.10000000000001,
+    "hits": 1613,
+    "distinct_tankers": 4,
+    "nearest_port": "Houston, US",
+    "dist_nm": 55.0,
+    "top_names": [
+      [
+        "DELTA ANGELICA",
+        1348
+      ],
+      [
+        "PARAMOUNT HAMILTON",
+        146
+      ],
+      [
+        "NISALAH",
+        112
+      ],
+      [
+        "PARAMOUNT HATTERAS",
+        7
+      ]
+    ]
+  },
+  {
+    "lat": 29.200000000000003,
+    "lon": -93.7,
+    "hits": 1597,
+    "distinct_tankers": 2,
+    "nearest_port": "Port Arthur, US",
+    "dist_nm": 31.0,
+    "top_names": [
+      [
+        "GARIBALDI SPIRIT",
+        1582
+      ],
+      [
+        "MEGACORE PHILOMENA",
+        15
+      ]
+    ]
+  },
+  {
+    "lat": 28.8,
+    "lon": -89.4,
+    "hits": 1578,
+    "distinct_tankers": 3,
+    "nearest_port": "New Orleans, US",
+    "dist_nm": 24.1,
+    "top_names": [
+      [
+        "PARAMOUNT HALIFAX",
+        766
+      ],
+      [
+        "JIPRO ISIS",
+        668
+      ],
+      [
+        "DUBAI GLAMOUR",
+        144
+      ]
+    ]
+  },
+  {
+    "lat": 29.900000000000002,
+    "lon": -90.0,
+    "hits": 1563,
+    "distinct_tankers": 2,
+    "nearest_port": "New Orleans, US",
+    "dist_nm": 58.3,
+    "top_names": [
+      [
+        "DANCING BRAVE",
+        798
+      ],
+      [
+        "SILVER DUBAI",
+        765
+      ]
+    ]
+  },
+  {
+    "lat": 26.5,
+    "lon": -78.80000000000001,
+    "hits": 1544,
+    "distinct_tankers": 10,
+    "nearest_port": "Tampa, US",
+    "dist_nm": 234.9,
+    "top_names": [
+      [
+        "OWL 6",
+        402
+      ],
+      [
+        "YUAN BEI HAI",
+        378
+      ],
+      [
+        "EVROTAS",
+        250
+      ],
+      [
+        "AQUAFREEDOM",
+        211
+      ],
+      [
+        "TOKYO SPIRIT",
+        163
+      ]
+    ]
+  },
+  {
+    "lat": 28.3,
+    "lon": -96.30000000000001,
+    "hits": 1521,
+    "distinct_tankers": 2,
+    "nearest_port": "Corpus Christi, US",
+    "dist_nm": 47.7,
+    "top_names": [
+      [
+        "BOW EXPLORER",
+        803
+      ],
+      [
+        "BOW TRIDENT",
+        718
+      ]
+    ]
+  },
+  {
+    "lat": 28.700000000000003,
+    "lon": -94.80000000000001,
+    "hits": 1495,
+    "distinct_tankers": 1,
+    "nearest_port": "Houston, US",
+    "dist_nm": 39.4,
+    "top_names": [
+      [
+        "SAKURA PRINCESS",
+        1495
+      ]
+    ]
+  },
+  {
+    "lat": 30.3,
+    "lon": -91.2,
+    "hits": 1470,
+    "distinct_tankers": 2,
+    "nearest_port": "Lake Charles, US",
+    "dist_nm": 115.5,
+    "top_names": [
+      [
+        "JAZZ",
+        744
+      ],
+      [
+        "RHAPSODY",
+        726
+      ]
+    ]
+  },
+  {
+    "lat": 30.700000000000003,
+    "lon": -88.0,
+    "hits": 1466,
+    "distinct_tankers": 3,
+    "nearest_port": "New Orleans, US",
+    "dist_nm": 112.1,
+    "top_names": [
+      [
+        "GHAT",
+        597
+      ],
+      [
+        "JAG LAXMI",
+        555
+      ],
+      [
+        "SILVER DUBAI",
+        314
+      ]
+    ]
+  },
+  {
+    "lat": 28.3,
+    "lon": -95.2,
+    "hits": 1452,
+    "distinct_tankers": 2,
+    "nearest_port": "Houston, US",
+    "dist_nm": 68.3,
+    "top_names": [
+      [
+        "ZENITH SPIRIT",
+        1011
+      ],
+      [
+        "V. GLORY",
+        441
+      ]
+    ]
+  },
+  {
+    "lat": 28.6,
+    "lon": -94.5,
+    "hits": 1450,
+    "distinct_tankers": 3,
+    "nearest_port": "Houston, US",
+    "dist_nm": 46.2,
+    "top_names": [
+      [
+        "SFL FRASER",
+        741
+      ],
+      [
+        "SEA RUBY",
+        678
+      ],
+      [
+        "ENERGY CHANCELLOR",
+        31
+      ]
+    ]
+  },
+  {
+    "lat": 30.1,
+    "lon": -88.0,
+    "hits": 1442,
+    "distinct_tankers": 4,
+    "nearest_port": "New Orleans, US",
+    "dist_nm": 85.5,
+    "top_names": [
+      [
+        "OVERSEAS CASCADE",
+        614
+      ],
+      [
+        "LUZON SPIRIT",
+        523
+      ],
+      [
+        "GHAT",
+        302
+      ],
+      [
+        "OVERSEAS CHINOOK",
+        3
+      ]
+    ]
+  },
+  {
+    "lat": 28.8,
+    "lon": -94.5,
+    "hits": 1442,
+    "distinct_tankers": 4,
+    "nearest_port": "Houston, US",
+    "dist_nm": 34.6,
+    "top_names": [
+      [
+        "STORHOLMEN",
+        1107
+      ],
+      [
+        "GREEN AURA",
+        237
+      ],
+      [
+        "SEA PUMA",
+        86
+      ],
+      [
+        "NORDIC STAR",
+        12
+      ]
+    ]
+  }
+]

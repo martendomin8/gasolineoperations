@@ -98,8 +98,7 @@ PORTS = {
     "Skikda, DZ":      {"approach": [[36.88, 6.90]],                                      "gateway": [37.10, 6.90], "region": "MED_WEST"},
     "Genoa, IT":       {"approach": [[44.40, 8.92]],                                      "gateway": [44.20, 8.80], "region": "MED_WEST"},
     "Sarroch, IT":     {"approach": [[39.07, 9.02]],                                      "gateway": [38.80, 9.00], "region": "MED_WEST"},
-    # Naples: approach via Bocche di Bonifacio south (west of Italy mainland)
-    "Naples, IT":      {"approach": [[40.83, 14.27], [40.20, 13.80], [39.50, 12.80]],     "gateway": [39.00, 11.50], "region": "MED_WEST"},
+    "Naples, IT":      {"approach": [[40.83, 14.27]],                                     "gateway": [40.50, 14.20], "region": "MED_WEST"},
     # Augusta (Sicily east): loop south of Sicily into the Sicilian Channel
     "Augusta, IT":     {"approach": [[37.22, 15.22], [36.80, 15.20], [36.30, 14.70]],     "gateway": [36.00, 13.50], "region": "MED_WEST"},
     "Benghazi, LY":    {"approach": [[32.12, 20.07]],                                     "gateway": [32.30, 20.00], "region": "MED_WEST"},
@@ -109,13 +108,18 @@ PORTS = {
     "Agioi Theodoroi, GR": {"approach": [[37.92, 23.08], [37.50, 23.50]],                 "gateway": [37.00, 23.50], "region": "MED_EAST"},
     "Aliaga, TR":      {"approach": [[38.80, 26.97]],                                     "gateway": [38.80, 26.00], "region": "MED_EAST"},
     "Izmit, TR":       {"approach": [[40.77, 29.92], [40.75, 29.00], [40.40, 26.80]],     "gateway": [40.00, 26.00], "region": "MED_EAST"},
-    "Vassiliko, CY":   {"approach": [[34.73, 33.33]],                                     "gateway": [34.50, 33.30], "region": "MED_EAST"},
+    "Vassiliko, CY":   {"approach": [[34.73, 33.33]],                                     "gateway": [34.70, 33.10], "region": "MED_EAST"},
     "Beirut, LB":      {"approach": [[33.90, 35.52]],                                     "gateway": [33.90, 35.00], "region": "MED_EAST"},
     "Alexandria, EG":  {"approach": [[31.18, 29.88]],                                     "gateway": [31.50, 29.90], "region": "MED_EAST"},
 
-    # Adriatic
-    "Koper, SI":       {"approach": [[45.53, 13.73], [45.00, 13.50]],                     "gateway": [43.50, 15.00], "region": "MED_WEST"},
-    "Split, HR":       {"approach": [[43.50, 16.43], [43.00, 16.00]],                     "gateway": [42.00, 16.50], "region": "MED_WEST"},
+    # Adriatic — separate region, must use Otranto strait for access to
+    # Ionian/Tyrrhenian Sea.
+    # Koper sits at the top of the Adriatic. Istria peninsula blocks a
+    # direct approach from the south, so the approach path first clears
+    # Savudrija Cape (45.50N 13.49E, NW tip of Istria) via a waypoint at
+    # (45.55, 13.40) before turning east into the Gulf of Trieste.
+    "Koper, SI":       {"approach": [[45.53, 13.73], [45.55, 13.40]],                     "gateway": [45.10, 13.40], "region": "ADRIATIC"},
+    "Split, HR":       {"approach": [[43.50, 16.43], [43.00, 16.00]],                     "gateway": [42.00, 16.50], "region": "ADRIATIC"},
 
     # Black Sea
     "Constantza, RO":  {"approach": [[44.17, 28.65]],                                     "gateway": [44.20, 29.20], "region": "BLACK_SEA"},
@@ -142,10 +146,12 @@ PORTS = {
     # Red Sea
     "Yanbu, SA":       {"approach": [[24.08, 38.05]],                                     "gateway": [24.00, 37.00], "region": "RED_SEA"},
 
-    # Persian Gulf
+    # Persian Gulf — Fujairah is on Gulf of Oman (outside Gulf, INDIAN_OCEAN).
+    # Jebel Ali and Ruwais are INSIDE the Persian Gulf, require strait_of_hormuz
+    # corridor to reach outside water.
     "Fujairah, AE":    {"approach": [[25.13, 56.35]],                                     "gateway": [25.30, 57.00], "region": "INDIAN_OCEAN"},
-    "Jebel Ali, AE":   {"approach": [[25.02, 55.07], [25.50, 56.20]],                     "gateway": [25.80, 57.00], "region": "INDIAN_OCEAN"},
-    "Ruwais, AE":      {"approach": [[24.10, 52.72], [25.20, 55.80]],                     "gateway": [25.80, 57.00], "region": "INDIAN_OCEAN"},
+    "Jebel Ali, AE":   {"approach": [[25.02, 55.07], [25.40, 54.90]],                     "gateway": [26.00, 56.00], "region": "PERSIAN_GULF"},
+    "Ruwais, AE":      {"approach": [[24.10, 52.72], [24.60, 53.20], [25.30, 54.30]],     "gateway": [26.00, 56.00], "region": "PERSIAN_GULF"},
 
     # Indian Ocean
     "Sikka, IN":       {"approach": [[22.43, 69.83]],                                     "gateway": [22.40, 68.80], "region": "INDIAN_OCEAN"},
@@ -171,8 +177,19 @@ PORTS = {
     "Halifax, CA":     {"approach": [[44.63, -63.57]],                                    "gateway": [44.40, -63.00], "region": "NW_ATLANTIC"},
     "Point Tupper, CA":{"approach": [[45.62, -61.37], [45.50, -60.50]],                   "gateway": [45.00, -59.80], "region": "NW_ATLANTIC"},
     "Come-by-Chance, CA": {"approach": [[47.82, -54.00], [47.30, -53.40]],                "gateway": [46.80, -52.80], "region": "NW_ATLANTIC"},
-    "Quebec, CA":      {"approach": [[46.82, -71.20], [47.50, -68.00], [48.50, -66.00], [48.50, -62.00]], "gateway": [47.80, -59.50], "region": "NW_ATLANTIC"},
-    "Montreal, CA":    {"approach": [[45.50, -73.55], [46.00, -72.50], [46.82, -71.20], [47.50, -68.00], [48.50, -66.00], [48.50, -62.00]], "gateway": [47.80, -59.50], "region": "NW_ATLANTIC"},
+    # Quebec sits on the north shore of the St. Lawrence River, ~150 NM
+    # inland from the Gulf. Approach follows the actual shipping channel:
+    # down the river past Tadoussac, through the estuary south of the
+    # Côte-Nord shore, out into the Gulf south of Anticosti Island,
+    # then east toward Cabot Strait. The previous waypoints (47.5,-68)
+    # and (48.5,-66) were on Gaspé Peninsula land — only masked because
+    # the NAVIGABLE_CORRIDORS box covered the whole St. Lawrence region.
+    # Quebec → Gulf routing uses Jacques Cartier Passage (north of
+    # Anticosti) rather than the narrower Honguedo Strait (between
+    # Gaspé Peninsula and Anticosti south coast). Wider fairway, less
+    # chance of clipping land on the great-circle interpolation.
+    "Quebec, CA":      {"approach": [[46.82, -71.20], [46.95, -70.90], [47.30, -70.40], [47.70, -69.90], [48.20, -69.20], [48.80, -68.50], [49.30, -67.40], [49.95, -65.00], [50.10, -61.50], [49.00, -60.00]], "gateway": [47.80, -59.50], "region": "NW_ATLANTIC"},
+    "Montreal, CA":    {"approach": [[45.50, -73.55], [46.00, -72.50], [46.82, -71.20], [46.95, -70.90], [47.30, -70.40], [47.70, -69.90], [48.20, -69.20], [48.80, -68.50], [49.30, -67.40], [49.95, -65.00], [50.10, -61.50], [49.00, -60.00]], "gateway": [47.80, -59.50], "region": "NW_ATLANTIC"},
 
     # Caribbean
     "Aruba, AW":       {"approach": [[12.45, -69.97]],                                    "gateway": [12.80, -70.00], "region": "CARIBBEAN"},
@@ -198,8 +215,13 @@ PORTS = {
 
 CORRIDORS = {
     # ATLANTIC CROSSINGS
-    # Channel exit → Newfoundland south → US East Coast offshore
-    "atlantic_n_crossing": [[49.50, -5.50], [48.00, -20.00], [45.00, -40.00], [42.00, -55.00], [40.30, -65.00]],
+    # Channel exit → Newfoundland south → US East Coast offshore.
+    # Sparse waypoints on purpose — the client renders each segment as a
+    # great-circle arc, so this 3-point corridor produces the natural
+    # north-bulging transatlantic curve (peak ~53°N near -30°W) that
+    # real shipping follows. Extra waypoints would chop the curve into
+    # flat Mercator-style sub-segments.
+    "atlantic_n_crossing": [[49.50, -5.50], [42.00, -55.00], [40.30, -65.00]],
 
     # GIBRALTAR — narrow strait, minimal waypoints
     "gibraltar_transit": [[36.00, -5.30], [35.95, -5.70]],
@@ -235,10 +257,19 @@ CORRIDORS = {
     ],
 
     # AEGEAN SOUTH → CYPRUS / LEVANT — south of Turkish coast, east of
-    # Rhodes, into east Mediterranean.
+    # Rhodes, into east Mediterranean. Ends offshore to let port gateways
+    # do the final approach.
     "aegean_south_levant": [
         [38.50, 26.20], [36.50, 28.20], [35.30, 29.50], [35.00, 32.00],
-        [34.73, 33.33]
+        [34.80, 33.00]
+    ],
+
+    # ADRIATIC TRANSIT — Koper/Split down the Adriatic via Otranto Strait
+    # to Ionian Sea. From there med_west_transit or sicilian_channel_ionian
+    # handle the rest.
+    "adriatic_to_ionian": [
+        [45.00, 13.50], [44.00, 14.00], [42.00, 16.50], [40.00, 18.50],
+        [39.50, 18.00], [38.50, 17.00], [37.00, 16.50], [36.00, 16.50]
     ],
 
     # AROUND SAAREMAA — tight western loop for Tallinn/Ust-Luga ↔ Ventspils.
@@ -253,6 +284,52 @@ CORRIDORS = {
     "irish_sea_to_channel": [
         [54.90, -5.30], [53.50, -5.60], [52.00, -6.20], [51.00, -7.00],
         [49.80, -6.00], [49.50, -5.50]
+    ],
+
+    # TYRRHENIAN EAST — Genoa/Ligurian ↔ south Tyrrhenian (Naples).
+    # Stays east of Corsica (east coast ~9.5°E) and west of Tuscan
+    # archipelago (Capraia ~9.83°E east edge, Elba ~10.09°E west edge).
+    # Straight down to open Tyrrhenian, then swings east toward Naples
+    # staying west of the Pontine Islands (Ponza 12.95°E).
+    "tyrrhenian_east_transit": [
+        [43.50, 10.00], [42.50, 10.00], [41.50, 11.50], [40.90, 12.50]
+    ],
+
+    # SARDINIA WEST BYPASS — Ligurian (Genoa) ↔ SW Sardinia (Sarroch).
+    # Goes west of Corsica (west coast ~8.55°E) and west of Sardinia
+    # (west coast ~8.2°E at Capo dell'Argentiera), then swings east
+    # around the south-west corner into the Cagliari approach.
+    "sardinia_west_bypass": [
+        [43.50, 8.20], [42.00, 8.00], [40.00, 7.90], [39.20, 8.30],
+        [38.90, 8.80]
+    ],
+
+    # TYRRHENIAN → ADRIATIC via MESSINA STRAIT — one-shot corridor for
+    # N-Italian MED_WEST ports (Genoa, Lavera, Marseille, Naples) going
+    # to ADRIATIC ports (Koper, Split). Down east of Corsica/Sardinia
+    # through the Tyrrhenian, through the Strait of Messina (a real
+    # navigable lane inside the Messina NAVIGABLE_CORRIDOR), across the
+    # Ionian, through the Otranto Strait, and up the Adriatic to Koper.
+    # Single corridor so `_corridor_subset` can slice it cleanly via
+    # entry/exit indices — no cross-corridor join ambiguity.
+    "tyrrhenian_adriatic_via_messina": [
+        [43.50, 10.00], [41.80, 11.50], [40.00, 13.50],
+        [38.70, 15.30], [38.20, 15.65], [38.00, 16.00],
+        [38.50, 17.50], [39.50, 18.80], [41.00, 18.30],
+        [42.50, 16.30], [44.00, 14.30], [45.10, 13.40]
+    ],
+
+    # US EAST COAST → GULF OF ST. LAWRENCE — for New York/Boston/
+    # Philadelphia routing up to Quebec/Montreal. Default same-region
+    # composition draws a straight line from NY Bight to south
+    # Newfoundland (the Quebec gateway), cutting through Nova Scotia
+    # and the Bay of Fundy. This corridor hugs the US/Canadian east
+    # coast offshore, rounds Cape Sable, and enters the Gulf via
+    # Cabot Strait (between Cape Breton and Cape Ray, Newfoundland).
+    "us_east_to_gulf_stl": [
+        [40.30, -73.50], [41.50, -69.50], [43.00, -65.50],
+        [44.00, -62.50], [45.20, -60.20], [46.80, -59.40],
+        [47.80, -59.50]
     ],
 
     # NORTH SEA — Dover to Skaw / Kattegat / Baltic.
@@ -373,6 +450,17 @@ REGION_GRAPH = {
     ("IBERIA", "INDIAN_OCEAN"): ["gibraltar_transit", "med_west_transit", "sicilian_channel_ionian", "aegean_transit", "suez_red_sea", "bab_el_mandeb", "aden_to_hormuz"],
     ("IBERIA", "CARIBBEAN"): ["atlantic_n_crossing", "us_east_coast", "caribbean_transit"],
 
+    # ADRIATIC — Koper, Split. Access via Otranto Strait.
+    ("ADRIATIC", "MED_WEST"): ["adriatic_to_ionian", "sicilian_channel_ionian", "med_west_transit"],
+    ("ADRIATIC", "MED_EAST"): ["adriatic_to_ionian", "sicilian_channel_ionian", "aegean_transit"],
+    ("ADRIATIC", "BLACK_SEA"): ["adriatic_to_ionian", "sicilian_channel_ionian", "aegean_transit", "turkish_straits"],
+    ("ADRIATIC", "RED_SEA"): ["adriatic_to_ionian", "sicilian_channel_ionian", "aegean_transit", "suez_red_sea"],
+    ("ADRIATIC", "IBERIA"): ["adriatic_to_ionian", "sicilian_channel_ionian", "med_west_transit", "gibraltar_transit"],
+    ("ADRIATIC", "NE_ATLANTIC"): ["adriatic_to_ionian", "sicilian_channel_ionian", "med_west_transit", "gibraltar_transit", "iberia_offshore", "channel_transit"],
+    ("ADRIATIC", "W_AFRICA"): ["adriatic_to_ionian", "sicilian_channel_ionian", "med_west_transit", "gibraltar_transit", "canaries_bypass", "west_africa_offshore"],
+    ("MED_WEST", "ADRIATIC"): ["sicilian_channel_ionian", "adriatic_to_ionian"],
+    ("MED_EAST", "ADRIATIC"): ["aegean_transit", "sicilian_channel_ionian", "adriatic_to_ionian"],
+
     # MED_WEST — always prepend med_west_transit to reach the Sicilian
     # Channel or Gibraltar without hopping across the western basin.
     ("MED_WEST", "MED_EAST"): ["med_west_transit", "sicilian_channel_ionian", "aegean_transit"],
@@ -408,6 +496,18 @@ REGION_GRAPH = {
     ("INDIAN_OCEAN", "SE_ASIA"): ["indian_ocean_bab_to_malacca", "malacca_strait"],
     ("INDIAN_OCEAN", "E_AFRICA"): [],
     ("INDIAN_OCEAN", "S_ATLANTIC"): ["cape_of_good_hope"],
+    ("INDIAN_OCEAN", "PERSIAN_GULF"): ["strait_of_hormuz"],
+
+    # PERSIAN_GULF — Jebel Ali, Ruwais. Access only via Hormuz.
+    ("PERSIAN_GULF", "INDIAN_OCEAN"): ["strait_of_hormuz"],
+    ("PERSIAN_GULF", "RED_SEA"): ["strait_of_hormuz", "aden_to_hormuz", "bab_el_mandeb"],
+    ("PERSIAN_GULF", "MED_EAST"): ["strait_of_hormuz", "aden_to_hormuz", "bab_el_mandeb", "suez_red_sea", "aegean_transit"],
+    ("PERSIAN_GULF", "MED_WEST"): ["strait_of_hormuz", "aden_to_hormuz", "bab_el_mandeb", "suez_red_sea", "aegean_transit", "sicilian_channel_ionian", "med_west_transit"],
+    ("PERSIAN_GULF", "SE_ASIA"): ["strait_of_hormuz", "indian_ocean_bab_to_malacca", "malacca_strait"],
+    ("PERSIAN_GULF", "E_AFRICA"): ["strait_of_hormuz"],
+    ("PERSIAN_GULF", "S_ATLANTIC"): ["strait_of_hormuz", "cape_of_good_hope"],
+    ("PERSIAN_GULF", "NE_ATLANTIC"): ["strait_of_hormuz", "aden_to_hormuz", "bab_el_mandeb", "suez_red_sea", "aegean_transit", "sicilian_channel_ionian", "med_west_transit", "gibraltar_transit", "iberia_offshore", "channel_transit"],
+    ("PERSIAN_GULF", "IBERIA"): ["strait_of_hormuz", "aden_to_hormuz", "bab_el_mandeb", "suez_red_sea", "aegean_transit", "sicilian_channel_ionian", "med_west_transit", "gibraltar_transit"],
 
     # E_AFRICA, S_ATLANTIC, SE_ASIA:
     ("E_AFRICA", "INDIAN_OCEAN"): [],
@@ -513,6 +613,15 @@ SAME_REGION_CORRIDORS = {
     # — through open Baltic sea, not across Latvia/Lithuania
     frozenset(["Tallinn, EE", "Klaipeda, LT"]): ["baltic_open_sea"],
     frozenset(["Tallinn, EE", "Gdansk, PL"]): ["baltic_open_sea"],
+    # MED_WEST internal — long east-west routes must use Sicilian Channel
+    # not cut across Tunisia / Sardinia.
+    frozenset(["Skikda, DZ", "Benghazi, LY"]): ["sicilian_channel_ionian"],
+    frozenset(["Algiers, DZ", "Benghazi, LY"]): ["sicilian_channel_ionian"],
+    frozenset(["Algeciras, ES", "Benghazi, LY"]): ["med_west_transit", "sicilian_channel_ionian"],
+    frozenset(["Mohammedia, MA", "Benghazi, LY"]): ["med_west_transit", "sicilian_channel_ionian"],
+    frozenset(["Gibraltar, GI", "Benghazi, LY"]): ["med_west_transit", "sicilian_channel_ionian"],
+    frozenset(["Ceuta, ES", "Benghazi, LY"]): ["med_west_transit", "sicilian_channel_ionian"],
+
     # MED_EAST internal — Aegean ports ↔ Cyprus / Levant (around Turkish coast)
     frozenset(["Aliaga, TR", "Vassiliko, CY"]): ["aegean_south_levant"],
     frozenset(["Aliaga, TR", "Beirut, LB"]): ["aegean_south_levant"],
@@ -540,6 +649,45 @@ SAME_REGION_CORRIDORS = {
     frozenset(["Porvoo, FI", "Gdansk, PL"]): ["baltic_open_sea"],
     frozenset(["Ventspils, LV", "Gdansk, PL"]): ["baltic_open_sea"],
     frozenset(["Ventspils, LV", "Klaipeda, LT"]): ["baltic_open_sea"],
+
+    # MED_WEST — Italian Tyrrhenian. Straight lines between Ligurian and
+    # southern Tyrrhenian ports clip Corsica/Sardinia or the Italian
+    # mainland — force a proper corridor.
+    frozenset(["Genoa, IT", "Naples, IT"]): ["tyrrhenian_east_transit"],
+    frozenset(["Genoa, IT", "Sarroch, IT"]): ["sardinia_west_bypass"],
+
+    # NE_ATLANTIC — west-UK/Irish ports ↔ south-UK/French-Channel ports.
+    # Default same-region composition runs a straight line over the UK
+    # mainland. Route down Irish Sea, around Land's End, up the Channel.
+    frozenset(["Belfast, GB", "Fawley, GB"]): ["irish_sea_to_channel", "channel_transit"],
+    frozenset(["Belfast, GB", "Le Havre, FR"]): ["irish_sea_to_channel", "channel_transit"],
+    frozenset(["Belfast, GB", "Dunkirk, FR"]): ["irish_sea_to_channel", "channel_transit"],
+    frozenset(["Dublin, IE", "Fawley, GB"]): ["irish_sea_to_channel", "channel_transit"],
+    frozenset(["Dublin, IE", "Le Havre, FR"]): ["irish_sea_to_channel", "channel_transit"],
+    frozenset(["Dublin, IE", "Dunkirk, FR"]): ["irish_sea_to_channel", "channel_transit"],
+
+    # NW_ATLANTIC — US east coast ↔ Gulf of St. Lawrence (Quebec/Montreal).
+    # Default same-region straight line cuts through Nova Scotia / Bay
+    # of Fundy. Route offshore around Cape Sable into Cabot Strait.
+    frozenset(["New York, US", "Quebec, CA"]): ["us_east_to_gulf_stl"],
+    frozenset(["New York, US", "Montreal, CA"]): ["us_east_to_gulf_stl"],
+}
+
+
+# Pair-specific overrides for CROSS-region routes where the default
+# region chain produces a detour. For N-Italian MED_WEST ports going
+# to the Adriatic, the default ("MED_WEST", "ADRIATIC") chain routes
+# via the Sicilian Channel (west of Sardinia) — a long detour. Force
+# the shorter route via the Strait of Messina.
+CROSS_REGION_CORRIDORS = {
+    frozenset(["Genoa, IT", "Koper, SI"]): ["tyrrhenian_adriatic_via_messina"],
+    frozenset(["Genoa, IT", "Split, HR"]): ["tyrrhenian_adriatic_via_messina"],
+    frozenset(["Lavera, FR", "Koper, SI"]): ["tyrrhenian_adriatic_via_messina"],
+    frozenset(["Lavera, FR", "Split, HR"]): ["tyrrhenian_adriatic_via_messina"],
+    frozenset(["Marseille, FR", "Koper, SI"]): ["tyrrhenian_adriatic_via_messina"],
+    frozenset(["Marseille, FR", "Split, HR"]): ["tyrrhenian_adriatic_via_messina"],
+    frozenset(["Naples, IT", "Koper, SI"]): ["tyrrhenian_adriatic_via_messina"],
+    frozenset(["Naples, IT", "Split, HR"]): ["tyrrhenian_adriatic_via_messina"],
 }
 
 
@@ -606,9 +754,14 @@ def compose_path(port_a: str, port_b: str) -> list:
 
     # Port-pair-specific override for same-region routes where geography
     # forces a loop around islands/peninsulas (British Isles, Baltic etc.)
+    # Cross-region override used when the default region chain produces
+    # a geographic detour (e.g. N-Italy ↔ Adriatic via Sicilian Channel
+    # instead of Messina).
     override_key = frozenset([port_a, port_b])
     if pa["region"] == pb["region"] and override_key in SAME_REGION_CORRIDORS:
         chain = SAME_REGION_CORRIDORS[override_key]
+    elif override_key in CROSS_REGION_CORRIDORS:
+        chain = CROSS_REGION_CORRIDORS[override_key]
     else:
         chain = find_corridor_chain(pa["region"], pb["region"])
     if chain is None:
