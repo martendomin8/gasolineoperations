@@ -226,8 +226,10 @@ CORRIDORS = {
         [56.00, 19.00], [57.50, 20.50], [59.20, 22.30]
     ],
 
-    # WESTERN MED — Gibraltar east to Sicilian Channel
-    "med_west_transit": [[35.95, -5.70], [36.00, -2.00], [37.20, 1.00], [38.00, 5.00], [38.50, 7.50]],
+    # WESTERN MED — Gibraltar east to Sicilian Channel. Starts at Alboran
+    # Sea (36, -3) to avoid overlapping the gibraltar_transit endpoint
+    # which would cause a small west-then-east backtrack in composed paths.
+    "med_west_transit": [[36.00, -3.00], [37.20, 1.00], [38.00, 5.00], [38.50, 7.50]],
 
     # SICILIAN CHANNEL + IONIAN
     "sicilian_channel_ionian": [[38.50, 7.50], [37.70, 11.30], [36.50, 13.50], [36.00, 16.50], [35.80, 20.00], [36.00, 22.00]],
@@ -516,10 +518,12 @@ def compose_path(port_a: str, port_b: str) -> list:
     pts.append(pb["gateway"])
     pts.extend(list(reversed(pb["approach"])))
 
-    # Deduplicate consecutive equal points
+    # Deduplicate consecutive near-equal points (within 3 NM) to avoid
+    # "backtracks" where two corridors share a nearly identical endpoint.
     cleaned = [pts[0]]
     for p in pts[1:]:
-        if p != cleaned[-1]:
+        last = cleaned[-1]
+        if haversine_nm(last[0], last[1], p[0], p[1]) > 3.0:
             cleaned.append(p)
     return cleaned
 
