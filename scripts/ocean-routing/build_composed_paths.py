@@ -226,11 +226,12 @@ CORRIDORS = {
         [58.80, -4.50], [58.80, -2.50], [57.50, -1.50], [56.30, -1.00]
     ],
 
-    # BALTIC OPEN SEA — between Gulf of Finland and south Baltic (Klaipeda,
-    # Gdansk) without cutting across Estonia / Latvia mainland.
+    # BALTIC OPEN SEA — Gulf of Finland exit → west of Estonian islands
+    # (Hiiumaa at 58.85-59.12°N 22-22.8°E, Saaremaa at 57.85-58.6°N
+    # 21.7-24°E) → open Baltic → Klaipeda / Gdansk.
     "baltic_open_sea": [
-        [59.60, 24.00], [58.50, 22.00], [57.00, 20.50], [56.00, 19.50],
-        [55.30, 19.80], [55.70, 21.00]
+        [59.80, 23.00], [59.70, 21.50], [58.50, 19.80], [57.50, 19.50],
+        [56.50, 19.50], [55.80, 19.80], [55.70, 20.80]
     ],
 
     # IRISH SEA SOUTH — Belfast/Dublin to Channel via south of Ireland
