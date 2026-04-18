@@ -143,7 +143,7 @@ export default function FleetPage() {
       fetch(`/api/linkages?status=ongoing&_t=${t}`, { cache: "no-store" }).then((r) =>
         r.ok ? (r.json() as Promise<LinkageRow[]>) : []
       ),
-      fetch(`/api/deals?perPage=200&_t=${t}`, { cache: "no-store" }).then((r) =>
+      fetch(`/api/deals?perPage=100&_t=${t}`, { cache: "no-store" }).then((r) =>
         r.ok ? (r.json() as Promise<{ items: DealItem[] }>) : { items: [] }
       ),
       fetch(`/api/parties?_t=${t}`, { cache: "no-store" }).then((r) =>
