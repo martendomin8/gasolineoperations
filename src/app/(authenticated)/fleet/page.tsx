@@ -14,21 +14,21 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
-import { Ship, X, ExternalLink, MapPin, AlertTriangle, Anchor, ArrowRight, Route, Trash2, GripVertical, Plus, ChevronRight, GitCompareArrows } from "lucide-react";
+import { Ship, X, ExternalLink, MapPin, AlertTriangle, Anchor, ArrowRight, Route, Trash2, GripVertical, Plus, ChevronRight, GitCompareArrows, Globe, Map as MapIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { buildLinkageCards } from "@/app/(authenticated)/dashboard/page";
 import { findPortCoordinates } from "@/lib/geo/ports";
 import { computeMockPosition } from "@/lib/geo/mock-positions";
 import { findPort, getSeaRoutePath, getSeaDistance } from "@/lib/maritime/sea-distance";
-import { STATUS_COLORS, STATUS_LABELS } from "./fleet-map";
-import type { FleetVessel, PlannerRouteLeg } from "./fleet-map";
+import { STATUS_COLORS, STATUS_LABELS } from "./fleet-map-maplibre";
+import type { FleetVessel, PlannerRouteLeg } from "./fleet-map-maplibre";
 import { WorldscalePanel } from "./worldscale-panel";
 import { PortCostsButton } from "./port-costs-button";
 
 // Dynamic import — Leaflet requires `window`
 const FleetMapInner = dynamic(
-  () => import("./fleet-map").then((m) => m.FleetMapInner),
+  () => import("./fleet-map-maplibre").then((m) => m.FleetMapInner),
   {
     ssr: false,
     loading: () => (
@@ -138,6 +138,9 @@ export default function FleetPage() {
   // Passage-avoidance toggles — switches route variants on the fly.
   const [avoidSuez, setAvoidSuez] = useState(false);
   const [avoidPanama, setAvoidPanama] = useState(false);
+  // Map projection — 2D Mercator or 3D globe. Toggled from the
+  // header button next to Planner.
+  const [projection, setProjection] = useState<"mercator" | "globe">("mercator");
   // ECA/SECA overlay — purely visual, does not influence routing.
   const [showEmissionZones, setShowEmissionZones] = useState(false);
   // Piracy / war-risk / tension overlay — also purely visual. If an
@@ -486,6 +489,31 @@ export default function FleetPage() {
             <Route className="h-3.5 w-3.5" />
             Planner
           </button>
+          {/* Projection toggle — click once to switch Mercator → globe,
+              click again to return. MapLibre v5 handles the projection
+              swap natively; fleet-map-maplibre reacts to the prop. */}
+          <button
+            onClick={() =>
+              setProjection(projection === "mercator" ? "globe" : "mercator")
+            }
+            title={
+              projection === "mercator"
+                ? "Switch to 3D globe view"
+                : "Switch back to flat map"
+            }
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-[var(--radius-md)] text-xs font-semibold transition-colors cursor-pointer ${
+              projection === "globe"
+                ? "bg-indigo-500/20 text-indigo-400 border border-indigo-500/40"
+                : "bg-[var(--color-surface-2)] text-[var(--color-text-secondary)] border border-[var(--color-border-default)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-border-strong)]"
+            }`}
+          >
+            {projection === "mercator" ? (
+              <Globe className="h-3.5 w-3.5" />
+            ) : (
+              <MapIcon className="h-3.5 w-3.5" />
+            )}
+            {projection === "mercator" ? "Globe" : "Map"}
+          </button>
           {urgentCount > 0 && (
             <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[var(--color-danger)]/15 text-[var(--color-danger)] text-[0.6875rem] font-semibold animate-pulse">
               <AlertTriangle className="h-3 w-3" />
@@ -545,6 +573,7 @@ export default function FleetPage() {
               ]}
               showEmissionZones={showEmissionZones}
               showRiskZones={showRiskZones}
+              projection={projection}
               onPortClick={
                 // Only clickable when planner panel is open — otherwise
                 // accidental clicks while just panning would be noisy.
