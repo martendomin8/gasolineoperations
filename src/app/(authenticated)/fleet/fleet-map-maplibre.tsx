@@ -407,11 +407,15 @@ export function FleetMapInner({
   } | null>(null);
 
   // ── Reference ports GeoJSON (static, memoised) ────────────
+  // Feature `id` is required for setFeatureState-based hover glow.
+  // Using the array index gives us stable ids across renders (the
+  // port list is static, order never changes mid-session).
   const referencePortsGeoJson = useMemo(() => {
     return {
       type: "FeatureCollection" as const,
-      features: REFERENCE_PORTS.map((p) => ({
+      features: REFERENCE_PORTS.map((p, i) => ({
         type: "Feature" as const,
+        id: i,
         geometry: {
           type: "Point" as const,
           coordinates: [p.lon, p.lat],
@@ -620,20 +624,67 @@ export function FleetMapInner({
   }, []);
 
   // ── Layer style specs ─────────────────────────────────────
-  const referencePortsCircleLayer: LayerProps = useMemo(
+  // Two-layer strategy for port dots:
+  //   - `hit` is a 12-px transparent circle that captures clicks with
+  //     a forgiving tolerance (small visible dot was hard to hit at
+  //     the scale ops work on).
+  //   - `visible` is the tiny pretty circle the user sees. Hover
+  //     glow on this one uses feature-state to brighten the active
+  //     port — gives instant "yes this is clickable" feedback.
+  const referencePortsHitLayer: LayerProps = useMemo(
     () => ({
       id: LYR_REFERENCE_PORTS,
       type: "circle",
       source: SRC_REFERENCE_PORTS,
       paint: {
-        "circle-radius": onPortClick ? 4 : 2,
-        "circle-color": onPortClick ? "#22d3ee" : "#94a3b8",
-        "circle-opacity": onPortClick ? 0.8 : 0.55,
+        "circle-radius": onPortClick ? 12 : 2,
+        "circle-color": "#000",
+        // Fully transparent but still hit-tests as interactive.
+        "circle-opacity": 0.001,
       },
     }),
     [onPortClick]
   );
 
+  const referencePortsVisibleLayer: LayerProps = useMemo(
+    () => ({
+      id: "lyr-ref-ports-visible",
+      type: "circle",
+      source: SRC_REFERENCE_PORTS,
+      paint: {
+        "circle-radius": [
+          "case",
+          ["boolean", ["feature-state", "hover"], false],
+          6,
+          onPortClick ? 4 : 2,
+        ] as unknown as number,
+        "circle-color": [
+          "case",
+          ["boolean", ["feature-state", "hover"], false],
+          "#FFB000", // amber halo on hover — "clickable" affordance
+          onPortClick ? "#22d3ee" : "#94a3b8",
+        ] as unknown as string,
+        "circle-opacity": [
+          "case",
+          ["boolean", ["feature-state", "hover"], false],
+          1,
+          onPortClick ? 0.8 : 0.55,
+        ] as unknown as number,
+        "circle-stroke-width": [
+          "case",
+          ["boolean", ["feature-state", "hover"], false],
+          2,
+          0,
+        ] as unknown as number,
+        "circle-stroke-color": "#fef3c7",
+      },
+    }),
+    [onPortClick]
+  );
+
+  // Regular label layer — zoom-gated + collision-aware. Same as the
+  // original pre-hover design except for amber color on feature-state
+  // hover (paint-level, always works).
   const referencePortsLabelLayer: LayerProps = useMemo(
     () => ({
       id: LYR_REFERENCE_PORTS_LABEL,
@@ -649,8 +700,54 @@ export function FleetMapInner({
         "text-allow-overlap": false,
       },
       paint: {
-        "text-color": "#cbd5e1",
-        "text-opacity": 0.75,
+        "text-color": [
+          "case",
+          ["boolean", ["feature-state", "hover"], false],
+          "#FFB000",
+          "#cbd5e1",
+        ] as unknown as string,
+        "text-opacity": [
+          "case",
+          ["boolean", ["feature-state", "hover"], false],
+          1,
+          0.75,
+        ] as unknown as number,
+      },
+    }),
+    []
+  );
+
+  // Dedicated hover-only label layer — always rendered, opacity 0
+  // unless the feature is hovered. This wins over the normal label
+  // layer's zoom gate: hovering a port at any zoom reveals its
+  // name in larger amber text with a halo for contrast.
+  const referencePortsHoverLabelLayer: LayerProps = useMemo(
+    () => ({
+      id: "lyr-ref-ports-hover-label",
+      type: "symbol",
+      source: SRC_REFERENCE_PORTS,
+      layout: {
+        "text-field": ["get", "shortName"],
+        "text-font": ["Open Sans Regular", "Arial Unicode MS Regular"],
+        "text-size": 15,
+        "text-anchor": "left",
+        "text-offset": [0.6, 0],
+        // Defeat collision — we only ever show one hovered label at
+        // a time, so it shouldn't be hidden by a neighbour's zoom-
+        // layer label.
+        "text-allow-overlap": true,
+        "text-ignore-placement": true,
+      },
+      paint: {
+        "text-color": "#FFB000",
+        "text-opacity": [
+          "case",
+          ["boolean", ["feature-state", "hover"], false],
+          1,
+          0,
+        ] as unknown as number,
+        "text-halo-color": "#000",
+        "text-halo-width": 1.8,
       },
     }),
     []
@@ -844,13 +941,16 @@ export function FleetMapInner({
   };
 
   // ── Layers that should respond to hover/click ─────────────
+  // Port hit-layer is always in the interactive set so the hover
+  // glow works even when the planner is closed — makes the "this
+  // dot is clickable" affordance permanent. Actual click is still
+  // only meaningful when onPortClick is provided.
   const interactiveLayerIds = useMemo(() => {
-    const ids: string[] = [];
-    if (onPortClick) ids.push(LYR_REFERENCE_PORTS);
+    const ids: string[] = [LYR_REFERENCE_PORTS];
     if (showEmissionZones) ids.push(LYR_ECA_FILL);
     if (showRiskZones) ids.push(LYR_RISK_FILL);
     return ids;
-  }, [onPortClick, showEmissionZones, showRiskZones]);
+  }, [showEmissionZones, showRiskZones]);
 
   // ── Map click handler (port clicks + click-anywhere water) ─
   const handleMapClick = useCallback(
@@ -976,7 +1076,15 @@ export function FleetMapInner({
     ]
   );
 
-  // ── Hover popups for zone overlays ────────────────────────
+  // ── Hover popups for zone overlays + port hover glow ──────
+  // Port hover uses MapLibre feature-state so the dot+label light up
+  // amber the moment the cursor enters the (generous 12-px) hit
+  // zone. Ref tracks the currently-lit feature so we can clear it
+  // when the mouse leaves; a tiny paired boolean state drives the
+  // cursor re-render (setFeatureState alone doesn't force React to
+  // re-evaluate the `cursor` prop).
+  const hoveredPortIdRef = useRef<number | null>(null);
+  const [isPortHovered, setIsPortHovered] = useState(false);
   const handleMouseMove = useCallback((e: MapLayerMouseEvent) => {
     const features = e.features ?? [];
     const eca = features.find((f) => f.layer.id === LYR_ECA_FILL);
@@ -990,7 +1098,38 @@ export function FleetMapInner({
     } else if (hoveredZone) {
       setHoveredZone(null);
     }
-  }, [hoveredZone]);
+    // Port hover glow — driven by the (much larger) hit layer so a
+    // near-miss still lights up the dot. Declared dep on
+    // isPortHovered so the closure reads the fresh value without
+    // needing a stale-closure workaround on every mousemove.
+    void isPortHovered;
+    const portHit = features.find((f) => f.layer.id === LYR_REFERENCE_PORTS);
+    const map = mapRef.current?.getMap();
+    if (map) {
+      const nextId =
+        portHit && typeof portHit.id === "number" ? portHit.id : null;
+      const prevId = hoveredPortIdRef.current;
+      if (prevId !== nextId) {
+        if (prevId !== null) {
+          map.setFeatureState(
+            { source: SRC_REFERENCE_PORTS, id: prevId },
+            { hover: false }
+          );
+        }
+        if (nextId !== null) {
+          map.setFeatureState(
+            { source: SRC_REFERENCE_PORTS, id: nextId },
+            { hover: true }
+          );
+        }
+        hoveredPortIdRef.current = nextId;
+        // Cursor re-render driver — only flips on enter/leave, not
+        // on every pixel of cursor motion within the dot.
+        const nowHovered = nextId !== null;
+        if (nowHovered !== isPortHovered) setIsPortHovered(nowHovered);
+      }
+    }
+  }, [hoveredZone, isPortHovered]);
 
   // ── Imperative projection switch (mercator ↔ globe) ───────
   // MapLibre's projection is a style-level setting. Setting it via
@@ -1030,8 +1169,9 @@ export function FleetMapInner({
       interactiveLayerIds={interactiveLayerIds}
       onClick={handleMapClick}
       onMouseMove={handleMouseMove}
-      // Cursor feedback when hovering a clickable port or zone.
-      cursor={interactiveLayerIds.length > 0 && hoveredZone ? "pointer" : undefined}
+      // Cursor feedback — pointer when hovering a port dot (click-
+      // to-add-to-planner) or a zone (hover popup).
+      cursor={hoveredZone || isPortHovered ? "pointer" : undefined}
       // Disable Shift+drag area-zoom and double-click zoom when the
       // channel editor has an active chain. Both interactions eat the
       // click event before our handler sees it — boxZoom is MapLibre's
@@ -1082,9 +1222,20 @@ export function FleetMapInner({
       )}
 
       {/* ── Reference-port dots (always on) ── */}
-      <Source id={SRC_REFERENCE_PORTS} type="geojson" data={referencePortsGeoJson}>
-        <Layer {...referencePortsCircleLayer} />
+      {/* Features carry top-level `id` (see referencePortsGeoJson
+          above), so MapLibre's feature-state API works out of the
+          box — no promoteId needed. */}
+      <Source
+        id={SRC_REFERENCE_PORTS}
+        type="geojson"
+        data={referencePortsGeoJson}
+      >
+        {/* Visible dot first (draws below), then transparent hit
+            layer on top so clicks are caught by the wide target. */}
+        <Layer {...referencePortsVisibleLayer} />
+        <Layer {...referencePortsHitLayer} />
         <Layer {...referencePortsLabelLayer} />
+        <Layer {...referencePortsHoverLabelLayer} />
       </Source>
 
       {/* ── Vessel route lines (dashed, faint) ── */}

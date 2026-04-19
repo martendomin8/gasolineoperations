@@ -57,22 +57,10 @@ export function PortCostsButton({ portName }: Props) {
   // they aren't real ports. Render nothing for those rows.
   const isCustom = portName.startsWith("@");
 
-  // Close the popover on outside click so ops can dismiss without
-  // explicitly hitting cancel.
-  useEffect(() => {
-    if (!open) return;
-    function onClick(e: MouseEvent) {
-      if (!popoverRef.current) return;
-      if (!popoverRef.current.contains(e.target as Node)) setOpen(false);
-    }
-    // Defer the listener by a tick so the click that *opened* the
-    // popover doesn't immediately close it.
-    const t = setTimeout(() => document.addEventListener("mousedown", onClick), 0);
-    return () => {
-      clearTimeout(t);
-      document.removeEventListener("mousedown", onClick);
-    };
-  }, [open]);
+  // Outside-click dismissal is handled directly by the modal
+  // backdrop's onClick now that the popover is a fixed-position
+  // overlay — clicking anywhere outside the white card fires
+  // setOpen(false).
 
   // Fetch on open — not on mount — so we don't pound the API for
   // every waypoint row that's just sitting there.
@@ -139,25 +127,31 @@ export function PortCostsButton({ portName }: Props) {
   }
 
   return (
-    <div className="relative inline-block" ref={popoverRef}>
+    <>
       <button
         onClick={(e) => {
           e.stopPropagation();
-          setOpen(!open);
+          setOpen(true);
         }}
-        className={`p-0.5 rounded transition-all cursor-pointer ${
-          open
-            ? "text-amber-400 bg-amber-500/20"
-            : "text-[var(--color-text-tertiary)] hover:text-amber-400 opacity-0 group-hover:opacity-100"
-        }`}
-        title="Port costs"
+        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[0.65rem] font-semibold text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 cursor-pointer transition-colors"
+        title={`Port costs for ${portName.split(",")[0]}`}
       >
         <DollarSign className="h-3 w-3" />
+        Add port costs
       </button>
 
       {open && (
         <div
-          className="absolute right-0 top-5 z-50 w-72 rounded-[var(--radius-md)] border border-[var(--color-border-default)] bg-[var(--color-surface-1)] shadow-lg p-3"
+          // Fixed-position modal overlay — centered on screen so it
+          // never slides off the sidebar edge. Earlier inline
+          // popover sat next to the $ button and got cut off when
+          // the planner panel was flush against the right edge.
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+          onClick={() => setOpen(false)}
+        >
+        <div
+          ref={popoverRef}
+          className="w-[380px] max-w-[90vw] rounded-[var(--radius-md)] border border-[var(--color-border-default)] bg-[var(--color-surface-1)] shadow-2xl p-4"
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex items-center justify-between mb-2">
@@ -271,7 +265,8 @@ export function PortCostsButton({ portName }: Props) {
             </div>
           )}
         </div>
+        </div>
       )}
-    </div>
+    </>
   );
 }

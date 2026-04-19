@@ -43,6 +43,12 @@ import graphData from "./graph.json";
 // JSON import so the runtime has them without a round trip. Pipeline
 // also reads the same file for consistency.
 import zonesData from "../../../../../../scripts/ocean-routing/zones.json";
+// Hand-curated channel chains (Turkish Straits, Izmit feeders, etc.).
+// Pipeline NO LONGER bakes these into graph.json — the runtime is
+// authoritative. Edits saved via the Channel Editor push the new
+// chains into this module's override slot and take effect on the
+// next route calculation, no pipeline rebuild needed.
+import channelChainsData from "../../../../../../scripts/ocean-routing/channel_chains.json";
 
 // ── File format (must match export_graph.py output) ──────────
 interface GraphFile {
@@ -131,22 +137,43 @@ let zonesOverride: Array<{
 }> | null = null;
 
 /**
- * Drop the cached graph (and the live zone override) so the next
- * call to `getRuntimeGraph()` rebuilds from current JSON + any
- * passed overrides. Call after:
+ * Runtime override for channel chains — mirrors zonesOverride. When
+ * set, getRuntimeGraph injects these chains instead of the bundled
+ * channel_chains.json. Channel Editor flips this on every Save so
+ * the next Planner / vessel-route lookup sees fresh chains.
+ */
+let chainsOverride: Array<{
+  id: string;
+  waypoints: Array<[number, number]>;
+}> | null = null;
+
+/**
+ * Drop the cached graph (and any live overrides) so the next call
+ * to `getRuntimeGraph()` rebuilds from current JSON + any passed
+ * overrides. Call after:
  *   - zone edits in the dev editor (pass the in-memory list as
- *     `opts.zones` so the recompute sees them before the bundle
- *     reloads on next refresh)
- *   - manual zones.json replacement during development
+ *     `opts.zones`)
+ *   - channel chain edits in the dev editor (`opts.channelChains`)
+ *   - manual zones.json / channel_chains.json replacement
  * Also flushes any downstream caches (the ocean-routing provider's
  * per-request route memo lives there — we let it import our export
  * and flush on its own).
  */
 export function invalidateRuntimeGraph(opts?: {
-  zones?: Array<{ blocksRouting?: boolean; polygon?: Array<[number, number]> }> | null;
+  zones?: Array<{
+    blocksRouting?: boolean;
+    polygon?: Array<[number, number]>;
+  }> | null;
+  channelChains?: Array<{
+    id: string;
+    waypoints: Array<[number, number]>;
+  }> | null;
 }): void {
   if (opts && "zones" in opts) {
     zonesOverride = opts.zones ?? null;
+  }
+  if (opts && "channelChains" in opts) {
+    chainsOverride = opts.channelChains ?? null;
   }
   cached = null;
 }
@@ -192,13 +219,73 @@ export function getRuntimeGraph(): RuntimeGraph {
 
   const portNodeIds = new Set<number>(portMap.values());
 
-  // Translate chain node IDs (from original sparse IDs → dense ids
-  // used by this runtime). Silent if the graph wasn't built with
-  // chain support (older pipeline version).
+  // Chain nodes come from TWO possible sources:
+  //   1. Legacy: graph.json baked them in (pipeline ≤ commit e9ee3e6).
+  //      Their original IDs land in `data.chainNodeIds`.
+  //   2. New: channel_chains.json is injected live below. The runtime
+  //      is authoritative — edits via the Channel Editor take effect
+  //      on the next invalidation without a pipeline rebuild.
+  // Both sources feed into the same Set<number>; downstream Dijkstra
+  // only sees dense ids and doesn't care where they came from.
   const chainNodeIds = new Set<number>();
   for (const origId of data.chainNodeIds ?? []) {
     const idx = idMap.get(origId);
     if (idx !== undefined) chainNodeIds.add(idx);
+  }
+
+  // INJECTION: read channel chains from override (fresh editor state)
+  // or the bundled JSON, then extend the graph with chain waypoints
+  // as new nodes + intra-chain edges + nearest-k hooks into the base
+  // graph. baseNodeCount locks in the "is a base node" cutoff so
+  // later nearest-neighbour lookups don't pick already-added chain
+  // nodes as connection targets.
+  const baseNodeCount = nodes.length;
+  const chainsSource = chainsOverride ?? collectBundledChains();
+  for (const chain of chainsSource) {
+    if (!Array.isArray(chain.waypoints) || chain.waypoints.length < 2) {
+      continue;
+    }
+    const chainIds: number[] = [];
+    for (const [lat, lon] of chain.waypoints) {
+      const id = nodes.length;
+      nodes.push({ id, lat, lon });
+      adj.push([]);
+      chainIds.push(id);
+      chainNodeIds.add(id);
+    }
+    // Intra-chain edges — consecutive waypoints, no land check
+    // (chain is expert-vetted, same trust model as Python pipeline).
+    for (let i = 0; i < chainIds.length - 1; i++) {
+      const a = chainIds[i];
+      const b = chainIds[i + 1];
+      const [aLat, aLon] = chain.waypoints[i];
+      const [bLat, bLon] = chain.waypoints[i + 1];
+      const d = haversineNm(aLat, aLon, bLat, bLon);
+      adj[a].push({ to: b, weight: d });
+      adj[b].push({ to: a, weight: d });
+    }
+    // Per-waypoint hooks — connect each chain node to ≤2 nearest
+    // BASE nodes (id < baseNodeCount) within 30 NM. Same bounds as
+    // the Python add_channel_chains to keep behaviour symmetric.
+    for (let i = 0; i < chainIds.length; i++) {
+      const chainId = chainIds[i];
+      const [cpLat, cpLon] = chain.waypoints[i];
+      const nearest = findNearestBaseNodes(
+        nodes,
+        baseNodeCount,
+        cpLat,
+        cpLon,
+        5
+      );
+      let connected = 0;
+      for (const { id: baseId, distanceNm } of nearest) {
+        if (connected >= 2) break;
+        if (distanceNm > 30) continue;
+        adj[chainId].push({ to: baseId, weight: distanceNm });
+        adj[baseId].push({ to: chainId, weight: distanceNm });
+        connected++;
+      }
+    }
   }
 
   // Forbidden zones: walk every node once, checking if it falls
@@ -240,6 +327,53 @@ interface ZonesFile {
     blocksRouting?: boolean;
     polygon?: Array<[number, number]>;
   }>;
+}
+
+interface ChainsFile {
+  chains?: Array<{
+    id?: string;
+    waypoints?: Array<[number, number]>;
+  }>;
+}
+
+/**
+ * Extract the hand-curated chains from the bundled JSON. Used when
+ * the editor hasn't pushed an override (cold page load).
+ */
+function collectBundledChains(): Array<{
+  id: string;
+  waypoints: Array<[number, number]>;
+}> {
+  const raw = channelChainsData as unknown as ChainsFile;
+  const out: Array<{ id: string; waypoints: Array<[number, number]> }> = [];
+  for (const c of raw.chains ?? []) {
+    if (!c.id || !c.waypoints || c.waypoints.length < 2) continue;
+    out.push({ id: c.id, waypoints: c.waypoints });
+  }
+  return out;
+}
+
+/**
+ * Find the k nearest nodes from the base graph (ids 0..baseCount-1),
+ * sorted by haversine. O(baseCount) scan, no allocations per edge.
+ * Deliberately excludes already-injected chain nodes so consecutive
+ * chains don't hook into each other — every chain hooks directly
+ * into the searoute backbone.
+ */
+function findNearestBaseNodes(
+  allNodes: GraphNode[],
+  baseCount: number,
+  lat: number,
+  lon: number,
+  k: number
+): Array<{ id: number; distanceNm: number }> {
+  const scored: Array<{ id: number; distanceNm: number }> = [];
+  for (let i = 0; i < baseCount; i++) {
+    const n = allNodes[i];
+    scored.push({ id: i, distanceNm: haversineNm(lat, lon, n.lat, n.lon) });
+  }
+  scored.sort((a, b) => a.distanceNm - b.distanceNm);
+  return scored.slice(0, k);
 }
 
 /**

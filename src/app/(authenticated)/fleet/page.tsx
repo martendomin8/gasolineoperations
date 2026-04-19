@@ -29,9 +29,17 @@ import { type ChannelChain } from "./channel-editor";
 import { DevPanel, type DevTab } from "./dev-panel";
 import { type Zone } from "./zone-editor";
 
-// Dev-tools gate: enabled only when this env flag is set.
-// Flip it off before production builds to remove the editor entirely.
-const DEV_TOOLS_ENABLED = process.env.NEXT_PUBLIC_DEV_TOOLS === "true";
+// Dev-tools gate: enabled only when this env flag is set AND the
+// app is actually using our in-house ocean_routing provider. If a
+// customer has switched to Netpas or AtoBviaC (via NEXT_PUBLIC_
+// DISTANCE_PROVIDER), the channel + zone editors would be editing
+// data their active provider ignores — so we hide them entirely.
+// This keeps the maritime module genuinely swappable: tellija
+// valib Netpasi, meie dev-tools kaovad vaateväljast.
+const DEV_TOOLS_ENABLED =
+  process.env.NEXT_PUBLIC_DEV_TOOLS === "true" &&
+  (process.env.NEXT_PUBLIC_DISTANCE_PROVIDER ?? "ocean_routing") ===
+    "ocean_routing";
 
 // Dynamic import — Leaflet requires `window`
 const FleetMapInner = dynamic(
@@ -751,16 +759,24 @@ export default function FleetPage() {
               projection={projection}
               basemap={basemap}
               onPortClick={
-                // Only clickable when planner panel is open — otherwise
-                // accidental clicks while just panning would be noisy.
-                // Routes to the active route (A or B in compare-mode).
-                plannerMode
-                  ? (port) =>
+                // Dev mode takes priority: channel/zone editor needs
+                // pure-water clicks, so a port click while dev tools
+                // are active should be ignored.
+                devMode
+                  ? undefined
+                  : (port) => {
+                      // If the planner isn't open yet, open it — the
+                      // port click itself is the operator's "I want
+                      // to plan a voyage" signal, no need to make
+                      // them hunt for the Planner toggle first.
+                      if (!plannerMode) setPlannerMode(true);
                       setActivePorts((prev) =>
-                        // Dedup: don't add if already in the list
-                        prev.some((p) => p.name === port.name) ? prev : [...prev, port]
-                      )
-                  : undefined
+                        // Dedup: don't re-add if already in the list.
+                        prev.some((p) => p.name === port.name)
+                          ? prev
+                          : [...prev, port]
+                      );
+                    }
               }
               onMapClick={
                 // Click on open water (not a port) inserts a custom

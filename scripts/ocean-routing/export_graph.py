@@ -70,9 +70,13 @@ def main() -> None:
     v2.add_transit_anchors(nodes_out, edges_out, land)
     print(f"  After anchors: {len(nodes_out):,} nodes, {len(edges_out):,} edges")
 
-    print("Injecting hand-curated channel chains...")
-    chain_node_ids = v2.add_channel_chains(nodes_out, edges_out, land) or set()
-    print(f"  After channel chains: {len(nodes_out):,} nodes, {len(edges_out):,} edges")
+    # Channel chains NO LONGER baked in at export time. The runtime
+    # (graph-runtime.ts) reads channel_chains.json directly and injects
+    # the chain nodes + edges on graph init. This lets the dev-tools
+    # Channel Editor make edits instantly effective via
+    # invalidateRuntimeGraph, same way the Zone Editor does. Keeps the
+    # JSON file as the single source of truth without pipeline rebuild.
+    chain_node_ids: set[int] = set()
 
     print("Connecting ports (with pilot stations where configured)...")
     port_map = v2.connect_ports(nodes_out, edges_out, land)

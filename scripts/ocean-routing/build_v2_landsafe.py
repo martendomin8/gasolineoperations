@@ -461,6 +461,13 @@ CRITICAL_CHANNELS = [
     (54.50, 57.80, 9.00, 13.50, "Danish Straits / Oresund / Kattegat"),
     # Dover Strait
     (50.50, 51.50, 0.80, 2.10, "Dover Strait"),
+    # Gulf of Finland — Narva Bay / Ust-Luga approaches are shallow
+    # enough (avg 5-20 m) that the ETOPO 60s cell filter drops too
+    # many transit nodes. Navigable by tankers year-round up to ~13m
+    # draft (Ust-Luga approach channel is maintained to 17.5m).
+    (59.00, 60.40, 22.50, 30.20, "Gulf of Finland"),
+    # Gulf of Riga — similar story, Ventspils / Riga approach
+    (56.40, 58.80, 21.80, 24.80, "Gulf of Riga"),
 ]
 
 

@@ -3,6 +3,8 @@ import { z } from "zod";
 import { promises as fs } from "fs";
 import path from "path";
 import { withAuth } from "@/lib/middleware/with-auth";
+import { invalidateRuntimeGraph } from "@/lib/maritime/sea-distance/providers/ocean-routing/graph-runtime";
+import { flushRouteCache } from "@/lib/maritime/sea-distance/providers/ocean-routing";
 
 /**
  * Channel Chains — hand-curated dense waypoint sequences through
@@ -153,10 +155,21 @@ export const POST = withAuth(async (req) => {
       parsed.data.chains as StoredChain[],
       existing._meta
     );
+    // Make the edit live for SERVER-side routing too. Without this,
+    // the Planner (which calls /api/maritime/sea-distance) would
+    // keep using stale chains from the startup-time module cache
+    // until the dev-server restarted.
+    invalidateRuntimeGraph({
+      channelChains: parsed.data.chains.map((c) => ({
+        id: c.id,
+        waypoints: c.waypoints,
+      })),
+    });
+    flushRouteCache();
     return NextResponse.json({
       ok: true,
       chainCount: parsed.data.chains.length,
       path: "scripts/ocean-routing/channel_chains.json",
-      hint: "Remember to commit + push the updated JSON, then rerun the pipeline (python scripts/ocean-routing/build_v2_landsafe.py + export_graph.py) to pick up your edits in the routing graph.",
+      hint: "Chains took effect immediately. Commit + push the JSON for the rest of the team; pipeline rebuild NOT required.",
     });
 });

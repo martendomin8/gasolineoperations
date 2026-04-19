@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Plus, Save, Trash2, AlertTriangle, Check } from "lucide-react";
+import { invalidateRuntimeGraph } from "@/lib/maritime/sea-distance/providers/ocean-routing/graph-runtime";
+import { flushRouteCache } from "@/lib/maritime/sea-distance/providers/ocean-routing";
 
 /**
  * Channel Editor — dev-only tool for hand-curating the dense waypoint
@@ -141,6 +143,17 @@ export function ChannelEditor({
       } else {
         setSaveMsg({ ok: true, hint: data.hint ?? "Saved." });
         setDirty(false);
+        // Instant effect: push the in-memory chain list into the
+        // runtime override slot and drop cached routes. Next route
+        // computation (Planner, vessel overlay, etc.) sees the fresh
+        // chains without a dev-server restart.
+        invalidateRuntimeGraph({
+          channelChains: chains.map((c) => ({
+            id: c.id,
+            waypoints: c.waypoints,
+          })),
+        });
+        flushRouteCache();
       }
     } catch (err) {
       setSaveMsg({ ok: false, error: (err as Error).message });
