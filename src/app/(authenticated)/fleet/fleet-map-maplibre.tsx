@@ -218,6 +218,21 @@ function toGeodesicGeoJson(
 ): Array<[number, number]> {
   if (path.length < 2) return path.map(([lat, lon]) => [lon, lat]);
   const out: Array<[number, number]> = [];
+  // Antimeridian handling: turf.greatCircle splits arcs that cross
+  // ±180° into two rings (one ending at ≈-180, the next starting at
+  // ≈+180). Naively concatenated, the polyline snaps from -180
+  // straight to +180 — MapLibre reads that as "travel 357° east
+  // around the world" and draws a horizontal line across every
+  // continent (the classic "line through New Zealand" bug).
+  //
+  // Fix: maintain a running ±360° shift that stays continuous across
+  // BOTH intra-segment ring splits (one turf call returning multiple
+  // rings) AND inter-segment discontinuities (consecutive path
+  // waypoints straddling the antimeridian, where each individual
+  // segment is on one side but the join between them crosses). The
+  // shift is never reset, only adjusted, so a path circling the
+  // globe can cross the seam arbitrarily many times.
+  let lonShift = 0;
   for (let i = 0; i < path.length - 1; i++) {
     const from = turfPoint([path[i][1], path[i][0]]);
     const to = turfPoint([path[i + 1][1], path[i + 1][0]]);
@@ -228,30 +243,18 @@ function toGeodesicGeoJson(
         geom.type === "MultiLineString"
           ? (geom.coordinates as number[][][])
           : [geom.coordinates as number[][]];
-      // Antimeridian handling: turf.greatCircle splits arcs that cross
-      // ±180° into two rings (one ending at ≈-180, the next starting at
-      // ≈+180). If we concat them naively the polyline snaps from -180
-      // straight to +180 — MapLibre reads that as "travel 357° east
-      // around the world" and draws a horizontal line across every
-      // continent. Fix: unwrap each successive ring's longitudes into
-      // the same continuous window as the previous ring (−360 or +360
-      // shift). MapLibre's built-in antimeridian wrap handles the
-      // continuous coords correctly.
-      let lonShift = 0;
       for (let r = 0; r < rings.length; r++) {
         const ring = rings[r];
-        if (r > 0 && ring.length > 0 && out.length > 0) {
+        if (ring.length > 0 && out.length > 0) {
           const prevLon = out[out.length - 1][0];
-          const firstLon = ring[0][0];
-          // Expected delta is ~0 (continuous); anything > 180° means
-          // turf wrapped. Shift by whichever multiple of 360 minimises
-          // the gap.
+          const firstLon = ring[0][0] + lonShift;
+          // Adjust the cumulative shift so the seam between rings
+          // (or between segments) stays < 180° wide. MapLibre's own
+          // antimeridian wrap then handles the continuous coords
+          // correctly when rendering.
           const rawDelta = firstLon - prevLon;
-          if (Math.abs(rawDelta) > 180) {
-            lonShift = rawDelta > 0 ? -360 : 360;
-          } else {
-            lonShift = 0;
-          }
+          if (rawDelta > 180) lonShift -= 360;
+          else if (rawDelta < -180) lonShift += 360;
         }
         for (let j = 0; j < ring.length; j++) {
           if (out.length > 0 && j === 0) continue;
@@ -259,8 +262,8 @@ function toGeodesicGeoJson(
         }
       }
     } catch {
-      out.push([path[i][1], path[i][0]]);
-      out.push([path[i + 1][1], path[i + 1][0]]);
+      out.push([path[i][1], path[i][0] + lonShift]);
+      out.push([path[i + 1][1], path[i + 1][0] + lonShift]);
     }
   }
   return out;
@@ -410,6 +413,9 @@ export function FleetMapInner({
   // Feature `id` is required for setFeatureState-based hover glow.
   // Using the array index gives us stable ids across renders (the
   // port list is static, order never changes mid-session).
+  // `tier` property controls visibility: tier 1 is always drawn,
+  // tier 2 fades in from zoom 4+ (regional focus), tier 3 from
+  // zoom 7+ (city-level). Search sees every tier regardless.
   const referencePortsGeoJson = useMemo(() => {
     return {
       type: "FeatureCollection" as const,
@@ -423,6 +429,7 @@ export function FleetMapInner({
         properties: {
           name: p.name,
           shortName: p.name.split(",")[0],
+          tier: p.tier ?? 1,
         },
       })),
     };
@@ -631,11 +638,30 @@ export function FleetMapInner({
   //   - `visible` is the tiny pretty circle the user sees. Hover
   //     glow on this one uses feature-state to brighten the active
   //     port — gives instant "yes this is clickable" feedback.
+  //
+  // Tier-based visibility gate (applied via layer `filter`):
+  //   tier 1 → always rendered
+  //   tier 2 → only rendered at zoom ≥ 4
+  //   tier 3 → only rendered at zoom ≥ 7
+  // Both `hit` and `visible` get the same filter so a hidden dot
+  // isn't secretly clickable. Labels apply a slightly higher zoom
+  // threshold so nearby lettering doesn't collide when zoomed out.
+  const portTierFilter = useMemo(
+    () =>
+      [
+        "any",
+        ["<=", ["get", "tier"], 1],
+        ["all", [">=", ["zoom"], 4], ["<=", ["get", "tier"], 2]],
+        ["all", [">=", ["zoom"], 7], ["<=", ["get", "tier"], 3]],
+      ] as unknown as maplibregl.ExpressionSpecification,
+    []
+  );
   const referencePortsHitLayer: LayerProps = useMemo(
     () => ({
       id: LYR_REFERENCE_PORTS,
       type: "circle",
       source: SRC_REFERENCE_PORTS,
+      filter: portTierFilter,
       paint: {
         "circle-radius": onPortClick ? 12 : 2,
         "circle-color": "#000",
@@ -643,7 +669,7 @@ export function FleetMapInner({
         "circle-opacity": 0.001,
       },
     }),
-    [onPortClick]
+    [onPortClick, portTierFilter]
   );
 
   const referencePortsVisibleLayer: LayerProps = useMemo(
@@ -651,6 +677,7 @@ export function FleetMapInner({
       id: "lyr-ref-ports-visible",
       type: "circle",
       source: SRC_REFERENCE_PORTS,
+      filter: portTierFilter,
       paint: {
         "circle-radius": [
           "case",
@@ -662,6 +689,10 @@ export function FleetMapInner({
           "case",
           ["boolean", ["feature-state", "hover"], false],
           "#FFB000", // amber halo on hover — "clickable" affordance
+          ["==", ["get", "tier"], 2],
+          "#64748b", // tier 2 dimmer grey-blue so main hubs stand out
+          ["==", ["get", "tier"], 3],
+          "#475569",
           onPortClick ? "#22d3ee" : "#94a3b8",
         ] as unknown as string,
         "circle-opacity": [
@@ -684,13 +715,25 @@ export function FleetMapInner({
 
   // Regular label layer — zoom-gated + collision-aware. Same as the
   // original pre-hover design except for amber color on feature-state
-  // hover (paint-level, always works).
+  // hover (paint-level, always works). Tier 1 labels from zoom 5;
+  // tier 2 labels from zoom 6; tier 3 labels from zoom 8 (stricter
+  // than the dot filter so labels don't clutter).
+  const portLabelTierFilter = useMemo(
+    () =>
+      [
+        "any",
+        ["all", [">=", ["zoom"], 5], ["<=", ["get", "tier"], 1]],
+        ["all", [">=", ["zoom"], 6], ["<=", ["get", "tier"], 2]],
+        ["all", [">=", ["zoom"], 8], ["<=", ["get", "tier"], 3]],
+      ] as unknown as maplibregl.ExpressionSpecification,
+    []
+  );
   const referencePortsLabelLayer: LayerProps = useMemo(
     () => ({
       id: LYR_REFERENCE_PORTS_LABEL,
       type: "symbol",
       source: SRC_REFERENCE_PORTS,
-      minzoom: LABEL_MIN_ZOOM,
+      filter: portLabelTierFilter,
       layout: {
         "text-field": ["get", "shortName"],
         "text-font": ["Open Sans Regular", "Arial Unicode MS Regular"],
@@ -957,7 +1000,17 @@ export function FleetMapInner({
     (e: MapLayerMouseEvent) => {
       const features = e.features ?? [];
       const clickLat = e.lngLat.lat;
-      const clickLon = e.lngLat.lng;
+      // MapLibre with worldCopyJump (and 3D globe panning) returns
+      // lngLat values outside the ±180 range whenever the user clicks
+      // on a "second copy" of the globe — e.g. 203° for a click on
+      // the Fiji area when the map is scrolled one world-copy east.
+      // Downstream consumers (parseWaypoint, formatCustomLabel, the
+      // planner API query) assume standard range, so we normalize at
+      // the ingress point. Keeps waypoint labels clean ("156.16°E"
+      // instead of "203.84°W") and prevents the backend from
+      // silently dropping out-of-range coords.
+      const rawLon = e.lngLat.lng;
+      const clickLon = ((rawLon + 180) % 360 + 360) % 360 - 180;
       const shift =
         (e.originalEvent as MouseEvent | undefined)?.shiftKey ?? false;
       // Zone editor takes priority when a zone is active — same shape

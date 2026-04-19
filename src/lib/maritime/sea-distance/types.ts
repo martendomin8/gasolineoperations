@@ -15,6 +15,15 @@ export interface PortInfo {
   lat: number;
   /** Longitude in decimal degrees */
   lon: number;
+  /**
+   * Visibility tier — controls when the dot/label shows on the map.
+   *   1 = major hub, always visible (default)
+   *   2 = regional tanker port, visible from zoom ≥ 4
+   *   3 = local / specialist terminal, visible from zoom ≥ 7
+   * Search ignores this field — every port is findable by name or
+   * alias regardless of zoom.
+   */
+  tier?: number;
 }
 
 export interface RouteLeg {

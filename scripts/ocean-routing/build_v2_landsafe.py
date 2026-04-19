@@ -37,6 +37,7 @@ import searoute as sr
 from build_sphere_graph import (
     LandMask, PORTS, haversine_nm, gc_interpolate,
 )
+from tanker_ports_extra import EXTRA_PORTS
 
 
 # Pilot station overrides — for ports that sit well inland (up a river
@@ -64,8 +65,11 @@ PILOT_STATIONS: dict[str, tuple[float, float]] = {
     "Corpus Christi, US":  (27.80, -97.00), # Aransas pilot
     "Savannah, US":        (31.95, -80.80),
     "Wilmington, US":      (33.85, -78.00),
-    "Montreal, CA":        (47.20, -70.00), # Les Escoumins pilot (Laurentian)
-    "Quebec, CA":          (47.20, -69.80),
+    # Montreal / Quebec: pilot stations intentionally NOT set —
+    # the St. Lawrence approach is operator-curated via the
+    # `montreal-quebec` channel chain, which starts at the actual
+    # Montreal city coord and ends at Cabot Strait. Leaving the
+    # old Les Escoumins pilot here would orphan the chain.
     "Boston, US":          (42.32, -70.80),
     "Portland, US":        (43.60, -70.10),
     "Come-by-Chance, CA":  (47.50, -53.90),
@@ -224,8 +228,12 @@ PILOT_STATIONS: dict[str, tuple[float, float]] = {
     "Cabinda, AO":         (-5.60,  12.10),
     "Soyo, AO":            (-6.10,  12.25),
     # South America
-    "Santos, BR":         (-24.10, -46.30),
-    "Sao Sebastiao, BR":  (-23.90, -45.30),
+    # Brazilian east-coast pilots — moved south of Ilhabela island
+    # so the port can connect to open-ocean grid nodes without the
+    # arc-clear check hitting the island (which left Sao Sebastiao
+    # with only 2 southern neighbours, forcing initial S-detour).
+    "Santos, BR":         (-24.40, -46.30),   # offshore Santos bar
+    "Sao Sebastiao, BR":  (-24.30, -45.30),   # south of Ilhabela
     "Rio Grande, BR":     (-32.25, -52.00),
     "Puerto La Cruz, VE":  (10.35, -64.60),
     "Callao, PE":         (-12.10, -77.25),
@@ -234,6 +242,17 @@ PILOT_STATIONS: dict[str, tuple[float, float]] = {
     "Kwinana, AU":        (-32.25, 115.60),
     "Gladstone, AU":      (-23.90, 151.40),
 }
+
+
+# Merge the extra tanker-port list (tanker_ports_extra.json) into
+# the main PORTS + PILOT_STATIONS dicts. Each entry adds a PORTS
+# coord (city, for map display) and a PILOT_STATIONS coord (pilot
+# boarding, for routing graph endpoint).
+for _name, (_plat, _plon, _prlat, _prlon, _aliases) in EXTRA_PORTS.items():
+    if _name not in PORTS:
+        PORTS[_name] = (_plat, _plon)
+    if _name not in PILOT_STATIONS:
+        PILOT_STATIONS[_name] = (_prlat, _prlon)
 
 
 def effective_port_coord(port_name: str) -> tuple[float, float]:
@@ -448,7 +467,10 @@ CRITICAL_CHANNELS = [
     (40.97, 41.28, 28.90, 29.25, "Bosphorus"),
     (40.38, 40.95, 26.90, 29.00, "Sea of Marmara"),
     (40.00, 40.42, 26.10, 26.78, "Dardanelles"),
-    (37.85, 38.10, 22.85, 23.20, "Corinth Canal"),
+    # Corinth Canal deliberately NOT whitelisted — only 21 m wide,
+    # 8 m deep, yachts + small coasters only. Tankers route around
+    # Peloponnese (Cape Matapan) instead. Without this exclusion
+    # Dijkstra treated the canal as a tanker-usable shortcut.
     (24.80, 26.90, 54.80, 57.00, "Strait of Hormuz"),
     # Red Sea end-to-end — narrow GSHHG coast forces us to whitelist
     # the full corridor so searoute edges there aren't dropped.
@@ -638,14 +660,118 @@ TRANSIT_ANCHORS: dict[str, tuple[float, float]] = {
     "_tx_atl_s_w":  (-25.00,  -30.00),
     # Arctic corridor (Norway ↔ Russian Arctic)
     "_tx_arctic_ne":(72.00,   45.00),
-    # West African coastal corridor. searoute's AIS-derived marnet has a
-    # gap between offshore Liberia and the Gulf of Guinea — the only
-    # "bridge" through the region was via Monrovia port itself, which is
-    # unacceptable now that Dijkstra blocks port transit. These pure-
-    # ocean anchors (all ≥ 50 NM from coast, ≥ 1000 m depth per ETOPO)
-    # restore the natural ~4°N shipping highway that tankers actually
-    # sail. See https://map.searoutes.com — the real AIS traffic follows
-    # almost exactly this latitude band.
+}
+
+
+# Dense ocean-filling transit anchors. Unlike the CURATED anchors
+# above (which target specific shortcuts), these are a regular-ish
+# grid placed at 5° latitude × 10° longitude spacing over every
+# ocean basin. Each anchor connects to its 12 nearest neighbours
+# (via arc_is_clear) — gives Dijkstra many angle options so it
+# can follow true great-circles instead of being pulled onto
+# AIS-dense shipping lanes 5° off the ideal latitude.
+# Filtered to water-only by GSHHG land + bathymetry at runtime.
+_OCEAN_ANCHOR_LAT_STEP = 3.0
+_OCEAN_ANCHOR_LON_STEP = 6.0
+
+
+# Enclosed seas where the auto-grid anchors would create straight-
+# line shortcuts that don't reflect real shipping (routes through
+# narrow passages, around peninsulas, etc.). AIS network + hand-
+# drawn chains already handle these properly; keeping anchors out
+# prevents them from pulling Dijkstra off the real lane.
+# Format: (min_lat, max_lat, min_lon, max_lon)
+_ENCLOSED_SEAS_NO_ANCHORS: list[tuple[float, float, float, float]] = [
+    (29.0, 47.0, -6.0, 37.0),   # Mediterranean + Black Sea
+    (40.0, 66.0,  9.0, 32.0),   # Baltic + Danish Straits region
+    (22.0, 30.0, 48.0, 57.0),   # Persian Gulf
+    (11.0, 30.0, 32.0, 45.0),   # Red Sea + Gulf of Aden entrance
+    ( 9.0, 24.0, -89.0, -60.0), # Caribbean + Gulf of Mexico
+    ( 0.0, 10.0, 99.0, 105.0),  # Malacca / Singapore Strait
+    (30.0, 41.0, 128.0, 142.0), # Sea of Japan
+    (45.0, 60.0, 140.0, 165.0), # Sea of Okhotsk
+]
+
+
+def _build_ocean_anchor_candidates() -> dict[str, tuple[float, float]]:
+    out: dict[str, tuple[float, float]] = {}
+    lat = -60.0
+    # Cap at 65°N — polar regions hit GSHHG boundary edge cases and
+    # tankers don't commercially cross the Arctic anyway.
+    while lat <= 65.0:
+        lon = -175.0
+        while lon <= 180.0:
+            # Skip anchors inside enclosed seas — let AIS + chains
+            # do those regions; auto-grid would create false
+            # straight-line shortcuts.
+            skip = False
+            for mla, mxa, mlo, mxo in _ENCLOSED_SEAS_NO_ANCHORS:
+                if mla <= lat <= mxa and mlo <= lon <= mxo:
+                    skip = True
+                    break
+            if not skip:
+                out[f"_tx_oc_{lat:+.0f}_{lon:+.0f}"] = (lat, lon)
+            lon += _OCEAN_ANCHOR_LON_STEP
+        lat += _OCEAN_ANCHOR_LAT_STEP
+    return out
+
+
+# Regional dense grids — override the global 3°×6° step with a finer
+# grid in specific bboxes where routes were zig-zagging between
+# widely-spaced AIS nodes. Each entry supplies its own step so we can
+# crank density up only where it matters, not globally. These run
+# AFTER and INDEPENDENTLY of the enclosed-sea exclusion list — the
+# whole point is to populate areas the coarse grid skipped.
+# Format: (min_lat, max_lat, min_lon, max_lon, lat_step, lon_step)
+_DENSE_ANCHOR_REGIONS: list[tuple[float, float, float, float, float, float]] = [
+    # Western Atlantic / Gulf of Mexico / Caribbean / Bermuda corridor.
+    # The global grid excludes Caribbean+Gulf (line 689) to stop coarse
+    # anchors from creating straight-line shortcuts across peninsulas,
+    # and the adjacent open ocean east of Florida was sparse. Result:
+    # routes like Hamilton → Lake Charles zig-zagged between hand-ful
+    # of nodes with visible angular bends. At 1° × 1.5° every anchor
+    # is ~60-80 NM from its neighbours, which Dijkstra smooths into
+    # continuous great-circle paths through Florida Straits and around
+    # Cuba. Expect ~500 water-only anchors here after land+bathy filter.
+    (8.0, 42.0, -98.0, -55.0, 1.0, 1.5),
+]
+
+
+def _build_dense_regional_anchor_candidates() -> dict[str, tuple[float, float]]:
+    """Dense per-region anchor grids — step size defined per bbox.
+
+    Deliberately bypasses `_ENCLOSED_SEAS_NO_ANCHORS`: the regions
+    here are precisely the ones the coarse global grid skipped, and
+    at this density the "straight-line shortcut across a peninsula"
+    risk goes away (arc_is_clear still guards every edge later).
+    Water-only filtering happens in `add_transit_anchors` — we just
+    emit candidates.
+    """
+    out: dict[str, tuple[float, float]] = {}
+    for min_la, max_la, min_lo, max_lo, step_la, step_lo in _DENSE_ANCHOR_REGIONS:
+        lat = min_la
+        while lat <= max_la + 1e-9:
+            lon = min_lo
+            while lon <= max_lo + 1e-9:
+                # Use a distinct prefix so these don't collide with the
+                # coarse-grid keys ("_tx_oc_"). Integer-round the coords
+                # in the key to a 0.1° resolution so the dict-dedup still
+                # catches accidental overlaps from two regions touching.
+                key = f"_tx_dn_{lat:+.1f}_{lon:+.1f}"
+                out[key] = (lat, lon)
+                lon += step_lo
+            lat += step_la
+    return out
+
+
+TRANSIT_ANCHORS.update(_build_ocean_anchor_candidates())
+TRANSIT_ANCHORS.update(_build_dense_regional_anchor_candidates())
+
+# West African coastal corridor — searoute's AIS-derived marnet had a
+# gap between offshore Liberia and the Gulf of Guinea, forcing routes
+# through Monrovia port. These hand-picked offshore anchors restore
+# the natural ~4°N shipping highway tankers actually sail.
+TRANSIT_ANCHORS.update({
     "_tx_waf_1":    ( 8.00,  -15.00),  # offshore Sierra Leone
     "_tx_waf_2":    ( 5.50,  -13.00),  # offshore Liberia (W)
     "_tx_waf_3":    ( 4.00,  -10.00),  # offshore Liberia (S)
@@ -653,7 +779,7 @@ TRANSIT_ANCHORS: dict[str, tuple[float, float]] = {
     "_tx_waf_5":    ( 4.00,   -2.00),  # offshore Ghana
     "_tx_waf_6":    ( 4.00,    2.00),  # offshore Togo / Benin
     "_tx_waf_7":    ( 3.00,    6.00),  # offshore Nigeria
-}
+})
 
 
 # ──────────────────────────────────────────────────────────────
@@ -753,11 +879,14 @@ def add_channel_chains(nodes, edges, land):
                     break
                 other_id = existing_ids[idx]
                 other = nodes[other_id]
-                # Skip connections > 30 NM — a chain node 50 NM from its
-                # nearest base graph node is in the middle of nowhere
-                # and such a long jump likely crosses land anyway.
+                # Skip connections > 60 NM — a chain node far from
+                # any base node is in the middle of nowhere and such
+                # a long jump likely crosses land anyway. Was 30 NM,
+                # but Danish Straits + other narrow-sea chain endpoints
+                # need more slack: the first water node east of
+                # Bornholm sits 42 NM from the chain's Baltic exit.
                 d = haversine_nm(*cp, *other)
-                if d > 30:
+                if d > 60:
                     continue
                 if arc_is_clear(cp, other, land):
                     edges.append((chain_nid, other_id, d))
@@ -782,19 +911,37 @@ def add_transit_anchors(nodes, edges, land):
     existing_ids = sorted(nodes.keys())
     coords = [(nodes[i][0], nodes[i][1]) for i in existing_ids]
     tree = cKDTree(coords)
+    # Filter anchor candidates: drop any that would sit on land or
+    # over shallow water. Dense ocean-fill anchors need this, the
+    # hand-picked ones were already vetted but the filter is cheap.
+    from shapely.geometry import Point
+    bathy = get_bathymetry()
     anchor_id: dict[str, int] = {}
-    # First pass: register anchors as graph nodes
+    kept_anchors: list[tuple[str, float, float]] = []
+    land_skipped = shallow_skipped = 0
     for name, (lat, lon) in TRANSIT_ANCHORS.items():
+        if land.contains(Point(lon, lat)):
+            land_skipped += 1
+            continue
+        if bathy is not None and bathy.is_unsafe(lat, lon, MIN_WATER_DEPTH_M):
+            shallow_skipped += 1
+            continue
         nid = max(nodes) + 1
         nodes[nid] = (lat, lon)
         anchor_id[name] = nid
-    # Second pass: connect each anchor to ~10 nearest existing nodes
-    for name, (lat, lon) in TRANSIT_ANCHORS.items():
+        kept_anchors.append((name, lat, lon))
+    print(
+        f"  Added {len(kept_anchors)} transit anchors "
+        f"({land_skipped} skipped over land, "
+        f"{shallow_skipped} over shallow water)"
+    )
+    # Connect each anchor to ~12 nearest existing nodes (land-clear).
+    for name, lat, lon in kept_anchors:
         nid = anchor_id[name]
-        _, idxs = tree.query([lat, lon], k=min(15, len(coords)))
+        _, idxs = tree.query([lat, lon], k=min(20, len(coords)))
         connected = 0
         for idx in idxs:
-            if connected >= 10:
+            if connected >= 12:
                 break
             other_id = existing_ids[idx]
             other = nodes[other_id]
@@ -802,14 +949,48 @@ def add_transit_anchors(nodes, edges, land):
                 d = haversine_nm(lat, lon, *other)
                 edges.append((nid, other_id, d))
                 connected += 1
-    # Third pass: connect anchors to each other where arc is clear
-    anchor_ids = list(anchor_id.values())
-    for i, a in enumerate(anchor_ids):
-        for b in anchor_ids[i + 1:]:
-            if arc_is_clear(nodes[a], nodes[b], land):
-                d = haversine_nm(*nodes[a], *nodes[b])
-                edges.append((a, b, d))
-    print(f"  Added {len(TRANSIT_ANCHORS)} ocean-transit anchors")
+    # Anchor-to-anchor connectivity. Cap edges by distance (≤ 1500
+    # NM) so we don't waste arc_is_clear checks on pairs across
+    # continents. Then also connect each anchor to its 20 nearest
+    # anchors regardless of distance — keeps long-range shortcuts
+    # (Shanghai → LA needs trans-Pacific anchor hops, not Arctic).
+    anchor_coords = [(la, lo) for _, la, lo in kept_anchors]
+    anchor_tree = cKDTree(anchor_coords)
+    added_pairs: set[tuple[int, int]] = set()
+    MAX_ANCHOR_EDGE_NM = 1500.0
+    K_NEAREST_ANCHOR = 20
+    for i, (name_a, la_a, lo_a) in enumerate(kept_anchors):
+        nid_a = anchor_id[name_a]
+        # 1) Every anchor within MAX_ANCHOR_EDGE_NM (dense mesh)
+        for j in range(i + 1, len(kept_anchors)):
+            name_b, la_b, lo_b = kept_anchors[j]
+            d = haversine_nm(la_a, lo_a, la_b, lo_b)
+            if d > MAX_ANCHOR_EDGE_NM:
+                continue
+            pair = (nid_a, anchor_id[name_b])
+            if pair in added_pairs:
+                continue
+            if arc_is_clear((la_a, lo_a), (la_b, lo_b), land):
+                edges.append((nid_a, anchor_id[name_b], d))
+                added_pairs.add(pair)
+        # 2) Plus 20 nearest anchors overall (ensures long-haul
+        # trans-ocean shortcuts without naïve all-pairs cost)
+        _, idxs = anchor_tree.query(
+            [la_a, lo_a], k=min(K_NEAREST_ANCHOR + 1, len(anchor_coords))
+        )
+        for idx in idxs:
+            if idx == i:
+                continue
+            name_b, la_b, lo_b = kept_anchors[idx]
+            nid_b = anchor_id[name_b]
+            pair = (nid_a, nid_b) if nid_a < nid_b else (nid_b, nid_a)
+            if pair in added_pairs:
+                continue
+            if arc_is_clear((la_a, lo_a), (la_b, lo_b), land):
+                d = haversine_nm(la_a, lo_a, la_b, lo_b)
+                edges.append((nid_a, nid_b, d))
+                added_pairs.add(pair)
+    print(f"  Anchor-to-anchor edges: {len(added_pairs):,}")
     return anchor_id
 
 

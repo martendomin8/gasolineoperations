@@ -1,0 +1,4068 @@
+{
+  "_meta": {
+    "description": "Extra tanker-capable ports (refineries, LNG/LPG terminals, tanker bunker hubs). Merged into the routing pipeline + frontend port list. Tier 2 = visible from zoom >= 4; tier 1 hubs live in the hardcoded main list.",
+    "count": 408
+  },
+  "ports": [
+    {
+      "name": "Saint John, CA",
+      "lat": 45.27,
+      "lon": -66.07,
+      "pilotLat": 45.15,
+      "pilotLon": -66.05,
+      "tier": 2,
+      "aliases": [
+        "irving oil"
+      ]
+    },
+    {
+      "name": "Whiffen Head, CA",
+      "lat": 47.8,
+      "lon": -54.0,
+      "pilotLat": 47.8,
+      "pilotLon": -53.7,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Valdez, US",
+      "lat": 61.13,
+      "lon": -146.35,
+      "pilotLat": 60.75,
+      "pilotLon": -147.0,
+      "tier": 2,
+      "aliases": [
+        "trans alaska"
+      ]
+    },
+    {
+      "name": "Cherry Point, US",
+      "lat": 48.86,
+      "lon": -122.75,
+      "pilotLat": 48.75,
+      "pilotLon": -123.1,
+      "tier": 2,
+      "aliases": [
+        "bp cherry point"
+      ]
+    },
+    {
+      "name": "Anacortes, US",
+      "lat": 48.5,
+      "lon": -122.62,
+      "pilotLat": 48.45,
+      "pilotLon": -123.0,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Ferndale, US",
+      "lat": 48.88,
+      "lon": -122.71,
+      "pilotLat": 48.85,
+      "pilotLon": -123.0,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Richmond, US",
+      "lat": 37.93,
+      "lon": -122.38,
+      "pilotLat": 37.85,
+      "pilotLon": -122.5,
+      "tier": 2,
+      "aliases": [
+        "chevron richmond"
+      ]
+    },
+    {
+      "name": "Martinez, US",
+      "lat": 38.03,
+      "lon": -122.14,
+      "pilotLat": 37.95,
+      "pilotLon": -122.5,
+      "tier": 2,
+      "aliases": [
+        "marathon martinez"
+      ]
+    },
+    {
+      "name": "Benicia, US",
+      "lat": 38.05,
+      "lon": -122.15,
+      "pilotLat": 38.0,
+      "pilotLon": -122.4,
+      "tier": 2,
+      "aliases": [
+        "valero benicia"
+      ]
+    },
+    {
+      "name": "Port Angeles, US",
+      "lat": 48.12,
+      "lon": -123.43,
+      "pilotLat": 48.2,
+      "pilotLon": -123.6,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Kitimat, CA",
+      "lat": 54.07,
+      "lon": -128.65,
+      "pilotLat": 53.6,
+      "pilotLon": -129.2,
+      "tier": 2,
+      "aliases": [
+        "lng canada"
+      ]
+    },
+    {
+      "name": "Vancouver, CA",
+      "lat": 49.28,
+      "lon": -123.12,
+      "pilotLat": 49.28,
+      "pilotLon": -123.42,
+      "tier": 2,
+      "aliases": [
+        "westridge",
+        "burnaby"
+      ]
+    },
+    {
+      "name": "Sorel-Tracy, CA",
+      "lat": 46.05,
+      "lon": -73.12,
+      "pilotLat": 48.15,
+      "pilotLon": -69.3,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Nanticoke, CA",
+      "lat": 42.8,
+      "lon": -80.05,
+      "pilotLat": 42.75,
+      "pilotLon": -80.05,
+      "tier": 2,
+      "aliases": [
+        "imperial oil"
+      ]
+    },
+    {
+      "name": "Marcus Hook, US",
+      "lat": 39.81,
+      "lon": -75.42,
+      "pilotLat": 38.8,
+      "pilotLon": -75.0,
+      "tier": 2,
+      "aliases": [
+        "monroe energy"
+      ]
+    },
+    {
+      "name": "Paulsboro, US",
+      "lat": 39.83,
+      "lon": -75.24,
+      "pilotLat": 38.8,
+      "pilotLon": -75.0,
+      "tier": 2,
+      "aliases": [
+        "pbf paulsboro"
+      ]
+    },
+    {
+      "name": "Linden, US",
+      "lat": 40.65,
+      "lon": -74.25,
+      "pilotLat": 40.47,
+      "pilotLon": -74.02,
+      "tier": 2,
+      "aliases": [
+        "bayway",
+        "phillips 66 bayway"
+      ]
+    },
+    {
+      "name": "Port Reading, US",
+      "lat": 40.55,
+      "lon": -74.24,
+      "pilotLat": 40.47,
+      "pilotLon": -74.02,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Eagle Point, US",
+      "lat": 39.83,
+      "lon": -75.17,
+      "pilotLat": 38.8,
+      "pilotLon": -75.0,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Chesapeake, US",
+      "lat": 36.8,
+      "lon": -76.28,
+      "pilotLat": 36.95,
+      "pilotLon": -76.0,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Yorktown, US",
+      "lat": 37.23,
+      "lon": -76.5,
+      "pilotLat": 36.95,
+      "pilotLon": -76.0,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Savannah, US",
+      "lat": 32.08,
+      "lon": -81.1,
+      "pilotLat": 31.95,
+      "pilotLon": -80.8,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Pascagoula, US",
+      "lat": 30.37,
+      "lon": -88.55,
+      "pilotLat": 30.15,
+      "pilotLon": -88.5,
+      "tier": 2,
+      "aliases": [
+        "chevron pascagoula"
+      ]
+    },
+    {
+      "name": "Mobile, US",
+      "lat": 30.69,
+      "lon": -88.04,
+      "pilotLat": 30.2,
+      "pilotLon": -88.05,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Pensacola, US",
+      "lat": 30.42,
+      "lon": -87.21,
+      "pilotLat": 30.2,
+      "pilotLon": -87.3,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Chalmette, US",
+      "lat": 29.94,
+      "lon": -89.95,
+      "pilotLat": 29.18,
+      "pilotLon": -89.25,
+      "tier": 2,
+      "aliases": [
+        "pbf chalmette"
+      ]
+    },
+    {
+      "name": "Convent, US",
+      "lat": 30.02,
+      "lon": -90.82,
+      "pilotLat": 29.18,
+      "pilotLon": -89.25,
+      "tier": 2,
+      "aliases": [
+        "marathon convent"
+      ]
+    },
+    {
+      "name": "Garyville, US",
+      "lat": 30.06,
+      "lon": -90.63,
+      "pilotLat": 29.18,
+      "pilotLon": -89.25,
+      "tier": 2,
+      "aliases": [
+        "marathon garyville"
+      ]
+    },
+    {
+      "name": "Norco, US",
+      "lat": 29.99,
+      "lon": -90.41,
+      "pilotLat": 29.18,
+      "pilotLon": -89.25,
+      "tier": 2,
+      "aliases": [
+        "shell norco"
+      ]
+    },
+    {
+      "name": "Galveston, US",
+      "lat": 29.3,
+      "lon": -94.8,
+      "pilotLat": 29.0,
+      "pilotLon": -94.5,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Texas City, US",
+      "lat": 29.38,
+      "lon": -94.9,
+      "pilotLat": 29.0,
+      "pilotLon": -94.5,
+      "tier": 2,
+      "aliases": [
+        "marathon texas city",
+        "valero texas city"
+      ]
+    },
+    {
+      "name": "Freeport, US",
+      "lat": 28.95,
+      "lon": -95.36,
+      "pilotLat": 28.75,
+      "pilotLon": -95.25,
+      "tier": 2,
+      "aliases": [
+        "phillips 66 sweeny",
+        "dow freeport"
+      ]
+    },
+    {
+      "name": "Corpus Christi Oil, US",
+      "lat": 27.82,
+      "lon": -97.4,
+      "pilotLat": 27.4,
+      "pilotLon": -96.9,
+      "tier": 2,
+      "aliases": [
+        "cheniere corpus",
+        "flint hills",
+        "citgo corpus"
+      ]
+    },
+    {
+      "name": "Port Lavaca, US",
+      "lat": 28.6,
+      "lon": -96.62,
+      "pilotLat": 28.4,
+      "pilotLon": -96.4,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Sabine Pass, US",
+      "lat": 29.72,
+      "lon": -93.87,
+      "pilotLat": 29.55,
+      "pilotLon": -93.7,
+      "tier": 2,
+      "aliases": [
+        "cheniere lng"
+      ]
+    },
+    {
+      "name": "Brownsville, US",
+      "lat": 25.93,
+      "lon": -97.4,
+      "pilotLat": 26.0,
+      "pilotLon": -97.0,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Coatzacoalcos, MX",
+      "lat": 18.15,
+      "lon": -94.42,
+      "pilotLat": 18.2,
+      "pilotLon": -94.3,
+      "tier": 2,
+      "aliases": [
+        "pajaritos"
+      ]
+    },
+    {
+      "name": "Salina Cruz, MX",
+      "lat": 16.17,
+      "lon": -95.2,
+      "pilotLat": 16.0,
+      "pilotLon": -95.2,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Dos Bocas, MX",
+      "lat": 18.42,
+      "lon": -93.18,
+      "pilotLat": 18.6,
+      "pilotLon": -93.2,
+      "tier": 2,
+      "aliases": [
+        "olmeca refinery"
+      ]
+    },
+    {
+      "name": "Tuxpan, MX",
+      "lat": 20.97,
+      "lon": -97.4,
+      "pilotLat": 21.0,
+      "pilotLon": -97.3,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Madero, MX",
+      "lat": 22.25,
+      "lon": -97.85,
+      "pilotLat": 22.2,
+      "pilotLon": -97.6,
+      "tier": 2,
+      "aliases": [
+        "tampico",
+        "altamira"
+      ]
+    },
+    {
+      "name": "Rosarito, MX",
+      "lat": 32.34,
+      "lon": -117.06,
+      "pilotLat": 32.3,
+      "pilotLon": -117.2,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Lazaro Cardenas, MX",
+      "lat": 17.97,
+      "lon": -102.18,
+      "pilotLat": 17.9,
+      "pilotLon": -102.3,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Manzanillo, MX",
+      "lat": 19.05,
+      "lon": -104.32,
+      "pilotLat": 19.0,
+      "pilotLon": -104.5,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Kingston, JM",
+      "lat": 17.98,
+      "lon": -76.79,
+      "pilotLat": 17.9,
+      "pilotLon": -76.7,
+      "tier": 2,
+      "aliases": [
+        "petrojam"
+      ]
+    },
+    {
+      "name": "Point Fortin, TT",
+      "lat": 10.17,
+      "lon": -61.68,
+      "pilotLat": 10.1,
+      "pilotLon": -61.8,
+      "tier": 2,
+      "aliases": [
+        "atlantic lng"
+      ]
+    },
+    {
+      "name": "La Brea, TT",
+      "lat": 10.23,
+      "lon": -61.6,
+      "pilotLat": 10.15,
+      "pilotLon": -61.7,
+      "tier": 2,
+      "aliases": [
+        "petrotrin"
+      ]
+    },
+    {
+      "name": "Pointe-a-Pierre, TT",
+      "lat": 10.3,
+      "lon": -61.47,
+      "pilotLat": 10.2,
+      "pilotLon": -61.6,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "St. Eustatius, BQ",
+      "lat": 17.5,
+      "lon": -62.98,
+      "pilotLat": 17.55,
+      "pilotLon": -63.0,
+      "tier": 2,
+      "aliases": [
+        "nustar statia"
+      ]
+    },
+    {
+      "name": "Barcadera, AW",
+      "lat": 12.53,
+      "lon": -70.0,
+      "pilotLat": 12.55,
+      "pilotLon": -70.05,
+      "tier": 2,
+      "aliases": [
+        "aruba"
+      ]
+    },
+    {
+      "name": "Oranjestad, AW",
+      "lat": 12.52,
+      "lon": -70.03,
+      "pilotLat": 12.55,
+      "pilotLon": -70.05,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Kralendijk, BQ",
+      "lat": 12.15,
+      "lon": -68.28,
+      "pilotLat": 12.2,
+      "pilotLon": -68.3,
+      "tier": 2,
+      "aliases": [
+        "bonaire",
+        "bopec"
+      ]
+    },
+    {
+      "name": "South Riding Point, BS",
+      "lat": 26.65,
+      "lon": -77.9,
+      "pilotLat": 26.6,
+      "pilotLon": -77.8,
+      "tier": 2,
+      "aliases": [
+        "bahamas oil terminal"
+      ]
+    },
+    {
+      "name": "Freeport, BS",
+      "lat": 26.53,
+      "lon": -78.7,
+      "pilotLat": 26.5,
+      "pilotLon": -78.8,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Jose, VE",
+      "lat": 10.12,
+      "lon": -64.93,
+      "pilotLat": 10.0,
+      "pilotLon": -64.8,
+      "tier": 2,
+      "aliases": [
+        "jose terminal",
+        "jose cristobal colon"
+      ]
+    },
+    {
+      "name": "Amuay, VE",
+      "lat": 11.75,
+      "lon": -70.22,
+      "pilotLat": 11.9,
+      "pilotLon": -70.3,
+      "tier": 2,
+      "aliases": [
+        "paraguana",
+        "pdvsa amuay"
+      ]
+    },
+    {
+      "name": "Cardon, VE",
+      "lat": 11.64,
+      "lon": -70.22,
+      "pilotLat": 11.9,
+      "pilotLon": -70.3,
+      "tier": 2,
+      "aliases": [
+        "pdvsa cardon"
+      ]
+    },
+    {
+      "name": "Puerto Miranda, VE",
+      "lat": 10.77,
+      "lon": -71.58,
+      "pilotLat": 10.7,
+      "pilotLon": -71.55,
+      "tier": 2,
+      "aliases": [
+        "lake maracaibo"
+      ]
+    },
+    {
+      "name": "La Salina, VE",
+      "lat": 10.4,
+      "lon": -71.45,
+      "pilotLat": 10.7,
+      "pilotLon": -71.55,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Cristobal, PA",
+      "lat": 9.35,
+      "lon": -79.9,
+      "pilotLat": 9.4,
+      "pilotLon": -79.9,
+      "tier": 2,
+      "aliases": [
+        "colon"
+      ]
+    },
+    {
+      "name": "Balboa, PA",
+      "lat": 8.96,
+      "lon": -79.57,
+      "pilotLat": 8.8,
+      "pilotLon": -79.4,
+      "tier": 2,
+      "aliases": [
+        "panama city"
+      ]
+    },
+    {
+      "name": "Puerto Quetzal, GT",
+      "lat": 13.92,
+      "lon": -90.78,
+      "pilotLat": 13.85,
+      "pilotLon": -90.8,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Acajutla, SV",
+      "lat": 13.58,
+      "lon": -89.83,
+      "pilotLat": 13.55,
+      "pilotLon": -89.9,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Corinto, NI",
+      "lat": 12.47,
+      "lon": -87.18,
+      "pilotLat": 12.4,
+      "pilotLon": -87.25,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Puerto Cortes, HN",
+      "lat": 15.83,
+      "lon": -87.95,
+      "pilotLat": 15.85,
+      "pilotLon": -88.0,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Moin, CR",
+      "lat": 10.0,
+      "lon": -83.07,
+      "pilotLat": 10.05,
+      "pilotLon": -83.0,
+      "tier": 2,
+      "aliases": [
+        "limon"
+      ]
+    },
+    {
+      "name": "Buenos Aires, AR",
+      "lat": -34.6,
+      "lon": -58.4,
+      "pilotLat": -34.8,
+      "pilotLon": -57.4,
+      "tier": 2,
+      "aliases": [
+        "dock sud"
+      ]
+    },
+    {
+      "name": "Bahia Blanca, AR",
+      "lat": -38.78,
+      "lon": -62.27,
+      "pilotLat": -39.1,
+      "pilotLon": -62.0,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Campana, AR",
+      "lat": -34.17,
+      "lon": -58.93,
+      "pilotLat": -34.8,
+      "pilotLon": -57.4,
+      "tier": 2,
+      "aliases": [
+        "axion campana"
+      ]
+    },
+    {
+      "name": "La Plata, AR",
+      "lat": -34.87,
+      "lon": -57.92,
+      "pilotLat": -34.8,
+      "pilotLon": -57.4,
+      "tier": 2,
+      "aliases": [
+        "ypf la plata"
+      ]
+    },
+    {
+      "name": "Montevideo, UY",
+      "lat": -34.9,
+      "lon": -56.2,
+      "pilotLat": -34.95,
+      "pilotLon": -56.2,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Jose Ignacio, UY",
+      "lat": -34.85,
+      "lon": -54.63,
+      "pilotLat": -34.9,
+      "pilotLon": -54.6,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Paranagua, BR",
+      "lat": -25.52,
+      "lon": -48.52,
+      "pilotLat": -25.55,
+      "pilotLon": -48.3,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Sao Francisco do Sul, BR",
+      "lat": -26.24,
+      "lon": -48.65,
+      "pilotLat": -26.25,
+      "pilotLon": -48.5,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Rio de Janeiro, BR",
+      "lat": -22.9,
+      "lon": -43.18,
+      "pilotLat": -23.1,
+      "pilotLon": -43.18,
+      "tier": 2,
+      "aliases": [
+        "reduc",
+        "duque de caxias"
+      ]
+    },
+    {
+      "name": "Angra dos Reis, BR",
+      "lat": -23.0,
+      "lon": -44.3,
+      "pilotLat": -23.15,
+      "pilotLon": -44.3,
+      "tier": 2,
+      "aliases": [
+        "tebig",
+        "ilha grande"
+      ]
+    },
+    {
+      "name": "Vitoria, BR",
+      "lat": -20.32,
+      "lon": -40.33,
+      "pilotLat": -20.4,
+      "pilotLon": -40.2,
+      "tier": 2,
+      "aliases": [
+        "tubarao"
+      ]
+    },
+    {
+      "name": "Aratu, BR",
+      "lat": -12.8,
+      "lon": -38.52,
+      "pilotLat": -13.0,
+      "pilotLon": -38.3,
+      "tier": 2,
+      "aliases": [
+        "salvador da bahia",
+        "rlam"
+      ]
+    },
+    {
+      "name": "Madre de Deus, BR",
+      "lat": -12.75,
+      "lon": -38.62,
+      "pilotLat": -13.0,
+      "pilotLon": -38.3,
+      "tier": 2,
+      "aliases": [
+        "terminal almirante"
+      ]
+    },
+    {
+      "name": "Suape, BR",
+      "lat": -8.38,
+      "lon": -34.98,
+      "pilotLat": -8.4,
+      "pilotLon": -34.8,
+      "tier": 2,
+      "aliases": [
+        "abreu e lima",
+        "rnest"
+      ]
+    },
+    {
+      "name": "Pecem, BR",
+      "lat": -3.56,
+      "lon": -38.82,
+      "pilotLat": -3.5,
+      "pilotLon": -38.7,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Tramandai, BR",
+      "lat": -29.98,
+      "lon": -50.12,
+      "pilotLat": -30.0,
+      "pilotLon": -50.0,
+      "tier": 2,
+      "aliases": [
+        "transpetro"
+      ]
+    },
+    {
+      "name": "Itaqui, BR",
+      "lat": -2.57,
+      "lon": -44.37,
+      "pilotLat": -2.5,
+      "pilotLon": -44.3,
+      "tier": 2,
+      "aliases": [
+        "sao luis"
+      ]
+    },
+    {
+      "name": "Cartagena, CO",
+      "lat": 10.4,
+      "lon": -75.55,
+      "pilotLat": 10.4,
+      "pilotLon": -75.65,
+      "tier": 2,
+      "aliases": [
+        "refineria cartagena"
+      ]
+    },
+    {
+      "name": "Covenas, CO",
+      "lat": 9.42,
+      "lon": -75.7,
+      "pilotLat": 9.5,
+      "pilotLon": -75.75,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Santa Marta, CO",
+      "lat": 11.25,
+      "lon": -74.22,
+      "pilotLat": 11.2,
+      "pilotLon": -74.2,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Buenaventura, CO",
+      "lat": 3.88,
+      "lon": -77.03,
+      "pilotLat": 3.8,
+      "pilotLon": -77.15,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Esmeraldas, EC",
+      "lat": 0.97,
+      "lon": -79.65,
+      "pilotLat": 1.0,
+      "pilotLon": -79.8,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Balao, EC",
+      "lat": 0.95,
+      "lon": -79.63,
+      "pilotLat": 1.0,
+      "pilotLon": -79.8,
+      "tier": 2,
+      "aliases": [
+        "ocp"
+      ]
+    },
+    {
+      "name": "Talara, PE",
+      "lat": -4.58,
+      "lon": -81.27,
+      "pilotLat": -4.6,
+      "pilotLon": -81.3,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Paita, PE",
+      "lat": -5.08,
+      "lon": -81.12,
+      "pilotLat": -5.1,
+      "pilotLon": -81.15,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Mejillones, CL",
+      "lat": -23.1,
+      "lon": -70.45,
+      "pilotLat": -23.15,
+      "pilotLon": -70.5,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "San Vicente, CL",
+      "lat": -36.73,
+      "lon": -73.15,
+      "pilotLat": -36.8,
+      "pilotLon": -73.2,
+      "tier": 2,
+      "aliases": [
+        "talcahuano",
+        "bio bio"
+      ]
+    },
+    {
+      "name": "Valparaiso, CL",
+      "lat": -33.05,
+      "lon": -71.63,
+      "pilotLat": -33.1,
+      "pilotLon": -71.7,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Fredericia, DK",
+      "lat": 55.57,
+      "lon": 9.77,
+      "pilotLat": 55.65,
+      "pilotLon": 10.6,
+      "tier": 2,
+      "aliases": [
+        "shell fredericia"
+      ]
+    },
+    {
+      "name": "Kalundborg, DK",
+      "lat": 55.68,
+      "lon": 11.09,
+      "pilotLat": 55.68,
+      "pilotLon": 11.2,
+      "tier": 2,
+      "aliases": [
+        "statoil kalundborg"
+      ]
+    },
+    {
+      "name": "Copenhagen, DK",
+      "lat": 55.7,
+      "lon": 12.6,
+      "pilotLat": 55.7,
+      "pilotLon": 12.75,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Stade, DE",
+      "lat": 53.6,
+      "lon": 9.48,
+      "pilotLat": 54.0,
+      "pilotLon": 8.1,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Brunsbuttel, DE",
+      "lat": 53.9,
+      "lon": 9.13,
+      "pilotLat": 54.0,
+      "pilotLon": 8.1,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Bremen, DE",
+      "lat": 53.07,
+      "lon": 8.81,
+      "pilotLat": 53.8,
+      "pilotLon": 8.1,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Bremerhaven, DE",
+      "lat": 53.55,
+      "lon": 8.6,
+      "pilotLat": 53.8,
+      "pilotLon": 8.1,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Rostock, DE",
+      "lat": 54.09,
+      "lon": 12.09,
+      "pilotLat": 54.3,
+      "pilotLon": 12.1,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Stavanger, NO",
+      "lat": 58.97,
+      "lon": 5.73,
+      "pilotLat": 58.9,
+      "pilotLon": 5.5,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Bergen, NO",
+      "lat": 60.39,
+      "lon": 5.32,
+      "pilotLat": 60.3,
+      "pilotLon": 5.0,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Slagen, NO",
+      "lat": 59.28,
+      "lon": 10.52,
+      "pilotLat": 59.2,
+      "pilotLon": 10.5,
+      "tier": 2,
+      "aliases": [
+        "exxonmobil slagen"
+      ]
+    },
+    {
+      "name": "Sture, NO",
+      "lat": 60.64,
+      "lon": 4.85,
+      "pilotLat": 60.7,
+      "pilotLon": 4.6,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Haugesund, NO",
+      "lat": 59.41,
+      "lon": 5.28,
+      "pilotLat": 59.25,
+      "pilotLon": 5.0,
+      "tier": 2,
+      "aliases": [
+        "karmsund"
+      ]
+    },
+    {
+      "name": "Narvik, NO",
+      "lat": 68.44,
+      "lon": 17.43,
+      "pilotLat": 68.3,
+      "pilotLon": 17.0,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Lysekil, SE",
+      "lat": 58.27,
+      "lon": 11.43,
+      "pilotLat": 58.3,
+      "pilotLon": 11.3,
+      "tier": 2,
+      "aliases": [
+        "preem lysekil"
+      ]
+    },
+    {
+      "name": "Stockholm, SE",
+      "lat": 59.33,
+      "lon": 18.08,
+      "pilotLat": 59.35,
+      "pilotLon": 19.0,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Naantali, FI",
+      "lat": 60.47,
+      "lon": 22.02,
+      "pilotLat": 60.47,
+      "pilotLon": 22.02,
+      "tier": 2,
+      "aliases": [
+        "neste naantali"
+      ]
+    },
+    {
+      "name": "Helsinki, FI",
+      "lat": 60.17,
+      "lon": 24.95,
+      "pilotLat": 60.05,
+      "pilotLon": 24.95,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Turku, FI",
+      "lat": 60.45,
+      "lon": 22.27,
+      "pilotLat": 60.25,
+      "pilotLon": 21.6,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Rauma, FI",
+      "lat": 61.13,
+      "lon": 21.51,
+      "pilotLat": 61.0,
+      "pilotLon": 21.2,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Pori, FI",
+      "lat": 61.48,
+      "lon": 21.8,
+      "pilotLat": 61.4,
+      "pilotLon": 21.2,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Oulu, FI",
+      "lat": 65.01,
+      "lon": 25.47,
+      "pilotLat": 65.0,
+      "pilotLon": 25.0,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Riga, LV",
+      "lat": 56.95,
+      "lon": 24.1,
+      "pilotLat": 57.2,
+      "pilotLon": 23.95,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Liepaja, LV",
+      "lat": 56.52,
+      "lon": 21.02,
+      "pilotLat": 56.5,
+      "pilotLon": 20.9,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Butinge, LT",
+      "lat": 56.05,
+      "lon": 21.05,
+      "pilotLat": 56.05,
+      "pilotLon": 20.7,
+      "tier": 2,
+      "aliases": [
+        "butinges terminalas"
+      ]
+    },
+    {
+      "name": "Muuga, EE",
+      "lat": 59.5,
+      "lon": 24.95,
+      "pilotLat": 59.6,
+      "pilotLon": 24.9,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Paldiski, EE",
+      "lat": 59.35,
+      "lon": 24.07,
+      "pilotLat": 59.4,
+      "pilotLon": 23.9,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Kaliningrad, RU",
+      "lat": 54.72,
+      "lon": 20.5,
+      "pilotLat": 54.95,
+      "pilotLon": 19.8,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Primorsk, RU",
+      "lat": 60.35,
+      "lon": 28.62,
+      "pilotLat": 60.15,
+      "pilotLon": 28.5,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Milford Haven, GB",
+      "lat": 51.7,
+      "lon": -5.05,
+      "pilotLat": 51.65,
+      "pilotLon": -5.2,
+      "tier": 2,
+      "aliases": [
+        "valero pembroke"
+      ]
+    },
+    {
+      "name": "Pembroke, GB",
+      "lat": 51.68,
+      "lon": -4.95,
+      "pilotLat": 51.65,
+      "pilotLon": -5.2,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Tranmere, GB",
+      "lat": 53.38,
+      "lon": -3.0,
+      "pilotLat": 53.45,
+      "pilotLon": -3.2,
+      "tier": 2,
+      "aliases": [
+        "stanlow",
+        "essar"
+      ]
+    },
+    {
+      "name": "Liverpool, GB",
+      "lat": 53.4,
+      "lon": -3.0,
+      "pilotLat": 53.45,
+      "pilotLon": -3.2,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Flotta, GB",
+      "lat": 58.83,
+      "lon": -3.13,
+      "pilotLat": 58.85,
+      "pilotLon": -3.3,
+      "tier": 2,
+      "aliases": [
+        "orkney"
+      ]
+    },
+    {
+      "name": "Aberdeen, GB",
+      "lat": 57.14,
+      "lon": -2.08,
+      "pilotLat": 57.1,
+      "pilotLon": -1.9,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Cromarty, GB",
+      "lat": 57.68,
+      "lon": -4.04,
+      "pilotLat": 57.7,
+      "pilotLon": -3.9,
+      "tier": 2,
+      "aliases": [
+        "cromarty firth"
+      ]
+    },
+    {
+      "name": "Nigg, GB",
+      "lat": 57.7,
+      "lon": -4.03,
+      "pilotLat": 57.7,
+      "pilotLon": -3.9,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Whitegate, IE",
+      "lat": 51.83,
+      "lon": -8.23,
+      "pilotLat": 51.8,
+      "pilotLon": -8.1,
+      "tier": 2,
+      "aliases": [
+        "cork refinery"
+      ]
+    },
+    {
+      "name": "Bantry, IE",
+      "lat": 51.65,
+      "lon": -9.48,
+      "pilotLat": 51.5,
+      "pilotLon": -9.8,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Donges, FR",
+      "lat": 47.3,
+      "lon": -2.07,
+      "pilotLat": 47.15,
+      "pilotLon": -2.4,
+      "tier": 2,
+      "aliases": [
+        "total donges"
+      ]
+    },
+    {
+      "name": "La Rochelle, FR",
+      "lat": 46.16,
+      "lon": -1.15,
+      "pilotLat": 46.1,
+      "pilotLon": -1.4,
+      "tier": 2,
+      "aliases": [
+        "la pallice"
+      ]
+    },
+    {
+      "name": "Bordeaux, FR",
+      "lat": 44.84,
+      "lon": -0.58,
+      "pilotLat": 45.3,
+      "pilotLon": -1.2,
+      "tier": 2,
+      "aliases": [
+        "bec d ambes"
+      ]
+    },
+    {
+      "name": "Nantes, FR",
+      "lat": 47.22,
+      "lon": -1.55,
+      "pilotLat": 47.15,
+      "pilotLon": -2.4,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Bayonne, FR",
+      "lat": 43.49,
+      "lon": -1.47,
+      "pilotLat": 43.5,
+      "pilotLon": -1.6,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Brest, FR",
+      "lat": 48.39,
+      "lon": -4.49,
+      "pilotLat": 48.35,
+      "pilotLon": -4.6,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "A Coruna, ES",
+      "lat": 43.37,
+      "lon": -8.4,
+      "pilotLat": 43.4,
+      "pilotLon": -8.5,
+      "tier": 2,
+      "aliases": [
+        "repsol coruna"
+      ]
+    },
+    {
+      "name": "Ferrol, ES",
+      "lat": 43.48,
+      "lon": -8.23,
+      "pilotLat": 43.45,
+      "pilotLon": -8.3,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Gijon, ES",
+      "lat": 43.55,
+      "lon": -5.66,
+      "pilotLat": 43.6,
+      "pilotLon": -5.7,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Santander, ES",
+      "lat": 43.46,
+      "lon": -3.81,
+      "pilotLat": 43.5,
+      "pilotLon": -3.8,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Leixoes, PT",
+      "lat": 41.18,
+      "lon": -8.7,
+      "pilotLat": 41.1,
+      "pilotLon": -8.8,
+      "tier": 2,
+      "aliases": [
+        "galp leixoes",
+        "matosinhos"
+      ]
+    },
+    {
+      "name": "Setubal, PT",
+      "lat": 38.52,
+      "lon": -8.89,
+      "pilotLat": 38.4,
+      "pilotLon": -9.0,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Lisbon, PT",
+      "lat": 38.72,
+      "lon": -9.15,
+      "pilotLat": 38.6,
+      "pilotLon": -9.4,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Tarragona, ES",
+      "lat": 41.1,
+      "lon": 1.23,
+      "pilotLat": 41.05,
+      "pilotLon": 1.2,
+      "tier": 2,
+      "aliases": [
+        "repsol tarragona"
+      ]
+    },
+    {
+      "name": "Castellon, ES",
+      "lat": 39.97,
+      "lon": -0.02,
+      "pilotLat": 39.95,
+      "pilotLon": 0.1,
+      "tier": 2,
+      "aliases": [
+        "bp castellon"
+      ]
+    },
+    {
+      "name": "Escombreras, ES",
+      "lat": 37.57,
+      "lon": -0.97,
+      "pilotLat": 37.55,
+      "pilotLon": -0.9,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Valencia, ES",
+      "lat": 39.47,
+      "lon": -0.37,
+      "pilotLat": 39.4,
+      "pilotLon": -0.3,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Savona, IT",
+      "lat": 44.31,
+      "lon": 8.48,
+      "pilotLat": 44.3,
+      "pilotLon": 8.4,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "La Spezia, IT",
+      "lat": 44.1,
+      "lon": 9.83,
+      "pilotLat": 44.0,
+      "pilotLon": 9.8,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Piombino, IT",
+      "lat": 42.92,
+      "lon": 10.55,
+      "pilotLat": 42.9,
+      "pilotLon": 10.45,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Gela, IT",
+      "lat": 37.07,
+      "lon": 14.25,
+      "pilotLat": 37.0,
+      "pilotLon": 14.2,
+      "tier": 2,
+      "aliases": [
+        "eni gela"
+      ]
+    },
+    {
+      "name": "Priolo, IT",
+      "lat": 37.17,
+      "lon": 15.21,
+      "pilotLat": 37.2,
+      "pilotLon": 15.3,
+      "tier": 2,
+      "aliases": [
+        "syracuse",
+        "exxonmobil priolo"
+      ]
+    },
+    {
+      "name": "Taranto, IT",
+      "lat": 40.47,
+      "lon": 17.24,
+      "pilotLat": 40.4,
+      "pilotLon": 17.2,
+      "tier": 2,
+      "aliases": [
+        "eni taranto"
+      ]
+    },
+    {
+      "name": "Brindisi, IT",
+      "lat": 40.63,
+      "lon": 17.95,
+      "pilotLat": 40.55,
+      "pilotLon": 18.0,
+      "tier": 2,
+      "aliases": [
+        "eni versalis"
+      ]
+    },
+    {
+      "name": "Ravenna, IT",
+      "lat": 44.42,
+      "lon": 12.2,
+      "pilotLat": 44.5,
+      "pilotLon": 12.3,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Koper, SI",
+      "lat": 45.55,
+      "lon": 13.73,
+      "pilotLat": 45.55,
+      "pilotLon": 13.6,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Rijeka, HR",
+      "lat": 45.33,
+      "lon": 14.45,
+      "pilotLat": 45.3,
+      "pilotLon": 14.4,
+      "tier": 2,
+      "aliases": [
+        "ina rijeka"
+      ]
+    },
+    {
+      "name": "Ploce, HR",
+      "lat": 43.05,
+      "lon": 17.43,
+      "pilotLat": 43.0,
+      "pilotLon": 17.35,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Bar, ME",
+      "lat": 42.1,
+      "lon": 19.09,
+      "pilotLat": 42.0,
+      "pilotLon": 19.0,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Piraeus, GR",
+      "lat": 37.94,
+      "lon": 23.65,
+      "pilotLat": 37.9,
+      "pilotLon": 23.6,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Aspropyrgos, GR",
+      "lat": 38.07,
+      "lon": 23.58,
+      "pilotLat": 38.0,
+      "pilotLon": 23.5,
+      "tier": 2,
+      "aliases": [
+        "hellenic petroleum"
+      ]
+    },
+    {
+      "name": "Limassol, CY",
+      "lat": 34.67,
+      "lon": 33.04,
+      "pilotLat": 34.6,
+      "pilotLon": 33.05,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Ceyhan, TR",
+      "lat": 36.85,
+      "lon": 35.93,
+      "pilotLat": 36.78,
+      "pilotLon": 35.85,
+      "tier": 2,
+      "aliases": [
+        "btc pipeline"
+      ]
+    },
+    {
+      "name": "Aliaga, TR",
+      "lat": 38.82,
+      "lon": 26.94,
+      "pilotLat": 38.7,
+      "pilotLon": 26.8,
+      "tier": 2,
+      "aliases": [
+        "tupras aliaga"
+      ]
+    },
+    {
+      "name": "Izmir, TR",
+      "lat": 38.42,
+      "lon": 27.13,
+      "pilotLat": 38.35,
+      "pilotLon": 26.9,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Samsun, TR",
+      "lat": 41.28,
+      "lon": 36.33,
+      "pilotLat": 41.35,
+      "pilotLon": 36.4,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Taman, RU",
+      "lat": 45.2,
+      "lon": 36.72,
+      "pilotLat": 45.2,
+      "pilotLon": 36.8,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Yuzhny, UA",
+      "lat": 46.6,
+      "lon": 31.07,
+      "pilotLat": 46.4,
+      "pilotLon": 31.0,
+      "tier": 2,
+      "aliases": [
+        "pivdennyi"
+      ]
+    },
+    {
+      "name": "Poti, GE",
+      "lat": 42.15,
+      "lon": 41.67,
+      "pilotLat": 42.1,
+      "pilotLon": 41.6,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Tangier, MA",
+      "lat": 35.78,
+      "lon": -5.81,
+      "pilotLat": 35.9,
+      "pilotLon": -5.9,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Nador, MA",
+      "lat": 35.28,
+      "lon": -2.93,
+      "pilotLat": 35.35,
+      "pilotLon": -3.0,
+      "tier": 2,
+      "aliases": [
+        "beni ensar"
+      ]
+    },
+    {
+      "name": "Casablanca, MA",
+      "lat": 33.6,
+      "lon": -7.6,
+      "pilotLat": 33.6,
+      "pilotLon": -7.8,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Jorf Lasfar, MA",
+      "lat": 33.13,
+      "lon": -8.65,
+      "pilotLat": 33.1,
+      "pilotLon": -8.8,
+      "tier": 2,
+      "aliases": [
+        "ocp"
+      ]
+    },
+    {
+      "name": "Safi, MA",
+      "lat": 32.3,
+      "lon": -9.23,
+      "pilotLat": 32.25,
+      "pilotLon": -9.4,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Agadir, MA",
+      "lat": 30.42,
+      "lon": -9.6,
+      "pilotLat": 30.35,
+      "pilotLon": -9.8,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Arzew, DZ",
+      "lat": 35.85,
+      "lon": -0.33,
+      "pilotLat": 35.9,
+      "pilotLon": -0.3,
+      "tier": 2,
+      "aliases": [
+        "sonatrach",
+        "arzew lng"
+      ]
+    },
+    {
+      "name": "Bejaia, DZ",
+      "lat": 36.75,
+      "lon": 5.08,
+      "pilotLat": 36.8,
+      "pilotLon": 5.1,
+      "tier": 2,
+      "aliases": [
+        "naftal"
+      ]
+    },
+    {
+      "name": "Oran, DZ",
+      "lat": 35.7,
+      "lon": -0.63,
+      "pilotLat": 35.75,
+      "pilotLon": -0.6,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Annaba, DZ",
+      "lat": 36.9,
+      "lon": 7.77,
+      "pilotLat": 36.95,
+      "pilotLon": 7.8,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Bizerte, TN",
+      "lat": 37.27,
+      "lon": 9.87,
+      "pilotLat": 37.3,
+      "pilotLon": 9.9,
+      "tier": 2,
+      "aliases": [
+        "stir refinery"
+      ]
+    },
+    {
+      "name": "La Skhirra, TN",
+      "lat": 34.3,
+      "lon": 10.1,
+      "pilotLat": 34.25,
+      "pilotLon": 10.2,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Gabes, TN",
+      "lat": 33.9,
+      "lon": 10.1,
+      "pilotLat": 33.85,
+      "pilotLon": 10.2,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Sfax, TN",
+      "lat": 34.73,
+      "lon": 10.77,
+      "pilotLat": 34.7,
+      "pilotLon": 10.8,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Zawiya, LY",
+      "lat": 32.77,
+      "lon": 12.73,
+      "pilotLat": 32.8,
+      "pilotLon": 12.7,
+      "tier": 2,
+      "aliases": [
+        "zawia refinery"
+      ]
+    },
+    {
+      "name": "Mellitah, LY",
+      "lat": 32.8,
+      "lon": 12.2,
+      "pilotLat": 32.85,
+      "pilotLon": 12.15,
+      "tier": 2,
+      "aliases": [
+        "eni mellitah"
+      ]
+    },
+    {
+      "name": "Ras Lanuf, LY",
+      "lat": 30.5,
+      "lon": 18.55,
+      "pilotLat": 30.55,
+      "pilotLon": 18.5,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Es Sider, LY",
+      "lat": 30.65,
+      "lon": 18.4,
+      "pilotLat": 30.7,
+      "pilotLon": 18.35,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Zuetina, LY",
+      "lat": 30.88,
+      "lon": 20.08,
+      "pilotLat": 30.9,
+      "pilotLon": 20.0,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Mersa Hariga, LY",
+      "lat": 32.05,
+      "lon": 23.98,
+      "pilotLat": 32.1,
+      "pilotLon": 24.0,
+      "tier": 2,
+      "aliases": [
+        "tobruk"
+      ]
+    },
+    {
+      "name": "Tripoli, LY",
+      "lat": 32.9,
+      "lon": 13.18,
+      "pilotLat": 32.95,
+      "pilotLon": 13.15,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Suez, EG",
+      "lat": 29.97,
+      "lon": 32.55,
+      "pilotLat": 29.9,
+      "pilotLon": 32.6,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Ain Sokhna, EG",
+      "lat": 29.6,
+      "lon": 32.33,
+      "pilotLat": 29.55,
+      "pilotLon": 32.4,
+      "tier": 2,
+      "aliases": [
+        "sumed"
+      ]
+    },
+    {
+      "name": "Damietta, EG",
+      "lat": 31.47,
+      "lon": 31.82,
+      "pilotLat": 31.5,
+      "pilotLon": 31.85,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Port Said, EG",
+      "lat": 31.27,
+      "lon": 32.3,
+      "pilotLat": 31.4,
+      "pilotLon": 32.35,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "El Dekheila, EG",
+      "lat": 31.13,
+      "lon": 29.78,
+      "pilotLat": 31.2,
+      "pilotLon": 29.8,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Aqaba, JO",
+      "lat": 29.51,
+      "lon": 35.0,
+      "pilotLat": 29.45,
+      "pilotLon": 34.95,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Jeddah, SA",
+      "lat": 21.54,
+      "lon": 39.17,
+      "pilotLat": 21.5,
+      "pilotLon": 39.1,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Rabigh, SA",
+      "lat": 22.8,
+      "lon": 39.05,
+      "pilotLat": 22.8,
+      "pilotLon": 38.95,
+      "tier": 2,
+      "aliases": [
+        "petro rabigh"
+      ]
+    },
+    {
+      "name": "Jizan, SA",
+      "lat": 16.9,
+      "lon": 42.58,
+      "pilotLat": 16.85,
+      "pilotLon": 42.5,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "King Fahd, SA",
+      "lat": 26.78,
+      "lon": 49.97,
+      "pilotLat": 26.8,
+      "pilotLon": 50.05,
+      "tier": 2,
+      "aliases": [
+        "jubail industrial"
+      ]
+    },
+    {
+      "name": "Jubail, SA",
+      "lat": 27.02,
+      "lon": 49.66,
+      "pilotLat": 27.1,
+      "pilotLon": 49.9,
+      "tier": 2,
+      "aliases": [
+        "sabic",
+        "satorp"
+      ]
+    },
+    {
+      "name": "Dammam, SA",
+      "lat": 26.47,
+      "lon": 50.1,
+      "pilotLat": 26.5,
+      "pilotLon": 50.2,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Aden, YE",
+      "lat": 12.79,
+      "lon": 44.98,
+      "pilotLat": 12.7,
+      "pilotLon": 44.95,
+      "tier": 2,
+      "aliases": [
+        "aden refinery"
+      ]
+    },
+    {
+      "name": "Hodeidah, YE",
+      "lat": 14.8,
+      "lon": 42.95,
+      "pilotLat": 14.75,
+      "pilotLon": 42.9,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Mukalla, YE",
+      "lat": 14.53,
+      "lon": 49.12,
+      "pilotLat": 14.5,
+      "pilotLon": 49.1,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Balhaf, YE",
+      "lat": 13.98,
+      "lon": 48.17,
+      "pilotLat": 13.95,
+      "pilotLon": 48.15,
+      "tier": 2,
+      "aliases": [
+        "yemen lng"
+      ]
+    },
+    {
+      "name": "Djibouti, DJ",
+      "lat": 11.6,
+      "lon": 43.15,
+      "pilotLat": 11.55,
+      "pilotLon": 43.15,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Assab, ER",
+      "lat": 13.02,
+      "lon": 42.75,
+      "pilotLat": 13.0,
+      "pilotLon": 42.8,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Port Sudan, SD",
+      "lat": 19.62,
+      "lon": 37.22,
+      "pilotLat": 19.65,
+      "pilotLon": 37.3,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Mina Abdullah, KW",
+      "lat": 29.0,
+      "lon": 48.12,
+      "pilotLat": 28.95,
+      "pilotLon": 48.2,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Mina Al Zour, KW",
+      "lat": 28.73,
+      "lon": 48.4,
+      "pilotLat": 28.7,
+      "pilotLon": 48.45,
+      "tier": 2,
+      "aliases": [
+        "al zour refinery"
+      ]
+    },
+    {
+      "name": "Shuaiba, KW",
+      "lat": 29.03,
+      "lon": 48.13,
+      "pilotLat": 29.0,
+      "pilotLon": 48.2,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Sitra, BH",
+      "lat": 26.15,
+      "lon": 50.63,
+      "pilotLat": 26.15,
+      "pilotLon": 50.75,
+      "tier": 2,
+      "aliases": [
+        "bapco"
+      ]
+    },
+    {
+      "name": "Mesaieed, QA",
+      "lat": 24.97,
+      "lon": 51.55,
+      "pilotLat": 24.9,
+      "pilotLon": 51.6,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Ras Laffan, QA",
+      "lat": 25.91,
+      "lon": 51.58,
+      "pilotLat": 25.95,
+      "pilotLon": 51.65,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Halul Island, QA",
+      "lat": 25.67,
+      "lon": 52.42,
+      "pilotLat": 25.7,
+      "pilotLon": 52.45,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Doha, QA",
+      "lat": 25.28,
+      "lon": 51.53,
+      "pilotLat": 25.2,
+      "pilotLon": 51.6,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Das Island, AE",
+      "lat": 25.14,
+      "lon": 52.87,
+      "pilotLat": 25.15,
+      "pilotLon": 52.9,
+      "tier": 2,
+      "aliases": [
+        "adnoc das"
+      ]
+    },
+    {
+      "name": "Mubarraz, AE",
+      "lat": 24.43,
+      "lon": 53.37,
+      "pilotLat": 24.4,
+      "pilotLon": 53.4,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Zirku Island, AE",
+      "lat": 24.88,
+      "lon": 53.07,
+      "pilotLat": 24.9,
+      "pilotLon": 53.1,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Abu Dhabi, AE",
+      "lat": 24.47,
+      "lon": 54.37,
+      "pilotLat": 24.4,
+      "pilotLon": 54.4,
+      "tier": 2,
+      "aliases": [
+        "mina zayed"
+      ]
+    },
+    {
+      "name": "Mina al Fahal, OM",
+      "lat": 23.63,
+      "lon": 58.55,
+      "pilotLat": 23.55,
+      "pilotLon": 58.6,
+      "tier": 2,
+      "aliases": [
+        "muscat"
+      ]
+    },
+    {
+      "name": "Salalah, OM",
+      "lat": 17.01,
+      "lon": 54.03,
+      "pilotLat": 16.95,
+      "pilotLon": 54.05,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Sur, OM",
+      "lat": 22.57,
+      "lon": 59.53,
+      "pilotLat": 22.5,
+      "pilotLon": 59.55,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Duqm, OM",
+      "lat": 19.65,
+      "lon": 57.7,
+      "pilotLat": 19.6,
+      "pilotLon": 57.8,
+      "tier": 2,
+      "aliases": [
+        "duqm refinery"
+      ]
+    },
+    {
+      "name": "Bandar Abbas, IR",
+      "lat": 27.18,
+      "lon": 56.28,
+      "pilotLat": 27.1,
+      "pilotLon": 56.1,
+      "tier": 2,
+      "aliases": [
+        "shahid rajaei"
+      ]
+    },
+    {
+      "name": "Assaluyeh, IR",
+      "lat": 27.47,
+      "lon": 52.6,
+      "pilotLat": 27.4,
+      "pilotLon": 52.6,
+      "tier": 2,
+      "aliases": [
+        "south pars"
+      ]
+    },
+    {
+      "name": "Bandar Imam Khomeini, IR",
+      "lat": 30.42,
+      "lon": 49.08,
+      "pilotLat": 30.35,
+      "pilotLon": 49.1,
+      "tier": 2,
+      "aliases": [
+        "mahshahr"
+      ]
+    },
+    {
+      "name": "Bushehr, IR",
+      "lat": 28.97,
+      "lon": 50.83,
+      "pilotLat": 28.9,
+      "pilotLon": 50.8,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Lavan Island, IR",
+      "lat": 26.82,
+      "lon": 53.35,
+      "pilotLat": 26.8,
+      "pilotLon": 53.35,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Basra Oil Terminal, IQ",
+      "lat": 29.68,
+      "lon": 48.8,
+      "pilotLat": 29.6,
+      "pilotLon": 48.9,
+      "tier": 2,
+      "aliases": [
+        "basra deep water"
+      ]
+    },
+    {
+      "name": "Umm Qasr, IQ",
+      "lat": 30.03,
+      "lon": 47.92,
+      "pilotLat": 29.95,
+      "pilotLon": 48.0,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Port Qasim, PK",
+      "lat": 24.78,
+      "lon": 67.38,
+      "pilotLat": 24.7,
+      "pilotLon": 67.3,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Gwadar, PK",
+      "lat": 25.13,
+      "lon": 62.32,
+      "pilotLat": 25.1,
+      "pilotLon": 62.2,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "JNPT, IN",
+      "lat": 18.95,
+      "lon": 72.93,
+      "pilotLat": 18.9,
+      "pilotLon": 72.7,
+      "tier": 2,
+      "aliases": [
+        "nhava sheva",
+        "navi mumbai"
+      ]
+    },
+    {
+      "name": "Vadinar, IN",
+      "lat": 22.47,
+      "lon": 69.73,
+      "pilotLat": 22.4,
+      "pilotLon": 69.5,
+      "tier": 2,
+      "aliases": [
+        "nayara",
+        "essar vadinar"
+      ]
+    },
+    {
+      "name": "Mundra, IN",
+      "lat": 22.74,
+      "lon": 69.72,
+      "pilotLat": 22.7,
+      "pilotLon": 69.5,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Kandla, IN",
+      "lat": 23.02,
+      "lon": 70.22,
+      "pilotLat": 22.9,
+      "pilotLon": 70.1,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Hazira, IN",
+      "lat": 21.1,
+      "lon": 72.62,
+      "pilotLat": 21.1,
+      "pilotLon": 72.5,
+      "tier": 2,
+      "aliases": [
+        "ongc hazira"
+      ]
+    },
+    {
+      "name": "Dahej, IN",
+      "lat": 21.73,
+      "lon": 72.53,
+      "pilotLat": 21.7,
+      "pilotLon": 72.5,
+      "tier": 2,
+      "aliases": [
+        "petronet lng"
+      ]
+    },
+    {
+      "name": "Mangalore, IN",
+      "lat": 12.87,
+      "lon": 74.82,
+      "pilotLat": 12.8,
+      "pilotLon": 74.7,
+      "tier": 2,
+      "aliases": [
+        "mrpl",
+        "new mangalore"
+      ]
+    },
+    {
+      "name": "Visakhapatnam, IN",
+      "lat": 17.7,
+      "lon": 83.28,
+      "pilotLat": 17.65,
+      "pilotLon": 83.3,
+      "tier": 2,
+      "aliases": [
+        "hpcl vizag"
+      ]
+    },
+    {
+      "name": "Paradip, IN",
+      "lat": 20.26,
+      "lon": 86.67,
+      "pilotLat": 20.2,
+      "pilotLon": 86.7,
+      "tier": 2,
+      "aliases": [
+        "iocl paradip"
+      ]
+    },
+    {
+      "name": "Haldia, IN",
+      "lat": 22.04,
+      "lon": 88.07,
+      "pilotLat": 22.0,
+      "pilotLon": 88.1,
+      "tier": 2,
+      "aliases": [
+        "iocl haldia"
+      ]
+    },
+    {
+      "name": "Ennore, IN",
+      "lat": 13.24,
+      "lon": 80.32,
+      "pilotLat": 13.2,
+      "pilotLon": 80.35,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Tuticorin, IN",
+      "lat": 8.77,
+      "lon": 78.13,
+      "pilotLat": 8.7,
+      "pilotLon": 78.2,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Kolkata, IN",
+      "lat": 22.57,
+      "lon": 88.36,
+      "pilotLat": 21.8,
+      "pilotLon": 88.1,
+      "tier": 2,
+      "aliases": [
+        "calcutta"
+      ]
+    },
+    {
+      "name": "Mongla, BD",
+      "lat": 22.48,
+      "lon": 89.58,
+      "pilotLat": 22.4,
+      "pilotLon": 89.5,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Colombo, LK",
+      "lat": 6.94,
+      "lon": 79.84,
+      "pilotLat": 6.9,
+      "pilotLon": 79.8,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Hambantota, LK",
+      "lat": 6.12,
+      "lon": 81.12,
+      "pilotLat": 6.05,
+      "pilotLon": 81.15,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Trincomalee, LK",
+      "lat": 8.58,
+      "lon": 81.23,
+      "pilotLat": 8.55,
+      "pilotLon": 81.3,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Yangon, MM",
+      "lat": 16.77,
+      "lon": 96.17,
+      "pilotLat": 16.4,
+      "pilotLon": 96.2,
+      "tier": 2,
+      "aliases": [
+        "rangoon"
+      ]
+    },
+    {
+      "name": "Thilawa, MM",
+      "lat": 16.7,
+      "lon": 96.25,
+      "pilotLat": 16.4,
+      "pilotLon": 96.2,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Si Racha, TH",
+      "lat": 13.17,
+      "lon": 100.92,
+      "pilotLat": 13.1,
+      "pilotLon": 100.9,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Sattahip, TH",
+      "lat": 12.67,
+      "lon": 100.92,
+      "pilotLat": 12.6,
+      "pilotLon": 100.9,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Songkhla, TH",
+      "lat": 7.2,
+      "lon": 100.58,
+      "pilotLat": 7.15,
+      "pilotLon": 100.6,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Sihanoukville, KH",
+      "lat": 10.63,
+      "lon": 103.5,
+      "pilotLat": 10.55,
+      "pilotLon": 103.5,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Ho Chi Minh City, VN",
+      "lat": 10.77,
+      "lon": 106.7,
+      "pilotLat": 10.25,
+      "pilotLon": 107.0,
+      "tier": 2,
+      "aliases": [
+        "saigon",
+        "phu my"
+      ]
+    },
+    {
+      "name": "Vung Tau, VN",
+      "lat": 10.34,
+      "lon": 107.08,
+      "pilotLat": 10.3,
+      "pilotLon": 107.1,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Cai Mep, VN",
+      "lat": 10.52,
+      "lon": 107.03,
+      "pilotLat": 10.45,
+      "pilotLon": 107.05,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Dung Quat, VN",
+      "lat": 15.4,
+      "lon": 108.8,
+      "pilotLat": 15.35,
+      "pilotLon": 108.85,
+      "tier": 2,
+      "aliases": [
+        "binh son refinery"
+      ]
+    },
+    {
+      "name": "Nghi Son, VN",
+      "lat": 19.33,
+      "lon": 105.78,
+      "pilotLat": 19.25,
+      "pilotLon": 105.85,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Haiphong, VN",
+      "lat": 20.87,
+      "lon": 106.68,
+      "pilotLat": 20.8,
+      "pilotLon": 106.8,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Da Nang, VN",
+      "lat": 16.07,
+      "lon": 108.22,
+      "pilotLat": 16.05,
+      "pilotLon": 108.3,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Jurong, SG",
+      "lat": 1.29,
+      "lon": 103.71,
+      "pilotLat": 1.2,
+      "pilotLon": 103.7,
+      "tier": 2,
+      "aliases": [
+        "pulau bukom",
+        "sebarok"
+      ]
+    },
+    {
+      "name": "Pasir Gudang, MY",
+      "lat": 1.47,
+      "lon": 103.9,
+      "pilotLat": 1.25,
+      "pilotLon": 103.9,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Malacca, MY",
+      "lat": 2.2,
+      "lon": 102.25,
+      "pilotLat": 2.15,
+      "pilotLon": 102.1,
+      "tier": 2,
+      "aliases": [
+        "melaka"
+      ]
+    },
+    {
+      "name": "Sungai Udang, MY",
+      "lat": 2.22,
+      "lon": 102.1,
+      "pilotLat": 2.1,
+      "pilotLon": 102.0,
+      "tier": 2,
+      "aliases": [
+        "petronas penapisan"
+      ]
+    },
+    {
+      "name": "Kerteh, MY",
+      "lat": 4.53,
+      "lon": 103.45,
+      "pilotLat": 4.5,
+      "pilotLon": 103.5,
+      "tier": 2,
+      "aliases": [
+        "petronas kerteh"
+      ]
+    },
+    {
+      "name": "Labuan, MY",
+      "lat": 5.3,
+      "lon": 115.25,
+      "pilotLat": 5.25,
+      "pilotLon": 115.3,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Bintulu, MY",
+      "lat": 3.17,
+      "lon": 113.05,
+      "pilotLat": 3.1,
+      "pilotLon": 113.0,
+      "tier": 2,
+      "aliases": [
+        "bintulu lng"
+      ]
+    },
+    {
+      "name": "Miri, MY",
+      "lat": 4.4,
+      "lon": 113.98,
+      "pilotLat": 4.35,
+      "pilotLon": 114.0,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Tanjung Priok, ID",
+      "lat": -6.1,
+      "lon": 106.88,
+      "pilotLat": -6.0,
+      "pilotLon": 106.8,
+      "tier": 2,
+      "aliases": [
+        "jakarta"
+      ]
+    },
+    {
+      "name": "Dumai, ID",
+      "lat": 1.67,
+      "lon": 101.45,
+      "pilotLat": 1.8,
+      "pilotLon": 101.4,
+      "tier": 2,
+      "aliases": [
+        "pertamina dumai"
+      ]
+    },
+    {
+      "name": "Balikpapan, ID",
+      "lat": -1.27,
+      "lon": 116.83,
+      "pilotLat": -1.3,
+      "pilotLon": 117.0,
+      "tier": 2,
+      "aliases": [
+        "pertamina balikpapan"
+      ]
+    },
+    {
+      "name": "Balongan, ID",
+      "lat": -6.35,
+      "lon": 108.4,
+      "pilotLat": -6.3,
+      "pilotLon": 108.3,
+      "tier": 2,
+      "aliases": [
+        "pertamina balongan"
+      ]
+    },
+    {
+      "name": "Belawan, ID",
+      "lat": 3.78,
+      "lon": 98.7,
+      "pilotLat": 3.8,
+      "pilotLon": 98.6,
+      "tier": 2,
+      "aliases": [
+        "medan"
+      ]
+    },
+    {
+      "name": "Lhokseumawe, ID",
+      "lat": 5.17,
+      "lon": 97.17,
+      "pilotLat": 5.15,
+      "pilotLon": 97.2,
+      "tier": 2,
+      "aliases": [
+        "arun lng"
+      ]
+    },
+    {
+      "name": "Bontang, ID",
+      "lat": 0.12,
+      "lon": 117.49,
+      "pilotLat": 0.15,
+      "pilotLon": 117.5,
+      "tier": 2,
+      "aliases": [
+        "bontang lng"
+      ]
+    },
+    {
+      "name": "Surabaya, ID",
+      "lat": -7.25,
+      "lon": 112.75,
+      "pilotLat": -7.15,
+      "pilotLon": 112.8,
+      "tier": 2,
+      "aliases": [
+        "tanjung perak"
+      ]
+    },
+    {
+      "name": "Muara, BN",
+      "lat": 5.02,
+      "lon": 115.07,
+      "pilotLat": 5.05,
+      "pilotLon": 115.1,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Lumut, BN",
+      "lat": 4.73,
+      "lon": 114.45,
+      "pilotLat": 4.7,
+      "pilotLon": 114.4,
+      "tier": 2,
+      "aliases": [
+        "brunei lng"
+      ]
+    },
+    {
+      "name": "Manila, PH",
+      "lat": 14.6,
+      "lon": 120.97,
+      "pilotLat": 14.5,
+      "pilotLon": 120.8,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Batangas, PH",
+      "lat": 13.75,
+      "lon": 121.05,
+      "pilotLat": 13.7,
+      "pilotLon": 121.0,
+      "tier": 2,
+      "aliases": [
+        "shell tabangao",
+        "petron"
+      ]
+    },
+    {
+      "name": "Subic Bay, PH",
+      "lat": 14.8,
+      "lon": 120.25,
+      "pilotLat": 14.75,
+      "pilotLon": 120.2,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Limay, PH",
+      "lat": 14.55,
+      "lon": 120.6,
+      "pilotLat": 14.5,
+      "pilotLon": 120.5,
+      "tier": 2,
+      "aliases": [
+        "petron limay"
+      ]
+    },
+    {
+      "name": "Zhoushan, CN",
+      "lat": 29.98,
+      "lon": 122.3,
+      "pilotLat": 30.0,
+      "pilotLon": 122.5,
+      "tier": 2,
+      "aliases": [
+        "bunker hub"
+      ]
+    },
+    {
+      "name": "Caofeidian, CN",
+      "lat": 38.93,
+      "lon": 118.5,
+      "pilotLat": 38.9,
+      "pilotLon": 118.55,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Qinhuangdao, CN",
+      "lat": 39.93,
+      "lon": 119.6,
+      "pilotLat": 39.95,
+      "pilotLon": 119.65,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Yingkou, CN",
+      "lat": 40.67,
+      "lon": 122.25,
+      "pilotLat": 40.25,
+      "pilotLon": 121.7,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Jinzhou, CN",
+      "lat": 40.83,
+      "lon": 121.15,
+      "pilotLat": 40.6,
+      "pilotLon": 121.1,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Rizhao, CN",
+      "lat": 35.43,
+      "lon": 119.52,
+      "pilotLat": 35.45,
+      "pilotLon": 119.6,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Lianyungang, CN",
+      "lat": 34.6,
+      "lon": 119.17,
+      "pilotLat": 34.55,
+      "pilotLon": 119.25,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Ningbo-Zhoushan, CN",
+      "lat": 29.87,
+      "lon": 121.8,
+      "pilotLat": 29.9,
+      "pilotLon": 122.2,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Zhanjiang, CN",
+      "lat": 21.27,
+      "lon": 110.4,
+      "pilotLat": 21.0,
+      "pilotLon": 110.2,
+      "tier": 2,
+      "aliases": [
+        "sinopec zhanjiang"
+      ]
+    },
+    {
+      "name": "Maoming, CN",
+      "lat": 21.65,
+      "lon": 111.0,
+      "pilotLat": 21.6,
+      "pilotLon": 110.95,
+      "tier": 2,
+      "aliases": [
+        "sinopec maoming"
+      ]
+    },
+    {
+      "name": "Huizhou, CN",
+      "lat": 22.73,
+      "lon": 114.55,
+      "pilotLat": 22.65,
+      "pilotLon": 114.8,
+      "tier": 2,
+      "aliases": [
+        "cnooc huizhou"
+      ]
+    },
+    {
+      "name": "Shekou, CN",
+      "lat": 22.48,
+      "lon": 113.92,
+      "pilotLat": 22.45,
+      "pilotLon": 114.0,
+      "tier": 2,
+      "aliases": [
+        "shenzhen"
+      ]
+    },
+    {
+      "name": "Yantian, CN",
+      "lat": 22.57,
+      "lon": 114.27,
+      "pilotLat": 22.5,
+      "pilotLon": 114.35,
+      "tier": 2,
+      "aliases": [
+        "shenzhen yantian"
+      ]
+    },
+    {
+      "name": "Guangzhou, CN",
+      "lat": 23.1,
+      "lon": 113.3,
+      "pilotLat": 22.6,
+      "pilotLon": 113.8,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Hong Kong, HK",
+      "lat": 22.33,
+      "lon": 114.17,
+      "pilotLat": 22.2,
+      "pilotLon": 114.1,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Xiamen, CN",
+      "lat": 24.48,
+      "lon": 118.08,
+      "pilotLat": 24.4,
+      "pilotLon": 118.15,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Fuzhou, CN",
+      "lat": 26.08,
+      "lon": 119.3,
+      "pilotLat": 26.15,
+      "pilotLon": 119.7,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Quanzhou, CN",
+      "lat": 24.9,
+      "lon": 118.6,
+      "pilotLat": 24.8,
+      "pilotLon": 118.7,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Beihai, CN",
+      "lat": 21.48,
+      "lon": 109.1,
+      "pilotLat": 21.4,
+      "pilotLon": 109.0,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Fangchenggang, CN",
+      "lat": 21.6,
+      "lon": 108.35,
+      "pilotLat": 21.55,
+      "pilotLon": 108.3,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Haikou, CN",
+      "lat": 20.02,
+      "lon": 110.33,
+      "pilotLat": 20.1,
+      "pilotLon": 110.3,
+      "tier": 2,
+      "aliases": [
+        "hainan"
+      ]
+    },
+    {
+      "name": "Mailiao, TW",
+      "lat": 23.79,
+      "lon": 120.18,
+      "pilotLat": 23.75,
+      "pilotLon": 120.1,
+      "tier": 2,
+      "aliases": [
+        "formosa petrochemical"
+      ]
+    },
+    {
+      "name": "Taichung, TW",
+      "lat": 24.15,
+      "lon": 120.5,
+      "pilotLat": 24.1,
+      "pilotLon": 120.4,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Taipei, TW",
+      "lat": 25.13,
+      "lon": 121.75,
+      "pilotLat": 25.2,
+      "pilotLon": 121.8,
+      "tier": 2,
+      "aliases": [
+        "keelung"
+      ]
+    },
+    {
+      "name": "Su Ao, TW",
+      "lat": 24.58,
+      "lon": 121.87,
+      "pilotLat": 24.55,
+      "pilotLon": 121.9,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Incheon, KR",
+      "lat": 37.46,
+      "lon": 126.6,
+      "pilotLat": 37.45,
+      "pilotLon": 126.5,
+      "tier": 2,
+      "aliases": [
+        "sk incheon"
+      ]
+    },
+    {
+      "name": "Busan, KR",
+      "lat": 35.1,
+      "lon": 129.04,
+      "pilotLat": 35.0,
+      "pilotLon": 129.1,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Gwangyang, KR",
+      "lat": 34.93,
+      "lon": 127.7,
+      "pilotLat": 34.85,
+      "pilotLon": 127.75,
+      "tier": 2,
+      "aliases": [
+        "gs caltex gwangyang"
+      ]
+    },
+    {
+      "name": "Pohang, KR",
+      "lat": 36.05,
+      "lon": 129.38,
+      "pilotLat": 36.0,
+      "pilotLon": 129.4,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Onsan, KR",
+      "lat": 35.43,
+      "lon": 129.37,
+      "pilotLat": 35.35,
+      "pilotLon": 129.45,
+      "tier": 2,
+      "aliases": [
+        "s-oil onsan"
+      ]
+    },
+    {
+      "name": "Pyeongtaek, KR",
+      "lat": 36.97,
+      "lon": 126.82,
+      "pilotLat": 36.9,
+      "pilotLon": 126.75,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Kawasaki, JP",
+      "lat": 35.53,
+      "lon": 139.72,
+      "pilotLat": 35.4,
+      "pilotLon": 139.9,
+      "tier": 2,
+      "aliases": [
+        "tokyo bay"
+      ]
+    },
+    {
+      "name": "Negishi, JP",
+      "lat": 35.41,
+      "lon": 139.65,
+      "pilotLat": 35.3,
+      "pilotLon": 139.8,
+      "tier": 2,
+      "aliases": [
+        "eneos negishi"
+      ]
+    },
+    {
+      "name": "Yokkaichi, JP",
+      "lat": 34.97,
+      "lon": 136.62,
+      "pilotLat": 34.9,
+      "pilotLon": 136.7,
+      "tier": 2,
+      "aliases": [
+        "cosmo yokkaichi"
+      ]
+    },
+    {
+      "name": "Mizushima, JP",
+      "lat": 34.5,
+      "lon": 133.78,
+      "pilotLat": 34.45,
+      "pilotLon": 133.85,
+      "tier": 2,
+      "aliases": [
+        "eneos mizushima"
+      ]
+    },
+    {
+      "name": "Sakai, JP",
+      "lat": 34.58,
+      "lon": 135.47,
+      "pilotLat": 34.55,
+      "pilotLon": 135.5,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Osaka, JP",
+      "lat": 34.65,
+      "lon": 135.43,
+      "pilotLat": 34.55,
+      "pilotLon": 135.4,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Kobe, JP",
+      "lat": 34.69,
+      "lon": 135.2,
+      "pilotLat": 34.55,
+      "pilotLon": 135.2,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Wakayama, JP",
+      "lat": 34.22,
+      "lon": 135.17,
+      "pilotLat": 34.15,
+      "pilotLon": 135.1,
+      "tier": 2,
+      "aliases": [
+        "eneos wakayama"
+      ]
+    },
+    {
+      "name": "Kure, JP",
+      "lat": 34.23,
+      "lon": 132.57,
+      "pilotLat": 34.15,
+      "pilotLon": 132.55,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Tokuyama, JP",
+      "lat": 34.03,
+      "lon": 131.8,
+      "pilotLat": 33.95,
+      "pilotLon": 131.85,
+      "tier": 2,
+      "aliases": [
+        "idemitsu tokuyama"
+      ]
+    },
+    {
+      "name": "Kamigoto, JP",
+      "lat": 32.98,
+      "lon": 129.07,
+      "pilotLat": 32.95,
+      "pilotLon": 129.05,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Kiire, JP",
+      "lat": 31.38,
+      "lon": 130.55,
+      "pilotLat": 31.3,
+      "pilotLon": 130.6,
+      "tier": 2,
+      "aliases": [
+        "eneos kiire"
+      ]
+    },
+    {
+      "name": "Tomakomai, JP",
+      "lat": 42.63,
+      "lon": 141.62,
+      "pilotLat": 42.55,
+      "pilotLon": 141.7,
+      "tier": 2,
+      "aliases": [
+        "idemitsu hokkaido"
+      ]
+    },
+    {
+      "name": "Muroran, JP",
+      "lat": 42.32,
+      "lon": 140.98,
+      "pilotLat": 42.25,
+      "pilotLon": 141.0,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Hachinohe, JP",
+      "lat": 40.53,
+      "lon": 141.5,
+      "pilotLat": 40.45,
+      "pilotLon": 141.55,
+      "tier": 2,
+      "aliases": [
+        "eneos hachinohe"
+      ]
+    },
+    {
+      "name": "Niigata, JP",
+      "lat": 37.92,
+      "lon": 139.05,
+      "pilotLat": 37.95,
+      "pilotLon": 139.0,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Akita, JP",
+      "lat": 39.72,
+      "lon": 140.03,
+      "pilotLat": 39.7,
+      "pilotLon": 140.0,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Sodegaura, JP",
+      "lat": 35.42,
+      "lon": 139.98,
+      "pilotLat": 35.35,
+      "pilotLon": 140.1,
+      "tier": 2,
+      "aliases": [
+        "tokyo bay south"
+      ]
+    },
+    {
+      "name": "Sakaide, JP",
+      "lat": 34.32,
+      "lon": 133.83,
+      "pilotLat": 34.25,
+      "pilotLon": 133.85,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Nagoya, JP",
+      "lat": 35.07,
+      "lon": 136.85,
+      "pilotLat": 34.95,
+      "pilotLon": 136.85,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Nouakchott, MR",
+      "lat": 18.02,
+      "lon": -16.0,
+      "pilotLat": 18.0,
+      "pilotLon": -16.1,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Nouadhibou, MR",
+      "lat": 20.9,
+      "lon": -17.05,
+      "pilotLat": 20.9,
+      "pilotLon": -17.2,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "San Pedro, CI",
+      "lat": 4.75,
+      "lon": -6.64,
+      "pilotLat": 4.7,
+      "pilotLon": -6.7,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Tema, GH",
+      "lat": 5.62,
+      "lon": -0.02,
+      "pilotLat": 5.55,
+      "pilotLon": -0.05,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Takoradi, GH",
+      "lat": 4.9,
+      "lon": -1.75,
+      "pilotLat": 4.85,
+      "pilotLon": -1.8,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Port Harcourt, NG",
+      "lat": 4.78,
+      "lon": 7.02,
+      "pilotLat": 4.35,
+      "pilotLon": 7.0,
+      "tier": 2,
+      "aliases": [
+        "phrc"
+      ]
+    },
+    {
+      "name": "Warri, NG",
+      "lat": 5.52,
+      "lon": 5.75,
+      "pilotLat": 5.15,
+      "pilotLon": 5.4,
+      "tier": 2,
+      "aliases": [
+        "warri refinery"
+      ]
+    },
+    {
+      "name": "Escravos, NG",
+      "lat": 5.6,
+      "lon": 5.2,
+      "pilotLat": 5.4,
+      "pilotLon": 5.1,
+      "tier": 2,
+      "aliases": [
+        "chevron escravos"
+      ]
+    },
+    {
+      "name": "Brass, NG",
+      "lat": 4.32,
+      "lon": 6.25,
+      "pilotLat": 4.25,
+      "pilotLon": 6.25,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Pennington, NG",
+      "lat": 4.03,
+      "lon": 5.62,
+      "pilotLat": 4.0,
+      "pilotLon": 5.6,
+      "tier": 2,
+      "aliases": [
+        "agip pennington"
+      ]
+    },
+    {
+      "name": "Lekki, NG",
+      "lat": 6.47,
+      "lon": 3.73,
+      "pilotLat": 6.35,
+      "pilotLon": 3.75,
+      "tier": 2,
+      "aliases": [
+        "dangote refinery"
+      ]
+    },
+    {
+      "name": "Douala, CM",
+      "lat": 4.05,
+      "lon": 9.7,
+      "pilotLat": 4.0,
+      "pilotLon": 9.5,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Kribi, CM",
+      "lat": 2.93,
+      "lon": 9.92,
+      "pilotLat": 2.9,
+      "pilotLon": 9.85,
+      "tier": 2,
+      "aliases": [
+        "kribi lng"
+      ]
+    },
+    {
+      "name": "Limbe, CM",
+      "lat": 4.02,
+      "lon": 9.22,
+      "pilotLat": 3.95,
+      "pilotLon": 9.15,
+      "tier": 2,
+      "aliases": [
+        "sonara refinery"
+      ]
+    },
+    {
+      "name": "Malabo, GQ",
+      "lat": 3.75,
+      "lon": 8.78,
+      "pilotLat": 3.7,
+      "pilotLon": 8.75,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Punta Europa, GQ",
+      "lat": 3.8,
+      "lon": 8.75,
+      "pilotLat": 3.7,
+      "pilotLon": 8.7,
+      "tier": 2,
+      "aliases": [
+        "eg lng"
+      ]
+    },
+    {
+      "name": "Libreville, GA",
+      "lat": 0.42,
+      "lon": 9.45,
+      "pilotLat": 0.4,
+      "pilotLon": 9.35,
+      "tier": 2,
+      "aliases": [
+        "owendo"
+      ]
+    },
+    {
+      "name": "Port Gentil, GA",
+      "lat": -0.72,
+      "lon": 8.78,
+      "pilotLat": -0.7,
+      "pilotLon": 8.7,
+      "tier": 2,
+      "aliases": [
+        "total port gentil"
+      ]
+    },
+    {
+      "name": "Cap Lopez, GA",
+      "lat": -0.63,
+      "lon": 8.7,
+      "pilotLat": -0.6,
+      "pilotLon": 8.6,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Pointe-Noire, CG",
+      "lat": -4.78,
+      "lon": 11.85,
+      "pilotLat": -4.8,
+      "pilotLon": 11.75,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Djeno, CG",
+      "lat": -4.92,
+      "lon": 11.83,
+      "pilotLat": -4.9,
+      "pilotLon": 11.75,
+      "tier": 2,
+      "aliases": [
+        "eni djeno"
+      ]
+    },
+    {
+      "name": "Luanda, AO",
+      "lat": -8.8,
+      "lon": 13.23,
+      "pilotLat": -8.8,
+      "pilotLon": 13.1,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Lobito, AO",
+      "lat": -12.37,
+      "lon": 13.55,
+      "pilotLat": -12.4,
+      "pilotLon": 13.45,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Malongo, AO",
+      "lat": -5.38,
+      "lon": 12.13,
+      "pilotLat": -5.4,
+      "pilotLon": 12.05,
+      "tier": 2,
+      "aliases": [
+        "chevron malongo"
+      ]
+    },
+    {
+      "name": "Namibe, AO",
+      "lat": -15.2,
+      "lon": 12.15,
+      "pilotLat": -15.25,
+      "pilotLon": 12.05,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Walvis Bay, NA",
+      "lat": -22.95,
+      "lon": 14.5,
+      "pilotLat": -22.95,
+      "pilotLon": 14.4,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Luderitz, NA",
+      "lat": -26.65,
+      "lon": 15.15,
+      "pilotLat": -26.7,
+      "pilotLon": 15.05,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Saldanha Bay, ZA",
+      "lat": -33.03,
+      "lon": 17.95,
+      "pilotLat": -33.1,
+      "pilotLon": 17.8,
+      "tier": 2,
+      "aliases": [
+        "saldanha crude terminal"
+      ]
+    },
+    {
+      "name": "Mossel Bay, ZA",
+      "lat": -34.18,
+      "lon": 22.15,
+      "pilotLat": -34.25,
+      "pilotLon": 22.1,
+      "tier": 2,
+      "aliases": [
+        "petrosa mossgas"
+      ]
+    },
+    {
+      "name": "Gqeberha, ZA",
+      "lat": -33.97,
+      "lon": 25.63,
+      "pilotLat": -34.0,
+      "pilotLon": 25.7,
+      "tier": 2,
+      "aliases": [
+        "port elizabeth"
+      ]
+    },
+    {
+      "name": "Ngqura, ZA",
+      "lat": -33.83,
+      "lon": 25.7,
+      "pilotLat": -33.9,
+      "pilotLon": 25.75,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "East London, ZA",
+      "lat": -33.03,
+      "lon": 27.9,
+      "pilotLat": -33.1,
+      "pilotLon": 27.95,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Durban, ZA",
+      "lat": -29.87,
+      "lon": 31.03,
+      "pilotLat": -29.9,
+      "pilotLon": 31.1,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Richards Bay, ZA",
+      "lat": -28.8,
+      "lon": 32.08,
+      "pilotLat": -28.8,
+      "pilotLon": 32.15,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Maputo, MZ",
+      "lat": -25.97,
+      "lon": 32.57,
+      "pilotLat": -26.0,
+      "pilotLon": 32.8,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Beira, MZ",
+      "lat": -19.83,
+      "lon": 34.85,
+      "pilotLat": -19.75,
+      "pilotLon": 34.9,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Nacala, MZ",
+      "lat": -14.53,
+      "lon": 40.68,
+      "pilotLat": -14.5,
+      "pilotLon": 40.8,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Toamasina, MG",
+      "lat": -18.15,
+      "lon": 49.4,
+      "pilotLat": -18.1,
+      "pilotLon": 49.5,
+      "tier": 2,
+      "aliases": [
+        "tamatave"
+      ]
+    },
+    {
+      "name": "Dar es Salaam, TZ",
+      "lat": -6.82,
+      "lon": 39.28,
+      "pilotLat": -6.8,
+      "pilotLon": 39.35,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Mombasa, KE",
+      "lat": -4.07,
+      "lon": 39.67,
+      "pilotLat": -4.1,
+      "pilotLon": 39.8,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Lamu, KE",
+      "lat": -2.27,
+      "lon": 40.9,
+      "pilotLat": -2.25,
+      "pilotLon": 40.95,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Brisbane, AU",
+      "lat": -27.37,
+      "lon": 153.17,
+      "pilotLat": -27.25,
+      "pilotLon": 153.2,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Newcastle, AU",
+      "lat": -32.92,
+      "lon": 151.78,
+      "pilotLat": -32.9,
+      "pilotLon": 151.85,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Sydney, AU",
+      "lat": -33.85,
+      "lon": 151.25,
+      "pilotLat": -33.85,
+      "pilotLon": 151.3,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Port Botany, AU",
+      "lat": -33.98,
+      "lon": 151.22,
+      "pilotLat": -34.0,
+      "pilotLon": 151.3,
+      "tier": 2,
+      "aliases": [
+        "kurnell"
+      ]
+    },
+    {
+      "name": "Port Kembla, AU",
+      "lat": -34.47,
+      "lon": 150.9,
+      "pilotLat": -34.5,
+      "pilotLon": 150.95,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Westernport, AU",
+      "lat": -38.43,
+      "lon": 145.23,
+      "pilotLat": -38.5,
+      "pilotLon": 145.25,
+      "tier": 2,
+      "aliases": [
+        "crib point"
+      ]
+    },
+    {
+      "name": "Melbourne, AU",
+      "lat": -37.83,
+      "lon": 144.93,
+      "pilotLat": -37.95,
+      "pilotLon": 144.9,
+      "tier": 2,
+      "aliases": [
+        "port phillip"
+      ]
+    },
+    {
+      "name": "Geelong, AU",
+      "lat": -38.12,
+      "lon": 144.38,
+      "pilotLat": -38.2,
+      "pilotLon": 144.5,
+      "tier": 2,
+      "aliases": [
+        "viva geelong"
+      ]
+    },
+    {
+      "name": "Adelaide, AU",
+      "lat": -34.78,
+      "lon": 138.5,
+      "pilotLat": -34.75,
+      "pilotLon": 138.4,
+      "tier": 2,
+      "aliases": [
+        "port adelaide"
+      ]
+    },
+    {
+      "name": "Port Bonython, AU",
+      "lat": -33.0,
+      "lon": 137.77,
+      "pilotLat": -33.0,
+      "pilotLon": 137.85,
+      "tier": 2,
+      "aliases": [
+        "santos port bonython"
+      ]
+    },
+    {
+      "name": "Fremantle, AU",
+      "lat": -32.05,
+      "lon": 115.73,
+      "pilotLat": -32.05,
+      "pilotLon": 115.65,
+      "tier": 2,
+      "aliases": [
+        "perth"
+      ]
+    },
+    {
+      "name": "Dampier, AU",
+      "lat": -20.67,
+      "lon": 116.72,
+      "pilotLat": -20.55,
+      "pilotLon": 116.65,
+      "tier": 2,
+      "aliases": [
+        "woodside lng"
+      ]
+    },
+    {
+      "name": "Port Hedland, AU",
+      "lat": -20.32,
+      "lon": 118.6,
+      "pilotLat": -20.25,
+      "pilotLon": 118.5,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Port Walcott, AU",
+      "lat": -20.63,
+      "lon": 117.18,
+      "pilotLat": -20.55,
+      "pilotLon": 117.1,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Karratha, AU",
+      "lat": -20.73,
+      "lon": 116.85,
+      "pilotLat": -20.55,
+      "pilotLon": 116.8,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Darwin, AU",
+      "lat": -12.47,
+      "lon": 130.83,
+      "pilotLat": -12.4,
+      "pilotLon": 130.8,
+      "tier": 2,
+      "aliases": [
+        "inpex ichthys lng"
+      ]
+    },
+    {
+      "name": "Marsden Point, NZ",
+      "lat": -35.83,
+      "lon": 174.5,
+      "pilotLat": -35.85,
+      "pilotLon": 174.55,
+      "tier": 2,
+      "aliases": [
+        "whangarei"
+      ]
+    },
+    {
+      "name": "Tauranga, NZ",
+      "lat": -37.67,
+      "lon": 176.18,
+      "pilotLat": -37.65,
+      "pilotLon": 176.25,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Auckland, NZ",
+      "lat": -36.85,
+      "lon": 174.78,
+      "pilotLat": -36.8,
+      "pilotLon": 174.85,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Wellington, NZ",
+      "lat": -41.28,
+      "lon": 174.78,
+      "pilotLat": -41.25,
+      "pilotLon": 174.85,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Lyttelton, NZ",
+      "lat": -43.6,
+      "lon": 172.72,
+      "pilotLat": -43.55,
+      "pilotLon": 172.8,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Bluff, NZ",
+      "lat": -46.6,
+      "lon": 168.33,
+      "pilotLat": -46.55,
+      "pilotLon": 168.4,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "New Plymouth, NZ",
+      "lat": -39.05,
+      "lon": 174.08,
+      "pilotLat": -39.1,
+      "pilotLon": 174.0,
+      "tier": 2,
+      "aliases": [
+        "taranaki"
+      ]
+    },
+    {
+      "name": "Noumea, NC",
+      "lat": -22.27,
+      "lon": 166.45,
+      "pilotLat": -22.3,
+      "pilotLon": 166.4,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Suva, FJ",
+      "lat": -18.13,
+      "lon": 178.43,
+      "pilotLat": -18.1,
+      "pilotLon": 178.5,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Lautoka, FJ",
+      "lat": -17.62,
+      "lon": 177.45,
+      "pilotLat": -17.65,
+      "pilotLon": 177.4,
+      "tier": 2,
+      "aliases": []
+    },
+    {
+      "name": "Port Moresby, PG",
+      "lat": -9.48,
+      "lon": 147.15,
+      "pilotLat": -9.55,
+      "pilotLon": 147.1,
+      "tier": 2,
+      "aliases": []
+    }
+  ]
+}

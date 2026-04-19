@@ -107,6 +107,14 @@ export interface RuntimeGraph {
    */
   chainNodeIds: Set<number>;
   /**
+   * Per-chain node sets — populated only for chains injected at
+   * runtime (channel_chains.json). Enables the Planner's "Avoid
+   * <chain>" toggles to block an individual passage (e.g. Kiel
+   * Canal for Panamax-only tankers) without touching other
+   * chains. Empty for legacy graphs that baked chains in.
+   */
+  chainNodesByChainId: Map<string, Set<number>>;
+  /**
    * Set of node ids sitting inside any `blocksRouting=true` zone
    * (operator-drawn forbidden polygons, persisted in zones.json).
    * Any edge whose target is in this set gets its weight multiplied
@@ -114,6 +122,15 @@ export interface RuntimeGraph {
    * unless no alternative exists.
    */
   forbiddenNodeIds: Set<number>;
+  /**
+   * Set of node ids sitting inside any `hardBlock=true` zone. Treated
+   * exactly like the avoidSuez / avoidPanama bbox filter: Dijkstra
+   * skips every edge whose target is in this set, so the region is
+   * completely off-limits (no matter how much longer the alternative
+   * is). Use for NSR, active war zones, etc. — places where a 10×
+   * penalty would still be crossed if the alternative is very long.
+   */
+  hardBlockedNodeIds: Set<number>;
   /** Meta / introspection. */
   meta: GraphFile["meta"];
   /** First id available for temporary (per-request) custom nodes. */
@@ -133,6 +150,7 @@ let cached: RuntimeGraph | null = null;
  */
 let zonesOverride: Array<{
   blocksRouting?: boolean;
+  hardBlock?: boolean;
   polygon?: Array<[number, number]>;
 }> | null = null;
 
@@ -162,6 +180,7 @@ let chainsOverride: Array<{
 export function invalidateRuntimeGraph(opts?: {
   zones?: Array<{
     blocksRouting?: boolean;
+    hardBlock?: boolean;
     polygon?: Array<[number, number]>;
   }> | null;
   channelChains?: Array<{
@@ -241,10 +260,12 @@ export function getRuntimeGraph(): RuntimeGraph {
   // nodes as connection targets.
   const baseNodeCount = nodes.length;
   const chainsSource = chainsOverride ?? collectBundledChains();
+  const chainNodesByChainId = new Map<string, Set<number>>();
   for (const chain of chainsSource) {
     if (!Array.isArray(chain.waypoints) || chain.waypoints.length < 2) {
       continue;
     }
+    const perChainSet = new Set<number>();
     const chainIds: number[] = [];
     for (const [lat, lon] of chain.waypoints) {
       const id = nodes.length;
@@ -252,7 +273,9 @@ export function getRuntimeGraph(): RuntimeGraph {
       adj.push([]);
       chainIds.push(id);
       chainNodeIds.add(id);
+      perChainSet.add(id);
     }
+    chainNodesByChainId.set(chain.id, perChainSet);
     // Intra-chain edges — consecutive waypoints, no land check
     // (chain is expert-vetted, same trust model as Python pipeline).
     for (let i = 0; i < chainIds.length - 1; i++) {
@@ -280,7 +303,12 @@ export function getRuntimeGraph(): RuntimeGraph {
       let connected = 0;
       for (const { id: baseId, distanceNm } of nearest) {
         if (connected >= 2) break;
-        if (distanceNm > 30) continue;
+        // Was 30 NM — too tight when chain endpoints land in
+        // narrower seas (Baltic via Danish Straits, where the
+        // nearest 1.5° grid node can be 40+ NM east of Bornholm).
+        // 60 NM still feels like "local" bridge, lets the chain
+        // reach the first open-water grid node.
+        if (distanceNm > 60) continue;
         adj[chainId].push({ to: baseId, weight: distanceNm });
         adj[baseId].push({ to: chainId, weight: distanceNm });
         connected++;
@@ -288,18 +316,28 @@ export function getRuntimeGraph(): RuntimeGraph {
     }
   }
 
-  // Forbidden zones: walk every node once, checking if it falls
-  // inside any `blocksRouting=true` polygon. Cost: ~O(N·Z·V) where
-  // Z = number of forbidden zones (few) and V = avg vertices per
-  // zone (10-40), so ~a few ms on graph init. We do it once, cache
-  // the set, and hot-path Dijkstra reads it in O(1).
+  // Forbidden zones: walk every node once, checking soft polygons
+  // (10× weight penalty) and hard polygons (full skip) in the same
+  // pass. Cost: ~O(N·Z·V) where Z = number of zones (few) and V =
+  // avg vertices per zone (10-40), so ~a few ms on graph init. We
+  // do it once, cache the sets, and hot-path Dijkstra reads them
+  // in O(1). A node can technically sit in both a soft and a hard
+  // polygon; we put it in both sets and Dijkstra sees the hard
+  // skip first (which wins — the edge is dropped).
   const forbiddenNodeIds = new Set<number>();
-  const forbiddenPolygons = collectForbiddenPolygons();
-  if (forbiddenPolygons.length > 0) {
+  const hardBlockedNodeIds = new Set<number>();
+  const { soft: softPolygons, hard: hardPolygons } = collectZonePolygons();
+  if (softPolygons.length > 0 || hardPolygons.length > 0) {
     for (const n of nodes) {
-      for (const poly of forbiddenPolygons) {
+      for (const poly of softPolygons) {
         if (pointInPolygon(n.lat, n.lon, poly)) {
           forbiddenNodeIds.add(n.id);
+          break;
+        }
+      }
+      for (const poly of hardPolygons) {
+        if (pointInPolygon(n.lat, n.lon, poly)) {
+          hardBlockedNodeIds.add(n.id);
           break;
         }
       }
@@ -312,7 +350,9 @@ export function getRuntimeGraph(): RuntimeGraph {
     portMap,
     portNodeIds,
     chainNodeIds,
+    chainNodesByChainId,
     forbiddenNodeIds,
+    hardBlockedNodeIds,
     meta: data.meta,
     nextTempId: nodes.length,
   };
@@ -325,6 +365,7 @@ const EARTH_NM = 3440.065;
 interface ZonesFile {
   zones?: Array<{
     blocksRouting?: boolean;
+    hardBlock?: boolean;
     polygon?: Array<[number, number]>;
   }>;
 }
@@ -377,23 +418,38 @@ function findNearestBaseNodes(
 }
 
 /**
- * Extract just the forbidden polygons from either the live editor
- * override (if set) or the bundled zones JSON. Strips everything
- * the runtime doesn't care about (labels, colors, etc.).
+ * Extract blocking polygons from either the live editor override or
+ * the bundled zones JSON. Returns two buckets:
+ *   - `soft`  → `blocksRouting=true, hardBlock=false` — edges into
+ *               these nodes get 10× weight penalty (avoidable but
+ *               crossable if no alternative exists).
+ *   - `hard`  → `hardBlock=true` — edges into these nodes are skipped
+ *               entirely, same mechanism as avoidSuez/avoidPanama.
+ * A zone marked `hardBlock=true` implies `blocksRouting=true` (the UI
+ * keeps those in sync), but we still gate on the actual flag here in
+ * case a hand-edited JSON ships with a stale combination.
  */
-function collectForbiddenPolygons(): Array<Array<[number, number]>> {
+function collectZonePolygons(): {
+  soft: Array<Array<[number, number]>>;
+  hard: Array<Array<[number, number]>>;
+} {
   const source: Array<{
     blocksRouting?: boolean;
+    hardBlock?: boolean;
     polygon?: Array<[number, number]>;
   }> =
     zonesOverride ?? ((zonesData as unknown as ZonesFile).zones ?? []);
-  const out: Array<Array<[number, number]>> = [];
+  const soft: Array<Array<[number, number]>> = [];
+  const hard: Array<Array<[number, number]>> = [];
   for (const z of source) {
-    if (!z.blocksRouting) continue;
     if (!z.polygon || z.polygon.length < 3) continue;
-    out.push(z.polygon);
+    if (z.hardBlock) {
+      hard.push(z.polygon);
+      continue;
+    }
+    if (z.blocksRouting) soft.push(z.polygon);
   }
-  return out;
+  return { soft, hard };
 }
 
 /**
@@ -633,7 +689,24 @@ export function dijkstra(
     return base ?? extra ?? [];
   };
 
-  const blocked = extras?.blockedNodeIds;
+  // Merge per-request blocks (avoidSuez/avoidPanama/avoidChains) with
+  // the graph-wide hard-block set (NSR, war zones) so Dijkstra skips
+  // both via the same edge filter below. We build a fresh Set only
+  // when there's something to merge — keeps the hot path allocation-
+  // free for most requests. If start or end happens to sit inside a
+  // hard-block zone (operator plotted a route into a forbidden
+  // region), we honour that and let them through — they're the
+  // endpoints, not transit nodes.
+  let blocked = extras?.blockedNodeIds;
+  const hardBlocked = graph.hardBlockedNodeIds;
+  if (hardBlocked.size > 0) {
+    const merged = new Set<number>(blocked ?? []);
+    for (const id of hardBlocked) {
+      if (id === start || id === end) continue;
+      merged.add(id);
+    }
+    blocked = merged;
+  }
   const chains = graph.chainNodeIds;
   const forbidden = graph.forbiddenNodeIds;
   while (pq.size() > 0) {
@@ -799,6 +872,11 @@ export interface RouteOutput {
 export interface RouteThroughGraphOptions {
   avoidSuez?: boolean;
   avoidPanama?: boolean;
+  /** Chain IDs (from channel_chains.json) whose nodes should be
+   * treated as blocked for this route. Used when the vessel can't
+   * fit through a specific passage (Kiel Canal for post-Panamax,
+   * Panama locks for >366m LOA, etc.). */
+  avoidedChainIds?: string[];
 }
 
 export function routeThroughGraph(
@@ -809,7 +887,17 @@ export function routeThroughGraph(
   const graph = getRuntimeGraph();
   // Avoid-set computed once per call — reused across every leg so
   // we don't re-scan all ~10k nodes for each hop.
-  const blockedNodeIds = buildBlockedSet(graph, opts ?? {});
+  const blockedNodeIds = buildBlockedSet(graph, opts ?? {}) ?? new Set<number>();
+  // Fold in chain-specific avoidance: every node that belongs to
+  // an avoided chain (e.g. "kiel-canal") goes into the same set.
+  for (const cid of opts?.avoidedChainIds ?? []) {
+    const perChain = graph.chainNodesByChainId.get(cid);
+    if (perChain) {
+      for (const n of perChain) blockedNodeIds.add(n);
+    }
+  }
+  const effectiveBlocked =
+    blockedNodeIds.size > 0 ? blockedNodeIds : undefined;
 
   const legs: RouteLeg[] = [];
   let totalNm = 0;
@@ -826,7 +914,7 @@ export function routeThroughGraph(
     const { extras, customIds } = buildCustomExtras(graph, customs);
     // Thread the blocked-node set into the per-leg extras so the same
     // Dijkstra sees it without any other call-site changes.
-    if (blockedNodeIds) extras.blockedNodeIds = blockedNodeIds;
+    if (effectiveBlocked) extras.blockedNodeIds = effectiveBlocked;
 
     // Map port/custom to actual ids (port via portMap, custom via injected)
     let customCursor = 0;

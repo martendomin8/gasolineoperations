@@ -16,9 +16,16 @@ function parseAvoid(params: URLSearchParams): RouteOptions {
   // Accept either ?avoid=suez,panama or ?avoidSuez=1&avoidPanama=1
   const raw = (params.get("avoid") ?? "").toLowerCase();
   const list = new Set(raw.split(",").map((s) => s.trim()).filter(Boolean));
+  // Per-chain avoidance: ?avoidChains=kiel-canal,some-other-id
+  const chainsRaw = params.get("avoidChains") ?? "";
+  const avoidedChainIds = chainsRaw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
   return {
     avoidSuez: list.has("suez") || params.get("avoidSuez") === "1",
     avoidPanama: list.has("panama") || params.get("avoidPanama") === "1",
+    avoidedChainIds: avoidedChainIds.length > 0 ? avoidedChainIds : undefined,
   };
 }
 

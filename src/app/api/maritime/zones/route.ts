@@ -42,6 +42,13 @@ const zoneSchema = z.object({
   category: z.enum(["war", "piracy", "tension", "forbidden", "navigable"]),
   visible: z.boolean(),
   blocksRouting: z.boolean(),
+  // Hard block = Dijkstra refuses to enter this polygon at all, same
+  // mechanism as avoidSuez/avoidPanama bbox filters. Use for regions
+  // that are physically/legally off-limits to tankers (Northern Sea
+  // Route, active war zones). A plain `blocksRouting` zone is only
+  // a 10× weight penalty — Dijkstra can still cross if no alternative
+  // exists. Hard-blocked zones stop the search entirely.
+  hardBlock: z.boolean().optional(),
   navigable: z.boolean(),
   note: z.string().max(2000).optional().nullable(),
   since: z.string().max(200).optional().nullable(),
@@ -138,6 +145,7 @@ export const POST = withAuth(async (req) => {
   invalidateRuntimeGraph({
     zones: parsed.data.zones.map((z) => ({
       blocksRouting: z.blocksRouting,
+      hardBlock: z.hardBlock,
       polygon: z.polygon,
     })),
   });

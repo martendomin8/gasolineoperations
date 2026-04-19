@@ -153,6 +153,35 @@ export default function FleetPage() {
   // Passage-avoidance toggles — switches route variants on the fly.
   const [avoidSuez, setAvoidSuez] = useState(false);
   const [avoidPanama, setAvoidPanama] = useState(false);
+  // Avoidable channel chains — the editor marks specific chains as
+  // "size-restricted" (Kiel Canal, etc.). The Planner surfaces a
+  // checkbox per avoidable chain so the operator can toggle the
+  // passage off for vessels too large to fit. Fetched once on
+  // mount; refreshed when the editor saves.
+  const [avoidableChains, setAvoidableChains] = useState<
+    Array<{ id: string; label: string }>
+  >([]);
+  const [avoidedChainIds, setAvoidedChainIds] = useState<Set<string>>(new Set());
+
+  // Fetch avoidable chains on mount. Only pulls chains marked
+  // `avoidable: true` in channel_chains.json. Silent fail if the
+  // endpoint is disabled (production builds without dev tools).
+  useEffect(() => {
+    fetch("/api/maritime/channel-chains")
+      .then((r) => (r.ok ? r.json() : { chains: [] }))
+      .then(
+        (data: {
+          chains: Array<{ id: string; label: string; avoidable?: boolean }>;
+        }) => {
+          setAvoidableChains(
+            (data.chains ?? [])
+              .filter((c) => c.avoidable)
+              .map((c) => ({ id: c.id, label: c.label }))
+          );
+        }
+      )
+      .catch(() => setAvoidableChains([]));
+  }, []);
   // Map projection — 2D Mercator or 3D globe. Toggled from the
   // floating overlay control on the top-left of the map.
   const [projection, setProjection] = useState<"mercator" | "globe">("mercator");
@@ -388,6 +417,9 @@ export default function FleetPage() {
     if (avoidSuez) avoids.push("suez");
     if (avoidPanama) avoids.push("panama");
     const avoidParam = avoids.length ? `&avoid=${avoids.join(",")}` : "";
+    const chainsParam = avoidedChainIds.size > 0
+      ? `&avoidChains=${Array.from(avoidedChainIds).join(",")}`
+      : "";
 
     // Shared helper to call both APIs for a given route's waypoint list.
     const computeRoute = async (ports: Array<{ name: string; lat: number; lon: number }>) => {
@@ -396,9 +428,9 @@ export default function FleetPage() {
         .map((p) => (p.name.startsWith("@") ? `@${p.lat},${p.lon}` : p.name))
         .join("|");
       const [distData, routeData] = await Promise.all([
-        fetch(`/api/maritime/sea-distance?ports=${encodeURIComponent(portNames)}&speed=${plannerSpeed}${avoidParam}`)
+        fetch(`/api/maritime/sea-distance?ports=${encodeURIComponent(portNames)}&speed=${plannerSpeed}${avoidParam}${chainsParam}`)
           .then((r) => r.json()),
-        fetch(`/api/maritime/sea-distance/route-line?ports=${encodeURIComponent(portNames)}${avoidParam}`)
+        fetch(`/api/maritime/sea-distance/route-line?ports=${encodeURIComponent(portNames)}${avoidParam}${chainsParam}`)
           .then((r) => r.json()),
       ]);
       return {
@@ -438,7 +470,7 @@ export default function FleetPage() {
       setPlannerDistanceB(null);
       setPlannerRouteLegsB([]);
     }
-  }, [plannerPorts, plannerPortsB, plannerSpeed, avoidSuez, avoidPanama, compareMode]);
+  }, [plannerPorts, plannerPortsB, plannerSpeed, avoidSuez, avoidPanama, compareMode, avoidedChainIds]);
 
   const cards = buildLinkageCards(linkageRows as any, allDeals as any);
 
@@ -1117,6 +1149,31 @@ export default function FleetPage() {
                   />
                   <span>Avoid Panama</span>
                 </label>
+                {/* Per-chain avoidance — rendered only for chains
+                    marked `avoidable: true` in channel_chains.json.
+                    Useful for size-restricted passages (Kiel Canal
+                    for post-Panamax etc.). */}
+                {avoidableChains.map((ch) => (
+                  <label
+                    key={ch.id}
+                    className="flex items-center gap-2 text-xs text-[var(--color-text-secondary)] cursor-pointer mt-1.5"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={avoidedChainIds.has(ch.id)}
+                      onChange={(e) => {
+                        setAvoidedChainIds((prev) => {
+                          const next = new Set(prev);
+                          if (e.target.checked) next.add(ch.id);
+                          else next.delete(ch.id);
+                          return next;
+                        });
+                      }}
+                      className="accent-cyan-500 cursor-pointer"
+                    />
+                    <span>Avoid {ch.label}</span>
+                  </label>
+                ))}
               </div>
 
               {/* Map overlays — purely visual, not tied to routing.

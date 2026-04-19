@@ -31,6 +31,13 @@ import type {
 export interface RouteOptions {
   avoidSuez?: boolean;
   avoidPanama?: boolean;
+  /**
+   * Channel chain IDs (from channel_chains.json) the route should
+   * avoid. Ops flips these on in the Planner for vessels too large
+   * for a specific passage (Kiel Canal for post-Panamax, etc.).
+   * Providers that don't support per-chain avoidance can ignore.
+   */
+  avoidedChainIds?: string[];
 }
 
 export interface DistanceProvider {

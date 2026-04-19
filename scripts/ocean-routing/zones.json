@@ -735,6 +735,40 @@
           117
         ]
       ]
+    },
+    {
+      "id": "nsr-arctic-russia",
+      "label": "Northern Sea Route (ice-restricted)",
+      "category": "forbidden",
+      "visible": false,
+      "blocksRouting": true,
+      "hardBlock": true,
+      "navigable": false,
+      "note": "NSR / Russian Arctic — ice-class vessel + Russian escort required, sanctioned for most Western fleets, not a commercial option for tankers. Hard-blocked so Dijkstra never routes over the top of Russia, even when the alternative is much longer (Cape Horn / Good Hope).",
+      "since": "permanent",
+      "polygon": [
+        [72, 30],
+        [72, 179.5],
+        [85, 179.5],
+        [85, 30]
+      ]
+    },
+    {
+      "id": "nsr-chukchi",
+      "label": "Chukchi Sea (NSR east approach)",
+      "category": "forbidden",
+      "visible": false,
+      "blocksRouting": true,
+      "hardBlock": true,
+      "navigable": false,
+      "note": "Chukchi Sea east of the 180° meridian — same NSR restrictions as the main polygon, split because the ray-casting algorithm can't wrap the antimeridian. Leaves Bering Strait (~66°N) open and Prudhoe Bay / Dutch Harbor accessible.",
+      "since": "permanent",
+      "polygon": [
+        [68, -179.5],
+        [68, -168],
+        [80, -168],
+        [80, -179.5]
+      ]
     }
   ]
 }

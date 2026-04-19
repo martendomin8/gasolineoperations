@@ -47,6 +47,7 @@ const chainSchema = z.object({
   label: z.string().min(1).max(200),
   notes: z.string().max(2000).optional().nullable(),
   waypoints: z.array(waypointSchema).min(2).max(500),
+  avoidable: z.boolean().optional(),
 });
 
 const payloadSchema = z.object({
@@ -58,6 +59,7 @@ interface StoredChain {
   label: string;
   notes?: string | null;
   waypoints: Array<[number, number]>;
+  avoidable?: boolean;
 }
 
 interface ChainsFile {

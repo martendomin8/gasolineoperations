@@ -166,9 +166,15 @@ class LandMask:
             if self.prepared[i].contains(point):
                 if self.boundaries is None:
                     return True
+                # Defensive: some polygons have a null boundary
+                # (degenerate rings from GSHHG). Treat them as
+                # regular land — no tolerance, just land.
+                b = self.boundaries[i]
+                if b is None:
+                    return True
                 # Tolerance mode: only report land if we're deeper
                 # than the buffer from the nearest shore edge.
-                if self.boundaries[i].distance(point) > self.inland_buffer_deg:
+                if b.distance(point) > self.inland_buffer_deg:
                     return True
         return False
 

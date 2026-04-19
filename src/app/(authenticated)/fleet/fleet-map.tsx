@@ -40,28 +40,44 @@ import { point } from "@turf/helpers";
 function toGeodesic(path: [number, number][], pointsPerSegment = 20): [number, number][] {
   if (path.length < 2) return path;
   const result: [number, number][] = [];
+  // Antimeridian unwrap: turf.greatCircle emits coords in -180..180
+  // and splits arcs that cross the ±180° seam into separate rings.
+  // Naively concatenated, a polyline jumping from +179 to -179 draws
+  // the long way around the globe (horizontal line across every
+  // continent — the classic "line through New Zealand" bug). We
+  // maintain a cumulative ±360° shift that stays continuous both
+  // within a single turf call (multi-ring) and across successive
+  // path segments where each endpoint sits on a different side of
+  // the seam. Leaflet interprets the unwrapped coords correctly as
+  // long as `worldCopyJump` is on (it is, by default).
+  let lonShift = 0;
   for (let i = 0; i < path.length - 1; i++) {
     const from = point([path[i][1], path[i][0]]); // [lon, lat]
     const to = point([path[i + 1][1], path[i + 1][0]]);
     try {
       const arc = greatCircle(from, to, { npoints: pointsPerSegment });
       const geom = arc.geometry;
-      // turf.greatCircle returns LineString or MultiLineString (when
-      // crossing the antimeridian). Normalize both into a flat array.
       const rings: number[][][] =
         geom.type === "MultiLineString"
           ? (geom.coordinates as number[][][])
           : [geom.coordinates as number[][]];
       for (const ring of rings) {
+        if (ring.length > 0 && result.length > 0) {
+          const prevLon = result[result.length - 1][1];
+          const firstLon = ring[0][0] + lonShift;
+          const rawDelta = firstLon - prevLon;
+          if (rawDelta > 180) lonShift -= 360;
+          else if (rawDelta < -180) lonShift += 360;
+        }
         for (let j = 0; j < ring.length; j++) {
           if (result.length > 0 && j === 0) continue; // skip duplicate join
-          result.push([ring[j][1], ring[j][0]]); // back to [lat, lon]
+          result.push([ring[j][1], ring[j][0] + lonShift]); // [lat, lon]
         }
       }
     } catch {
       // Fall back to straight segment if turf fails
-      result.push(path[i]);
-      result.push(path[i + 1]);
+      result.push([path[i][0], path[i][1] + lonShift]);
+      result.push([path[i + 1][0], path[i + 1][1] + lonShift]);
     }
   }
   return result;
@@ -80,7 +96,13 @@ function MapClickCapture({
   useMapEvents({
     click: (e) => {
       if (!onMapClick) return;
-      onMapClick({ lat: e.latlng.lat, lon: e.latlng.lng });
+      // Leaflet with worldCopyJump returns latlng values outside the
+      // ±180 range when the user clicks on a "second copy" of the
+      // globe. Normalize at ingress so downstream consumers (waypoint
+      // labels, API query) don't see e.g. 203.84° and reject it.
+      const rawLon = e.latlng.lng;
+      const lon = ((rawLon + 180) % 360 + 360) % 360 - 180;
+      onMapClick({ lat: e.latlng.lat, lon });
     },
   });
   return null;

@@ -35,6 +35,14 @@ export interface ChannelChain {
   label: string;
   notes?: string | null;
   waypoints: Array<[number, number]>;
+  /**
+   * If true, the Planner exposes an "Avoid [chain]" toggle.
+   * Useful for size-restricted passages (Kiel Canal only fits up
+   * to Panamax, Panama locks have beam limits, etc.) so the
+   * operator can mark a chain off-limits for larger tankers
+   * without removing it from the graph entirely.
+   */
+  avoidable?: boolean;
 }
 
 interface ChannelEditorProps {
@@ -227,6 +235,27 @@ export function ChannelEditor({
                       </div>
                       <div className="text-[0.6875rem] text-[var(--color-text-tertiary)] mt-0.5">
                         {chain.waypoints.length} waypoints · {chain.id}
+                      </div>
+                      <div className="mt-1">
+                        <label
+                          onClick={(e) => e.stopPropagation()}
+                          className="inline-flex items-center gap-1 text-[0.65rem] text-[var(--color-text-secondary)] cursor-pointer hover:text-[var(--color-text-primary)]"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={!!chain.avoidable}
+                            onChange={(e) => {
+                              setChains(chains.map((c) =>
+                                c.id === chain.id
+                                  ? { ...c, avoidable: e.target.checked }
+                                  : c
+                              ));
+                              setDirty(true);
+                            }}
+                            className="h-3 w-3 cursor-pointer"
+                          />
+                          <span>Planner can avoid (size-restricted passage)</span>
+                        </label>
                       </div>
                     </div>
                     <button

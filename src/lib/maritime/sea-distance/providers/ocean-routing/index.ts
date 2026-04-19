@@ -65,6 +65,9 @@ import { routeThroughGraph, getRuntimeGraph } from "./graph-runtime";
 export interface RouteOptions {
   avoidSuez?: boolean;
   avoidPanama?: boolean;
+  /** Chain IDs (from channel_chains.json) the route should avoid.
+   * Used when vessel size exceeds a passage's limits. */
+  avoidedChainIds?: string[];
 }
 
 const PROVIDER_NAME = "ocean_routing";
@@ -78,6 +81,12 @@ interface PortEntry {
   lat: number;
   lon: number;
   aliases: string[];
+  /**
+   * Visibility tier. Default 1 (major hub, always on map). The
+   * extra tanker-port list sets 2 (regional — visible from zoom
+   * ≥ 4). Search matches across every tier regardless.
+   */
+  tier?: number;
 }
 
 const PORTS: PortEntry[] = [
@@ -350,6 +359,49 @@ const PORTS: PortEntry[] = [
   { name: "Gladstone, AU",       lat:-23.8300, lon:  151.2500, aliases: [] },
 ];
 
+// ────────────────────────────────────────────────────────────
+// Extra tanker-capable ports — refineries, LNG/LPG terminals,
+// tanker bunker hubs. Pulled from tanker_ports_extra.json so
+// the Python pipeline and this TypeScript list share a single
+// source of truth (edit the JSON, both sides pick it up).
+// All tier 2 — visible on the map only when zoomed in (≥ 4),
+// but always findable via the port search.
+// ────────────────────────────────────────────────────────────
+import tankerPortsExtraRaw from "../../../../../../scripts/ocean-routing/tanker_ports_extra.json";
+
+interface TankerPortsExtraFile {
+  ports: Array<{
+    name: string;
+    lat: number;
+    lon: number;
+    pilotLat: number;
+    pilotLon: number;
+    tier: number;
+    aliases: string[];
+  }>;
+}
+
+const EXTRA_PORTS: PortEntry[] = (
+  tankerPortsExtraRaw as unknown as TankerPortsExtraFile
+).ports.map((p) => ({
+  name: p.name,
+  lat: p.lat,
+  lon: p.lon,
+  aliases: p.aliases ?? [],
+  tier: p.tier ?? 2,
+}));
+
+// Merge — the dedup protects against a future edit adding the same
+// port to both lists (last one wins, but we'd rather keep the
+// hand-curated top list authoritative so we drop duplicates from
+// the extras).
+const _existingNames = new Set(PORTS.map((p) => p.name));
+for (const ep of EXTRA_PORTS) {
+  if (!_existingNames.has(ep.name)) {
+    PORTS.push(ep);
+  }
+}
+
 // Build indices
 const portIndex = new Map<string, PortEntry>();
 const portByName = new Map<string, PortEntry>();
@@ -378,7 +430,10 @@ function cacheKey(a: string, b: string, opts?: RouteOptions): string {
   const ordered = a < b ? `${a}|${b}` : `${b}|${a}`;
   const sz = opts?.avoidSuez ? "1" : "0";
   const pz = opts?.avoidPanama ? "1" : "0";
-  return `${ordered}|s${sz}p${pz}`;
+  // Sort avoided chain ids so cache key is stable regardless of
+  // callers' array order.
+  const chains = (opts?.avoidedChainIds ?? []).slice().sort().join(",");
+  return `${ordered}|s${sz}p${pz}|c${chains}`;
 }
 
 /**
@@ -410,7 +465,11 @@ function computeRoute(
       { type: "port", label: from, portName: from, lat: 0, lon: 0 },
       { type: "port", label: to, portName: to, lat: 0, lon: 0 },
     ],
-    { avoidSuez: opts?.avoidSuez, avoidPanama: opts?.avoidPanama }
+    {
+      avoidSuez: opts?.avoidSuez,
+      avoidPanama: opts?.avoidPanama,
+      avoidedChainIds: opts?.avoidedChainIds,
+    }
   );
   if (!result || result.legs.length === 0) return null;
   // Direction: portMap key lookups are order-insensitive in the
@@ -569,7 +628,12 @@ function checkPortAmbiguity(query: string): PortAmbiguityResult {
 }
 
 function getAllPorts(): PortInfo[] {
-  return PORTS.map((p) => ({ name: p.name, lat: p.lat, lon: p.lon }));
+  return PORTS.map((p) => ({
+    name: p.name,
+    lat: p.lat,
+    lon: p.lon,
+    tier: p.tier ?? 1,
+  }));
 }
 
 function getSeaDistance(from: string, to: string, opts?: RouteOptions): RouteResult {

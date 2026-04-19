@@ -35,9 +35,17 @@ export function parseWaypoint(entry: string): ParsedWaypoint | null {
     const match = body.match(/^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$/);
     if (!match) return null;
     const lat = parseFloat(match[1]);
-    const lon = parseFloat(match[2]);
-    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
-    if (lat < -90 || lat > 90 || lon < -180 || lon > 180) return null;
+    const rawLon = parseFloat(match[2]);
+    if (!Number.isFinite(lat) || !Number.isFinite(rawLon)) return null;
+    if (lat < -90 || lat > 90) return null;
+    // Normalize longitude into -180..180 instead of rejecting. The
+    // map UI used to occasionally send clicks from a "second copy"
+    // of the globe (values like 203° or -247°) — this used to drop
+    // the waypoint silently and break the route. We now wrap it at
+    // the API boundary too, so a client that hasn't been updated
+    // (or a hand-crafted URL) still produces a valid route instead
+    // of a silently missing leg.
+    const lon = ((rawLon + 180) % 360 + 360) % 360 - 180;
     return { type: "custom", lat, lon, raw: trimmed };
   }
   return { type: "port", raw: trimmed };
@@ -72,7 +80,13 @@ export function haversineNm(
  * waypoint list.
  */
 export function formatCustomLabel(lat: number, lon: number): string {
+  // Normalize lon to -180..180 before formatting — waypoints created
+  // pre-normalization (or via hand-crafted URLs) may carry values
+  // outside the standard range, and "211.54°W" is nonsense to a
+  // ship's navigator. Wrapping here keeps the label clean regardless
+  // of how the waypoint was constructed upstream.
+  const normLon = ((lon + 180) % 360 + 360) % 360 - 180;
   const nsSuffix = lat >= 0 ? "N" : "S";
-  const ewSuffix = lon >= 0 ? "E" : "W";
-  return `@ ${Math.abs(lat).toFixed(2)}°${nsSuffix} ${Math.abs(lon).toFixed(2)}°${ewSuffix}`;
+  const ewSuffix = normLon >= 0 ? "E" : "W";
+  return `@ ${Math.abs(lat).toFixed(2)}°${nsSuffix} ${Math.abs(normLon).toFixed(2)}°${ewSuffix}`;
 }

@@ -6,6 +6,7 @@ import {
   Save,
   Trash2,
   Shield,
+  ShieldAlert,
   Eye,
   EyeOff,
   X as XIcon,
@@ -47,6 +48,15 @@ export interface Zone {
   category: ZoneCategory;
   visible: boolean;
   blocksRouting: boolean;
+  /**
+   * Hard block — Dijkstra refuses entry entirely (same mechanism as
+   * avoidSuez / avoidPanama bbox filters). Use for physically or
+   * legally off-limits regions (Northern Sea Route, active war zones).
+   * Plain `blocksRouting` without this flag is only a 10× weight
+   * penalty — the router can still cross if no alternative exists.
+   * Optional so older persisted zones keep loading as soft-block.
+   */
+  hardBlock?: boolean;
   navigable: boolean;
   note?: string | null;
   since?: string | null;
@@ -174,9 +184,23 @@ export function ZoneEditor({
   );
 
   const toggleFlag = useCallback(
-    (id: string, flag: "visible" | "blocksRouting" | "navigable") => {
+    (
+      id: string,
+      flag: "visible" | "blocksRouting" | "navigable" | "hardBlock"
+    ) => {
       setZones(
-        zones.map((z) => (z.id === id ? { ...z, [flag]: !z[flag] } : z))
+        zones.map((z) => {
+          if (z.id !== id) return z;
+          const next = { ...z, [flag]: !z[flag] };
+          // Hard block only makes sense when blocksRouting is also
+          // true — flipping on hardBlock implies blocksRouting, and
+          // flipping off blocksRouting drops hardBlock too. Keeps
+          // the router's truth table simple.
+          if (flag === "hardBlock" && next.hardBlock) next.blocksRouting = true;
+          if (flag === "blocksRouting" && !next.blocksRouting)
+            next.hardBlock = false;
+          return next;
+        })
       );
       setDirty(true);
     },
@@ -212,6 +236,7 @@ export function ZoneEditor({
         invalidateRuntimeGraph({
           zones: zones.map((z) => ({
             blocksRouting: z.blocksRouting,
+            hardBlock: z.hardBlock,
             polygon: z.polygon,
           })),
         });
@@ -325,6 +350,15 @@ export function ZoneEditor({
                           onClick={(e) => {
                             e.stopPropagation();
                             toggleFlag(zone.id, "blocksRouting");
+                          }}
+                        />
+                        <FlagBadge
+                          label="Hard"
+                          active={!!zone.hardBlock}
+                          icon={<ShieldAlert className="h-2.5 w-2.5" />}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleFlag(zone.id, "hardBlock");
                           }}
                         />
                       </div>
