@@ -330,17 +330,17 @@ export function buildCustomExtras(
     }
   }
 
-  // Wire customs to each other too (direct edges) — lets Dijkstra
-  // route through a chain of customs without always bouncing off a
-  // base graph node between them.
-  for (let i = 0; i < customs.length; i++) {
-    for (let j = i + 1; j < customs.length; j++) {
-      const a = customs[i];
-      const b = customs[j];
-      const w = haversineNm(a.lat, a.lon, b.lat, b.lon);
-      addEdge(customIds[i], customIds[j], w);
-    }
-  }
+  // NOTE: we intentionally do NOT add direct custom↔custom edges.
+  // Earlier version did — rationale was "let Dijkstra chain customs
+  // without bouncing off a base node between them" — but that
+  // reintroduced the exact bug this whole module was built to fix:
+  // haversine-shortest is straight-line, so Dijkstra would always
+  // pick the direct custom-A→custom-B edge over the (longer) via-
+  // graph path, even when the direct edge crosses continents.
+  // Every custom-to-custom leg MUST be forced through base graph
+  // nodes to guarantee land-safety. If two customs happen to sit
+  // next to each other in open ocean, they'll still meet at a
+  // nearby base node and the via-graph detour is ≤ ~100 NM.
 
   return { extras: { extraNodes, extraEdges }, customIds };
 }
