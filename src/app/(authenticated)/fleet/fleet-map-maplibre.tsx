@@ -228,10 +228,34 @@ function toGeodesicGeoJson(
         geom.type === "MultiLineString"
           ? (geom.coordinates as number[][][])
           : [geom.coordinates as number[][]];
-      for (const ring of rings) {
+      // Antimeridian handling: turf.greatCircle splits arcs that cross
+      // ±180° into two rings (one ending at ≈-180, the next starting at
+      // ≈+180). If we concat them naively the polyline snaps from -180
+      // straight to +180 — MapLibre reads that as "travel 357° east
+      // around the world" and draws a horizontal line across every
+      // continent. Fix: unwrap each successive ring's longitudes into
+      // the same continuous window as the previous ring (−360 or +360
+      // shift). MapLibre's built-in antimeridian wrap handles the
+      // continuous coords correctly.
+      let lonShift = 0;
+      for (let r = 0; r < rings.length; r++) {
+        const ring = rings[r];
+        if (r > 0 && ring.length > 0 && out.length > 0) {
+          const prevLon = out[out.length - 1][0];
+          const firstLon = ring[0][0];
+          // Expected delta is ~0 (continuous); anything > 180° means
+          // turf wrapped. Shift by whichever multiple of 360 minimises
+          // the gap.
+          const rawDelta = firstLon - prevLon;
+          if (Math.abs(rawDelta) > 180) {
+            lonShift = rawDelta > 0 ? -360 : 360;
+          } else {
+            lonShift = 0;
+          }
+        }
         for (let j = 0; j < ring.length; j++) {
           if (out.length > 0 && j === 0) continue;
-          out.push([ring[j][0], ring[j][1]]); // [lon, lat]
+          out.push([ring[j][0] + lonShift, ring[j][1]]); // [lon, lat]
         }
       }
     } catch {
@@ -296,6 +320,38 @@ interface FleetMapProps {
   projection?: "mercator" | "globe";
   /** `dark` = CARTO dark flat style, `satellite` = EOX Sentinel-2. */
   basemap?: "dark" | "satellite";
+  /**
+   * Dev-only: channel chains shown/edited on the map.
+   * When `activeChainId` is set, the map:
+   *   - routes map clicks to `onChannelClick` (appending a waypoint)
+   *   - renders waypoint markers as draggable
+   *   - routes double-clicks on markers to `onChannelDeleteWaypoint`
+   *   - routes shift+clicks on segments to `onChannelInsertWaypoint`
+   */
+  channelChains?: Array<{ id: string; label: string; waypoints: Array<[number, number]> }>;
+  activeChainId?: string | null;
+  onChannelClick?: (coords: { lat: number; lon: number }) => void;
+  onChannelMoveWaypoint?: (idx: number, coords: { lat: number; lon: number }) => void;
+  onChannelDeleteWaypoint?: (idx: number) => void;
+  onChannelInsertWaypoint?: (afterIdx: number, coords: { lat: number; lon: number }) => void;
+  /**
+   * Dev-only: zones shown/edited on the map. Same interaction pattern
+   * as chains but with polygons instead of polylines.
+   */
+  devZones?: Array<{
+    id: string;
+    label: string;
+    category: "war" | "piracy" | "tension" | "forbidden" | "navigable";
+    visible: boolean;
+    blocksRouting: boolean;
+    navigable: boolean;
+    polygon: Array<[number, number]>;
+  }>;
+  activeZoneId?: string | null;
+  onZoneClick?: (coords: { lat: number; lon: number }) => void;
+  onZoneMoveVertex?: (idx: number, coords: { lat: number; lon: number }) => void;
+  onZoneDeleteVertex?: (idx: number) => void;
+  onZoneInsertVertex?: (afterIdx: number, coords: { lat: number; lon: number }) => void;
 }
 
 // ID constants for GeoJSON sources/layers. MapLibre requires stable
@@ -329,6 +385,18 @@ export function FleetMapInner({
   onMapClick,
   projection = "mercator",
   basemap = "dark",
+  channelChains = [],
+  activeChainId = null,
+  onChannelClick,
+  onChannelMoveWaypoint,
+  onChannelDeleteWaypoint,
+  onChannelInsertWaypoint,
+  devZones = [],
+  activeZoneId = null,
+  onZoneClick,
+  onZoneMoveVertex,
+  onZoneDeleteVertex,
+  onZoneInsertVertex,
 }: FleetMapProps) {
   const mapRef = useRef<MapRef | null>(null);
   const [hoveredZone, setHoveredZone] = useState<{
@@ -397,6 +465,76 @@ export function FleetMapInner({
       features: features as GeoJSON.Feature[],
     };
   }, [vessels, selectedVesselId]);
+
+  // ── Channel chain polylines GeoJSON (dev tool) ───────────
+  // Active chain renders amber + bolder; inactive chains render in
+  // a dim amber so the operator can still see existing chains for
+  // context without mistaking them for editable.
+  const channelChainsGeoJson = useMemo(() => {
+    const features = channelChains.flatMap((chain) => {
+      if (chain.waypoints.length < 2) return [];
+      const lonLat: Array<[number, number]> = chain.waypoints.map(
+        ([lat, lon]) => [lon, lat]
+      );
+      return [
+        {
+          type: "Feature" as const,
+          geometry: {
+            type: "LineString" as const,
+            // Channel chains are DENSE by design — the hand-drawn
+            // waypoints already trace the actual channel centerline,
+            // so we do NOT run toGeodesicGeoJson here: it would
+            // smooth the polyline into great-circle arcs and subtly
+            // push the line outside the narrow strait.
+            coordinates: lonLat,
+          },
+          properties: {
+            chainId: chain.id,
+            active: chain.id === activeChainId,
+          },
+        },
+      ];
+    });
+    return {
+      type: "FeatureCollection" as const,
+      features,
+    };
+  }, [channelChains, activeChainId]);
+
+  const activeChain = channelChains.find((c) => c.id === activeChainId);
+
+  // ── Dev Zone polygons GeoJSON ─────────────────────────────
+  // Every zone becomes a Polygon feature (MapLibre closes the ring
+  // automatically) so fill + border come for free. Properties carry
+  // the flags the style expression keys off: active / category /
+  // blocksRouting. Non-dev zones are already rendered by the regular
+  // `risk-zones` overlay below — this layer is strictly for editor
+  // preview, so we also render "hidden" (visible=false) zones here
+  // when the dev mode is on.
+  const devZonesGeoJson = useMemo(() => {
+    const features = devZones
+      .filter((z) => z.polygon.length >= 3)
+      .map((z) => ({
+        type: "Feature" as const,
+        geometry: {
+          type: "Polygon" as const,
+          coordinates: [
+            z.polygon.map(([lat, lon]) => [lon, lat] as [number, number]),
+          ],
+        },
+        properties: {
+          zoneId: z.id,
+          active: z.id === activeZoneId,
+          category: z.category,
+          blocksRouting: z.blocksRouting,
+          navigable: z.navigable,
+          visible: z.visible,
+        },
+      }));
+    return { type: "FeatureCollection" as const, features };
+  }, [devZones, activeZoneId]);
+
+  const activeZone = devZones.find((z) => z.id === activeZoneId);
 
   // ── Planner route lines GeoJSON ───────────────────────────
   const plannerRoutesGeoJson = useMemo(() => {
@@ -558,6 +696,109 @@ export function FleetMapInner({
     layout: { "line-cap": "round", "line-join": "round" },
   };
 
+  // Dev-editor zones — fill coloured per category. Blocking zones
+  // get a purple hue distinct from risk overlays; navigable zones
+  // cyan (known-passage hint). Active zone is brighter.
+  const devZonesFillLayer: LayerProps = {
+    id: "lyr-dev-zones-fill",
+    type: "fill",
+    source: "src-dev-zones",
+    paint: {
+      "fill-color": [
+        "match",
+        ["get", "category"],
+        "forbidden",
+        "#a855f7",
+        "navigable",
+        "#22d3ee",
+        "piracy",
+        "#dc2626",
+        "war",
+        "#b91c1c",
+        "tension",
+        "#f59e0b",
+        /* default */ "#6b7280",
+      ] as unknown as string,
+      "fill-opacity": [
+        "case",
+        ["get", "active"],
+        0.28,
+        0.12,
+      ] as unknown as number,
+    },
+  };
+
+  const devZonesBorderLayer: LayerProps = {
+    id: "lyr-dev-zones-border",
+    type: "line",
+    source: "src-dev-zones",
+    paint: {
+      "line-color": [
+        "match",
+        ["get", "category"],
+        "forbidden",
+        "#c084fc",
+        "navigable",
+        "#67e8f9",
+        "piracy",
+        "#ef4444",
+        "war",
+        "#dc2626",
+        "tension",
+        "#f59e0b",
+        /* default */ "#9ca3af",
+      ] as unknown as string,
+      "line-width": [
+        "case",
+        ["get", "active"],
+        3,
+        1.5,
+      ] as unknown as number,
+      "line-opacity": 0.95,
+      "line-dasharray": [
+        "case",
+        ["get", "active"],
+        ["literal", [1, 0]],
+        ["literal", [4, 3]],
+      ] as unknown as number[],
+    },
+    layout: { "line-cap": "round", "line-join": "round" },
+  };
+
+  // Channel chains: active = solid amber, inactive = dimmed dashed.
+  const channelChainsLayer: LayerProps = {
+    id: "lyr-channel-chains",
+    type: "line",
+    source: "src-channel-chains",
+    paint: {
+      "line-color": [
+        "case",
+        ["get", "active"],
+        "#f59e0b", // amber-500
+        "#78350f", // amber-900 — muted for inactive chains
+      ] as unknown as string,
+      "line-width": [
+        "case",
+        ["get", "active"],
+        3,
+        1.5,
+      ] as unknown as number,
+      "line-opacity": [
+        "case",
+        ["get", "active"],
+        0.95,
+        0.55,
+      ] as unknown as number,
+      "line-dasharray": [
+        "case",
+        ["get", "active"],
+        ["literal", [1, 0]],
+        ["literal", [4, 3]],
+      ] as unknown as number[],
+    },
+    layout: { "line-cap": "round", "line-join": "round" },
+  };
+
   const ecaFillLayer: LayerProps = {
     id: LYR_ECA_FILL,
     type: "fill",
@@ -615,6 +856,98 @@ export function FleetMapInner({
   const handleMapClick = useCallback(
     (e: MapLayerMouseEvent) => {
       const features = e.features ?? [];
+      const clickLat = e.lngLat.lat;
+      const clickLon = e.lngLat.lng;
+      const shift =
+        (e.originalEvent as MouseEvent | undefined)?.shiftKey ?? false;
+      // Zone editor takes priority when a zone is active — same shape
+      // of logic as chains (append on plain click, insert-on-edge on
+      // shift+click) but over polygon vertices instead of polyline
+      // waypoints.
+      if (activeZoneId && (onZoneClick || onZoneInsertVertex)) {
+        const zone = devZones.find((z) => z.id === activeZoneId);
+        const poly = zone?.polygon ?? [];
+        if (shift && poly.length >= 2 && onZoneInsertVertex) {
+          // Find nearest edge in the polygon (closed ring — also
+          // consider the wrap-around edge from last → first).
+          let bestIdx = 0;
+          let bestDist = Infinity;
+          const n = poly.length;
+          for (let i = 0; i < n; i++) {
+            const [la, lo] = poly[i];
+            const [lb, lob] = poly[(i + 1) % n];
+            const dx = lob - lo;
+            const dy = lb - la;
+            const denom = dx * dx + dy * dy;
+            let t = 0.5;
+            if (denom > 1e-9) {
+              t = ((clickLon - lo) * dx + (clickLat - la) * dy) / denom;
+              t = Math.max(0, Math.min(1, t));
+            }
+            const projLat = la + t * dy;
+            const projLon = lo + t * dx;
+            const d =
+              (projLat - clickLat) * (projLat - clickLat) +
+              (projLon - clickLon) * (projLon - clickLon);
+            if (d < bestDist) {
+              bestDist = d;
+              bestIdx = i;
+            }
+          }
+          onZoneInsertVertex(bestIdx, { lat: clickLat, lon: clickLon });
+          return;
+        }
+        if (onZoneClick) {
+          onZoneClick({ lat: clickLat, lon: clickLon });
+        }
+        return;
+      }
+      // Channel editor takes priority when a chain is active. Ports get
+      // ignored here so a click near a port doesn't spawn a waypoint
+      // mid-harbour; the editor wants pure-water clicks.
+      if (activeChainId && (onChannelClick || onChannelInsertWaypoint)) {
+        const chain = channelChains.find((c) => c.id === activeChainId);
+        const wps = chain?.waypoints ?? [];
+        // Shift+click with at least one existing segment → insert the
+        // new waypoint between the two endpoints of whichever segment
+        // sits closest to the click. Falls back to append if the chain
+        // has fewer than 2 waypoints (no segment exists yet).
+        if (shift && wps.length >= 2 && onChannelInsertWaypoint) {
+          // Find the segment whose closest-point-to-click is nearest.
+          // Distance is computed in flat-plane degrees — fine for the
+          // 1-100 km segments a chain typically has, and avoids
+          // pulling in turf just for this one calculation.
+          let bestIdx = 0;
+          let bestDist = Infinity;
+          for (let i = 0; i < wps.length - 1; i++) {
+            const [la, lo] = wps[i];
+            const [lb, lob] = wps[i + 1];
+            const dx = lob - lo;
+            const dy = lb - la;
+            const denom = dx * dx + dy * dy;
+            let t = 0.5;
+            if (denom > 1e-9) {
+              t = ((clickLon - lo) * dx + (clickLat - la) * dy) / denom;
+              t = Math.max(0, Math.min(1, t));
+            }
+            const projLat = la + t * dy;
+            const projLon = lo + t * dx;
+            const d =
+              (projLat - clickLat) * (projLat - clickLat) +
+              (projLon - clickLon) * (projLon - clickLon);
+            if (d < bestDist) {
+              bestDist = d;
+              bestIdx = i;
+            }
+          }
+          onChannelInsertWaypoint(bestIdx, { lat: clickLat, lon: clickLon });
+          return;
+        }
+        if (onChannelClick) {
+          onChannelClick({ lat: clickLat, lon: clickLon });
+        }
+        return;
+      }
       // Port-click first — if the top feature under cursor is a
       // reference-port dot, route to onPortClick with its data.
       const portHit = features.find((f) => f.layer.id === LYR_REFERENCE_PORTS);
@@ -629,7 +962,18 @@ export function FleetMapInner({
         onMapClick({ lat: e.lngLat.lat, lon: e.lngLat.lng });
       }
     },
-    [onPortClick, onMapClick]
+    [
+      onPortClick,
+      onMapClick,
+      activeChainId,
+      onChannelClick,
+      onChannelInsertWaypoint,
+      channelChains,
+      activeZoneId,
+      onZoneClick,
+      onZoneInsertVertex,
+      devZones,
+    ]
   );
 
   // ── Hover popups for zone overlays ────────────────────────
@@ -688,6 +1032,13 @@ export function FleetMapInner({
       onMouseMove={handleMouseMove}
       // Cursor feedback when hovering a clickable port or zone.
       cursor={interactiveLayerIds.length > 0 && hoveredZone ? "pointer" : undefined}
+      // Disable Shift+drag area-zoom and double-click zoom when the
+      // channel editor has an active chain. Both interactions eat the
+      // click event before our handler sees it — boxZoom is MapLibre's
+      // Shift+drag zoom rectangle, which swallows Shift+click too.
+      // Without this, the operator can't insert waypoints mid-chain.
+      boxZoom={!activeChainId && !activeZoneId}
+      doubleClickZoom={!activeChainId && !activeZoneId}
     >
       <NavigationControl position="top-left" showCompass={false} />
 
@@ -696,10 +1047,18 @@ export function FleetMapInner({
           Arne prefers them visible alongside the Fleet title. The
           page renders the buttons and passes `projection` + `basemap`
           down here as props. */}
+      {/* Attribution stays ALWAYS VISIBLE (compact={false}) so we're
+          covered legally on the commercial license of every data
+          source: MapLibre itself, OpenStreetMap (CARTO dark vector),
+          CARTO (tiles), and — when the satellite basemap is active —
+          EOX Sentinel-2 Cloudless / Copernicus. MapLibre auto-merges
+          the active style's source attributions with `customAttribution`
+          so toggling Dark ↔ Satellite swaps which imagery credit
+          appears without our having to manage it explicitly. */}
       <AttributionControl
         position="bottom-right"
-        compact
-        customAttribution='&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions" target="_blank" rel="noreferrer">CARTO</a>'
+        compact={false}
+        customAttribution='<a href="https://maplibre.org/" target="_blank" rel="noreferrer">MapLibre</a> | &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions" target="_blank" rel="noreferrer">CARTO</a>'
       />
 
       {/* ── ECA/SECA fill + boundaries (below routes so ships stay on top) ── */}
@@ -737,6 +1096,133 @@ export function FleetMapInner({
       <Source id={SRC_PLANNER_ROUTES} type="geojson" data={plannerRoutesGeoJson}>
         <Layer {...plannerRoutesLayer} />
       </Source>
+
+      {/* ── Dev editor zones — polygon fill + border ────────────── */}
+      <Source id="src-dev-zones" type="geojson" data={devZonesGeoJson}>
+        <Layer {...devZonesFillLayer} />
+        <Layer {...devZonesBorderLayer} />
+      </Source>
+
+      {/* ── Dev zone vertex markers — draggable on active zone ───── */}
+      {activeZone?.polygon.map(([lat, lon], idx) => (
+        <Marker
+          key={`${activeZone.id}-vx-${idx}`}
+          longitude={lon}
+          latitude={lat}
+          anchor="center"
+          draggable
+          onDragEnd={(e) => {
+            if (onZoneMoveVertex) {
+              onZoneMoveVertex(idx, {
+                lat: e.lngLat.lat,
+                lon: e.lngLat.lng,
+              });
+            }
+          }}
+        >
+          <div
+            title={`Vertex ${idx + 1} of ${activeZone.polygon.length} · (${lat.toFixed(4)}, ${lon.toFixed(4)}) — drag to move, right-click to delete`}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              if (onZoneDeleteVertex) onZoneDeleteVertex(idx);
+            }}
+            style={{
+              width: 12,
+              height: 12,
+              borderRadius: 3,
+              background: "#a855f7",
+              border: "2px solid #fff7ed",
+              boxShadow: "0 0 6px #a855f790",
+              cursor: "grab",
+              position: "relative",
+            }}
+          >
+            <span
+              style={{
+                position: "absolute",
+                left: "50%",
+                top: "50%",
+                transform: "translate(-50%, -50%)",
+                fontSize: 8,
+                lineHeight: 1,
+                fontWeight: 700,
+                color: "#1c1917",
+                pointerEvents: "none",
+                userSelect: "none",
+              }}
+            >
+              {idx + 1}
+            </span>
+          </div>
+        </Marker>
+      ))}
+
+      {/* ── Channel chains (dev editor) — amber polylines ─────────── */}
+      <Source id="src-channel-chains" type="geojson" data={channelChainsGeoJson}>
+        <Layer {...channelChainsLayer} />
+      </Source>
+
+      {/* ── Channel chain waypoint markers — draggable on active chain ─ */}
+      {activeChain?.waypoints.map(([lat, lon], idx) => (
+        <Marker
+          key={`${activeChain.id}-wp-${idx}`}
+          longitude={lon}
+          latitude={lat}
+          anchor="center"
+          draggable
+          onDragEnd={(e) => {
+            if (onChannelMoveWaypoint) {
+              onChannelMoveWaypoint(idx, {
+                lat: e.lngLat.lat,
+                lon: e.lngLat.lng,
+              });
+            }
+          }}
+        >
+          {/* Right-click (contextmenu) to delete — double-click would
+              clash with the map's built-in double-click-to-zoom and
+              fired inconsistently. Click on the number badge shows
+              a confirmation in the title tooltip. */}
+          <div
+            title={`#${idx + 1} of ${activeChain.waypoints.length} · (${lat.toFixed(4)}, ${lon.toFixed(4)}) — drag to move, right-click to delete`}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              if (onChannelDeleteWaypoint) onChannelDeleteWaypoint(idx);
+            }}
+            style={{
+              width: 14,
+              height: 14,
+              borderRadius: "50%",
+              background: "#f59e0b",
+              border: "2px solid #fff7ed",
+              boxShadow: "0 0 6px #f59e0b90",
+              cursor: "grab",
+              position: "relative",
+            }}
+          >
+            {/* Sequence number — helps the operator see the chain's
+                direction and spot out-of-order mid-click insertions. */}
+            <span
+              style={{
+                position: "absolute",
+                left: "50%",
+                top: "50%",
+                transform: "translate(-50%, -50%)",
+                fontSize: 9,
+                lineHeight: 1,
+                fontWeight: 700,
+                color: "#1c1917",
+                pointerEvents: "none",
+                userSelect: "none",
+              }}
+            >
+              {idx + 1}
+            </span>
+          </div>
+        </Marker>
+      ))}
 
       {/* ── Party port markers (terminals/agents/inspectors) ── */}
       {portMarkers.map((p) => (

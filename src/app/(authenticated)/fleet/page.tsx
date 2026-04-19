@@ -14,7 +14,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
-import { Ship, X, ExternalLink, MapPin, AlertTriangle, Anchor, ArrowRight, Route, Trash2, GripVertical, Plus, ChevronRight, GitCompareArrows, Globe, Map as MapIcon, Satellite, Moon } from "lucide-react";
+import { Ship, X, ExternalLink, MapPin, AlertTriangle, Anchor, ArrowRight, Route, Trash2, GripVertical, Plus, ChevronRight, GitCompareArrows, Globe, Map as MapIcon, Satellite, Moon, Wrench } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { buildLinkageCards } from "@/app/(authenticated)/dashboard/page";
@@ -25,6 +25,13 @@ import { STATUS_COLORS, STATUS_LABELS } from "./fleet-map-maplibre";
 import type { FleetVessel, PlannerRouteLeg } from "./fleet-map-maplibre";
 import { WorldscalePanel } from "./worldscale-panel";
 import { PortCostsButton } from "./port-costs-button";
+import { type ChannelChain } from "./channel-editor";
+import { DevPanel, type DevTab } from "./dev-panel";
+import { type Zone } from "./zone-editor";
+
+// Dev-tools gate: enabled only when this env flag is set.
+// Flip it off before production builds to remove the editor entirely.
+const DEV_TOOLS_ENABLED = process.env.NEXT_PUBLIC_DEV_TOOLS === "true";
 
 // Dynamic import — Leaflet requires `window`
 const FleetMapInner = dynamic(
@@ -157,6 +164,124 @@ export default function FleetPage() {
   // is the hovered drop target so we can render an insertion indicator.
   const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+
+  // ── Channel Editor (dev tools) ────────────────────────────
+  // Only rendered when NEXT_PUBLIC_DEV_TOOLS=true. Chains are loaded
+  // on open (ChannelEditor does its own fetch) and kept in this parent
+  // state so the map + editor stay in sync: editor lists them, map
+  // renders their polylines + waypoint markers, both read/write via
+  // the same setChannelChains setter.
+  const [devMode, setDevMode] = useState(false);
+  const [devTab, setDevTab] = useState<DevTab>("chains");
+  const [channelChains, setChannelChains] = useState<ChannelChain[]>([]);
+  const [activeChainId, setActiveChainId] = useState<string | null>(null);
+  const [channelsDirty, setChannelsDirty] = useState(false);
+  // Zone editor state — mirrors chain state so both editors look the
+  // same to the page shell. DevPanel picks which one is "active" based
+  // on the tab; the map sees both and renders as appropriate.
+  const [zones, setZones] = useState<Zone[]>([]);
+  const [activeZoneId, setActiveZoneId] = useState<string | null>(null);
+  const [zonesDirty, setZonesDirty] = useState(false);
+
+  // Helpers for mutating the active chain — closed over
+  // setChannelChains so the editor + map callbacks stay thin.
+  const updateActiveChain = useCallback(
+    (mutate: (waypoints: Array<[number, number]>) => Array<[number, number]>) => {
+      if (!activeChainId) return;
+      setChannelChains((cur) =>
+        cur.map((c) =>
+          c.id === activeChainId ? { ...c, waypoints: mutate(c.waypoints) } : c
+        )
+      );
+      setChannelsDirty(true);
+    },
+    [activeChainId]
+  );
+
+  const handleChannelClick = useCallback(
+    ({ lat, lon }: { lat: number; lon: number }) => {
+      updateActiveChain((wps) => [...wps, [lat, lon]]);
+    },
+    [updateActiveChain]
+  );
+
+  const handleChannelMoveWaypoint = useCallback(
+    (idx: number, { lat, lon }: { lat: number; lon: number }) => {
+      updateActiveChain((wps) =>
+        wps.map((wp, i) => (i === idx ? [lat, lon] : wp))
+      );
+    },
+    [updateActiveChain]
+  );
+
+  const handleChannelDeleteWaypoint = useCallback(
+    (idx: number) => {
+      updateActiveChain((wps) => wps.filter((_, i) => i !== idx));
+    },
+    [updateActiveChain]
+  );
+
+  const handleChannelInsertWaypoint = useCallback(
+    (afterIdx: number, { lat, lon }: { lat: number; lon: number }) => {
+      // Insert a new waypoint immediately after `afterIdx` so it lives
+      // between existing waypoints i and i+1 (which is the segment the
+      // user clicked with shift). Keeps the chain's logical order intact.
+      updateActiveChain((wps) => {
+        const out = wps.slice();
+        out.splice(afterIdx + 1, 0, [lat, lon]);
+        return out;
+      });
+    },
+    [updateActiveChain]
+  );
+
+  // ── Zone editor callbacks ─────────────────────────────────
+  const updateActiveZone = useCallback(
+    (mutate: (polygon: Array<[number, number]>) => Array<[number, number]>) => {
+      if (!activeZoneId) return;
+      setZones((cur) =>
+        cur.map((z) =>
+          z.id === activeZoneId ? { ...z, polygon: mutate(z.polygon) } : z
+        )
+      );
+      setZonesDirty(true);
+    },
+    [activeZoneId]
+  );
+
+  const handleZoneClick = useCallback(
+    ({ lat, lon }: { lat: number; lon: number }) => {
+      updateActiveZone((poly) => [...poly, [lat, lon]]);
+    },
+    [updateActiveZone]
+  );
+
+  const handleZoneMoveVertex = useCallback(
+    (idx: number, { lat, lon }: { lat: number; lon: number }) => {
+      updateActiveZone((poly) =>
+        poly.map((p, i) => (i === idx ? [lat, lon] : p))
+      );
+    },
+    [updateActiveZone]
+  );
+
+  const handleZoneDeleteVertex = useCallback(
+    (idx: number) => {
+      updateActiveZone((poly) => poly.filter((_, i) => i !== idx));
+    },
+    [updateActiveZone]
+  );
+
+  const handleZoneInsertVertex = useCallback(
+    (afterIdx: number, { lat, lon }: { lat: number; lon: number }) => {
+      updateActiveZone((poly) => {
+        const out = poly.slice();
+        out.splice(afterIdx + 1, 0, [lat, lon]);
+        return out;
+      });
+    },
+    [updateActiveZone]
+  );
 
   // ── Compare-routes state ────────────────────────────────
   // When on, a second route is edited + rendered in parallel with the
@@ -526,6 +651,23 @@ export default function FleetPage() {
             )}
             {basemap === "dark" ? "Satellite" : "Dark"}
           </button>
+          {/* Dev tools — only rendered when NEXT_PUBLIC_DEV_TOOLS=true.
+              Opens the Channel Editor sidebar so ops can hand-curate
+              dense waypoint chains through narrow waterways. */}
+          {DEV_TOOLS_ENABLED && (
+            <button
+              onClick={() => setDevMode(!devMode)}
+              title="Dev tools: channel chain editor"
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-[var(--radius-md)] text-xs font-semibold transition-colors cursor-pointer ${
+                devMode
+                  ? "bg-amber-500/20 text-amber-400 border border-amber-500/40"
+                  : "bg-[var(--color-surface-2)] text-[var(--color-text-secondary)] border border-[var(--color-border-default)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-border-strong)]"
+              }`}
+            >
+              <Wrench className="h-3.5 w-3.5" />
+              Dev
+            </button>
+          )}
         </div>
         <div className="flex items-center gap-3">
           <button
@@ -636,15 +778,51 @@ export default function FleetPage() {
                     }
                   : undefined
               }
+              channelChains={devMode && devTab === "chains" ? channelChains : []}
+              activeChainId={devMode && devTab === "chains" ? activeChainId : null}
+              onChannelClick={devMode && devTab === "chains" ? handleChannelClick : undefined}
+              onChannelMoveWaypoint={devMode && devTab === "chains" ? handleChannelMoveWaypoint : undefined}
+              onChannelDeleteWaypoint={devMode && devTab === "chains" ? handleChannelDeleteWaypoint : undefined}
+              onChannelInsertWaypoint={devMode && devTab === "chains" ? handleChannelInsertWaypoint : undefined}
+              devZones={devMode ? zones : []}
+              activeZoneId={devMode && devTab === "zones" ? activeZoneId : null}
+              onZoneClick={devMode && devTab === "zones" ? handleZoneClick : undefined}
+              onZoneMoveVertex={devMode && devTab === "zones" ? handleZoneMoveVertex : undefined}
+              onZoneDeleteVertex={devMode && devTab === "zones" ? handleZoneDeleteVertex : undefined}
+              onZoneInsertVertex={devMode && devTab === "zones" ? handleZoneInsertVertex : undefined}
             />
           )}
         </div>
+
+        {/* Dev Tools panel (chains + zones editor) — replaces the normal
+            planner panel when dev mode is on. Only mounted when enabled
+            so production bundles with the flag off ship none of this
+            UI. */}
+        {DEV_TOOLS_ENABLED && devMode && (
+          <DevPanel
+            activeTab={devTab}
+            setActiveTab={setDevTab}
+            onClose={() => setDevMode(false)}
+            chains={channelChains}
+            setChains={setChannelChains}
+            activeChainId={activeChainId}
+            setActiveChainId={setActiveChainId}
+            chainsDirty={channelsDirty}
+            setChainsDirty={setChannelsDirty}
+            zones={zones}
+            setZones={setZones}
+            activeZoneId={activeZoneId}
+            setActiveZoneId={setActiveZoneId}
+            zonesDirty={zonesDirty}
+            setZonesDirty={setZonesDirty}
+          />
+        )}
 
         {/* Right-side Planner panel */}
         <div className={`
           flex-shrink-0 bg-[var(--color-surface-1)] border-l border-[var(--color-border-default)]
           transition-all duration-300 overflow-hidden
-          ${plannerMode ? "w-80" : "w-0"}
+          ${plannerMode && !devMode ? "w-80" : "w-0"}
         `}>
           {plannerMode && (
             <div className="w-80 h-full overflow-y-auto">

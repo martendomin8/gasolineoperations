@@ -70,6 +70,10 @@ def main() -> None:
     v2.add_transit_anchors(nodes_out, edges_out, land)
     print(f"  After anchors: {len(nodes_out):,} nodes, {len(edges_out):,} edges")
 
+    print("Injecting hand-curated channel chains...")
+    chain_node_ids = v2.add_channel_chains(nodes_out, edges_out, land) or set()
+    print(f"  After channel chains: {len(nodes_out):,} nodes, {len(edges_out):,} edges")
+
     print("Connecting ports (with pilot stations where configured)...")
     port_map = v2.connect_ports(nodes_out, edges_out, land)
     print(f"  After ports: {len(nodes_out):,} nodes, {len(edges_out):,} edges")
@@ -89,17 +93,26 @@ def main() -> None:
     ]
     port_map_json = {name: int(nid) for name, nid in port_map.items()}
 
+    # Chain node IDs — the runtime uses this to detect intra-chain
+    # edges and apply the weight-discount that keeps Dijkstra on the
+    # hand-drawn corridor even when a nearby coastal shortcut is a
+    # few NM shorter. Without this, a chain that detours offshore is
+    # never chosen and the hand-curation was wasted.
+    chain_ids_json = sorted(int(nid) for nid in chain_node_ids)
+
     payload = {
         "meta": {
             "nodeCount": len(nodes_json),
             "edgeCount": len(edges_json),
             "portCount": len(port_map_json),
+            "chainNodeCount": len(chain_ids_json),
             "variant": "default",
             "builtAt": datetime.now(timezone.utc).isoformat(),
         },
         "nodes": nodes_json,
         "edges": edges_json,
         "portMap": port_map_json,
+        "chainNodeIds": chain_ids_json,
     }
 
     OUT_PATH.parent.mkdir(parents=True, exist_ok=True)

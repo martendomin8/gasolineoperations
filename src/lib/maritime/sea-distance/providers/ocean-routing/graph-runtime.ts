@@ -39,6 +39,10 @@
 // other JSON payload in the provider is loaded (see ./index.ts) —
 // keeps runtime file-system access out of the hot path.
 import graphData from "./graph.json";
+// Operator-curated forbidden / navigable zones. Shipped as a static
+// JSON import so the runtime has them without a round trip. Pipeline
+// also reads the same file for consistency.
+import zonesData from "../../../../../../scripts/ocean-routing/zones.json";
 
 // ── File format (must match export_graph.py output) ──────────
 interface GraphFile {
@@ -46,12 +50,17 @@ interface GraphFile {
     nodeCount: number;
     edgeCount: number;
     portCount: number;
+    chainNodeCount?: number;
     variant: string;
     builtAt: string;
   };
   nodes: Array<{ id: number; lat: number; lon: number }>;
   edges: Array<{ from: number; to: number; weight: number }>;
   portMap: Record<string, number>;
+  /** Nodes that belong to hand-curated channel chains. Intra-chain
+   * edges (both endpoints ∈ this set) get a weight discount in
+   * Dijkstra so the chain dominates nearby coastal shortcuts. */
+  chainNodeIds?: number[];
 }
 
 interface GraphNode {
@@ -72,6 +81,33 @@ export interface RuntimeGraph {
   adj: AdjacencyEntry[][];
   /** Port canonical name → node id. */
   portMap: Map<string, number>;
+  /**
+   * Set of node ids that represent ports. Used by Dijkstra to block
+   * transit through ports that aren't the source/destination of the
+   * current leg — otherwise a port's 5 "connect-to-nearest" edges
+   * create a cheap shortcut through the port itself, and Dijkstra
+   * happily detours via Monrovia/Santa Cruz/etc. en route to
+   * elsewhere. Ports are endpoints, not transit nodes.
+   */
+  portNodeIds: Set<number>;
+  /**
+   * Set of node ids that belong to a hand-curated channel chain.
+   * The runtime Dijkstra multiplies the weight of any edge whose
+   * BOTH endpoints sit in this set by `CHAIN_WEIGHT_DISCOUNT` — so
+   * chains appear artificially attractive and Dijkstra chooses them
+   * over nearby coastal shortcuts that are shorter in real NM.
+   * Reported distance is recomputed from the path coordinates using
+   * true haversine, so the operator still sees accurate mileage.
+   */
+  chainNodeIds: Set<number>;
+  /**
+   * Set of node ids sitting inside any `blocksRouting=true` zone
+   * (operator-drawn forbidden polygons, persisted in zones.json).
+   * Any edge whose target is in this set gets its weight multiplied
+   * by FORBIDDEN_WEIGHT_PENALTY, making Dijkstra avoid these regions
+   * unless no alternative exists.
+   */
+  forbiddenNodeIds: Set<number>;
   /** Meta / introspection. */
   meta: GraphFile["meta"];
   /** First id available for temporary (per-request) custom nodes. */
@@ -81,33 +117,115 @@ export interface RuntimeGraph {
 // ── One-time loader (memoised) ───────────────────────────────
 let cached: RuntimeGraph | null = null;
 
+/**
+ * Runtime override for zones — if set, takes precedence over the
+ * bundled zones.json. Used by the dev editor to make save-and-see
+ * instant: after POSTing new zones, the editor calls
+ * `invalidateRuntimeGraph({ zonesOverride })` and the next route
+ * computation honours the operator's edits without a dev-server
+ * restart. Cleared by passing `null` or omitting the field.
+ */
+let zonesOverride: Array<{
+  blocksRouting?: boolean;
+  polygon?: Array<[number, number]>;
+}> | null = null;
+
+/**
+ * Drop the cached graph (and the live zone override) so the next
+ * call to `getRuntimeGraph()` rebuilds from current JSON + any
+ * passed overrides. Call after:
+ *   - zone edits in the dev editor (pass the in-memory list as
+ *     `opts.zones` so the recompute sees them before the bundle
+ *     reloads on next refresh)
+ *   - manual zones.json replacement during development
+ * Also flushes any downstream caches (the ocean-routing provider's
+ * per-request route memo lives there — we let it import our export
+ * and flush on its own).
+ */
+export function invalidateRuntimeGraph(opts?: {
+  zones?: Array<{ blocksRouting?: boolean; polygon?: Array<[number, number]> }> | null;
+}): void {
+  if (opts && "zones" in opts) {
+    zonesOverride = opts.zones ?? null;
+  }
+  cached = null;
+}
+
 export function getRuntimeGraph(): RuntimeGraph {
   if (cached) return cached;
   const data = graphData as GraphFile;
 
-  // Build dense node array — graph.json already has ids 0..N-1 in order
-  // because export_graph.py sorts them, but we verify + fill any gaps
-  // to avoid indexing bugs.
-  const nodes: GraphNode[] = new Array(data.nodes.length);
-  for (const n of data.nodes) nodes[n.id] = n;
-  for (let i = 0; i < nodes.length; i++) {
-    if (!nodes[i]) throw new Error(`Graph: missing node id ${i}`);
-  }
+  // Remap original node IDs to a dense 0..N-1 sequence.
+  //
+  // The Python pipeline preserves each node's original ID through the
+  // export, but bathymetry / land-safety filters can drop searoute
+  // nodes mid-build and leave gaps in the ID space. Internal numpy
+  // code in Python handles this fine (dict-keyed), but our Node.js
+  // runtime wants contiguous IDs so dist/prev can live in flat
+  // typed arrays. We rebuild indices here and translate the edge +
+  // port-map references in one pass.
+  const idMap = new Map<number, number>();
+  const nodes: GraphNode[] = data.nodes.map((n, i) => {
+    idMap.set(n.id, i);
+    return { id: i, lat: n.lat, lon: n.lon };
+  });
 
   // Build undirected adjacency list. Each edge stored in both
   // directions so Dijkstra can traverse either way without extra logic.
   const adj: AdjacencyEntry[][] = Array.from({ length: nodes.length }, () => []);
   for (const e of data.edges) {
-    adj[e.from].push({ to: e.to, weight: e.weight });
-    adj[e.to].push({ to: e.from, weight: e.weight });
+    const fromIdx = idMap.get(e.from);
+    const toIdx = idMap.get(e.to);
+    // Skip edges that reference a dropped node (shouldn't happen if the
+    // Python pipeline ran cleanly, but guards against future mismatches).
+    if (fromIdx === undefined || toIdx === undefined) continue;
+    adj[fromIdx].push({ to: toIdx, weight: e.weight });
+    adj[toIdx].push({ to: fromIdx, weight: e.weight });
   }
 
-  const portMap = new Map<string, number>(Object.entries(data.portMap));
+  // Translate port-map (name → original-id) to dense-index references.
+  const portMap = new Map<string, number>();
+  for (const [name, origId] of Object.entries(data.portMap)) {
+    const idx = idMap.get(origId);
+    if (idx !== undefined) portMap.set(name, idx);
+  }
+
+  const portNodeIds = new Set<number>(portMap.values());
+
+  // Translate chain node IDs (from original sparse IDs → dense ids
+  // used by this runtime). Silent if the graph wasn't built with
+  // chain support (older pipeline version).
+  const chainNodeIds = new Set<number>();
+  for (const origId of data.chainNodeIds ?? []) {
+    const idx = idMap.get(origId);
+    if (idx !== undefined) chainNodeIds.add(idx);
+  }
+
+  // Forbidden zones: walk every node once, checking if it falls
+  // inside any `blocksRouting=true` polygon. Cost: ~O(N·Z·V) where
+  // Z = number of forbidden zones (few) and V = avg vertices per
+  // zone (10-40), so ~a few ms on graph init. We do it once, cache
+  // the set, and hot-path Dijkstra reads it in O(1).
+  const forbiddenNodeIds = new Set<number>();
+  const forbiddenPolygons = collectForbiddenPolygons();
+  if (forbiddenPolygons.length > 0) {
+    for (const n of nodes) {
+      for (const poly of forbiddenPolygons) {
+        if (pointInPolygon(n.lat, n.lon, poly)) {
+          forbiddenNodeIds.add(n.id);
+          break;
+        }
+      }
+    }
+  }
 
   cached = {
     nodes,
     adj,
     portMap,
+    portNodeIds,
+    chainNodeIds,
+    forbiddenNodeIds,
     meta: data.meta,
     nextTempId: nodes.length,
   };
@@ -116,6 +234,81 @@ export function getRuntimeGraph(): RuntimeGraph {
 
 // ── Geo utilities ────────────────────────────────────────────
 const EARTH_NM = 3440.065;
+
+interface ZonesFile {
+  zones?: Array<{
+    blocksRouting?: boolean;
+    polygon?: Array<[number, number]>;
+  }>;
+}
+
+/**
+ * Extract just the forbidden polygons from either the live editor
+ * override (if set) or the bundled zones JSON. Strips everything
+ * the runtime doesn't care about (labels, colors, etc.).
+ */
+function collectForbiddenPolygons(): Array<Array<[number, number]>> {
+  const source: Array<{
+    blocksRouting?: boolean;
+    polygon?: Array<[number, number]>;
+  }> =
+    zonesOverride ?? ((zonesData as unknown as ZonesFile).zones ?? []);
+  const out: Array<Array<[number, number]>> = [];
+  for (const z of source) {
+    if (!z.blocksRouting) continue;
+    if (!z.polygon || z.polygon.length < 3) continue;
+    out.push(z.polygon);
+  }
+  return out;
+}
+
+/**
+ * Standard ray-casting point-in-polygon in the (lat, lon) plane.
+ * Close enough for ships — our forbidden polygons are regional
+ * bounding rings, not geodesic arcs, so flat-earth math matches how
+ * the polygon was drawn. Handles the ±180° antimeridian sanely as
+ * long as the polygon itself doesn't wrap (none of ours do).
+ */
+function pointInPolygon(
+  lat: number,
+  lon: number,
+  poly: Array<[number, number]>
+): boolean {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [yi, xi] = poly[i];
+    const [yj, xj] = poly[j];
+    const intersects =
+      yi > lat !== yj > lat &&
+      lon < ((xj - xi) * (lat - yi)) / (yj - yi + 1e-12) + xi;
+    if (intersects) inside = !inside;
+  }
+  return inside;
+}
+
+/**
+ * Edges where BOTH endpoints are chain nodes are fed to Dijkstra at
+ * this fraction of their real weight. At 0.3 the chain "looks" ~3.3×
+ * cheaper to traverse than the real NM it covers, so Dijkstra picks
+ * the chain even when a coastal shortcut would be ~3× shorter.
+ * Tune down (e.g. 0.1) if chains are still being ignored, or up
+ * (e.g. 0.6) if chains are pulling in routes that should stay
+ * elsewhere. The returned distance to the operator stays honest —
+ * we recompute true haversine from the chosen path coords.
+ */
+const CHAIN_WEIGHT_DISCOUNT = 0.3;
+
+/**
+ * Mirror of the chain discount but INVERTED — edges whose target
+ * sits inside a forbidden zone get their weight multiplied by this
+ * factor, so Dijkstra treats transit through the zone as 10× more
+ * expensive than it really is. The zone stays reachable (no hard
+ * filter) for degenerate cases where no alternative exists, but any
+ * route with an out-of-zone alternative takes it automatically.
+ * The reported distance is still the true haversine — inflation
+ * only lives in the search weights.
+ */
+const FORBIDDEN_WEIGHT_PENALTY = 10;
 
 function haversineNm(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const toRad = Math.PI / 180;
@@ -216,6 +409,54 @@ export interface DijkstraExtras {
    * the shared adjacency list.
    */
   extraEdges?: Map<number, AdjacencyEntry[]>;
+  /**
+   * Set of node ids that this run is not allowed to traverse. Used to
+   * implement avoid-Suez / avoid-Panama at runtime: compute the set
+   * of nodes sitting inside each avoided passage's bbox once per
+   * request, pass it in, and the Dijkstra will route around them.
+   * Start / end ids are never blocked regardless of this set.
+   */
+  blockedNodeIds?: Set<number>;
+}
+
+// Passage bounding boxes — identical to the ones the Python pipeline
+// used to filter edges out when building the avoid-Suez / avoid-Panama
+// variant JSONs. Kept in sync: any node sitting inside one of these
+// is excluded from that variant's routing.
+const AVOID_BBOX_SUEZ: [number, number, number, number] = [
+  29.50, 31.50, 32.00, 33.00,
+];
+const AVOID_BBOX_PANAMA: [number, number, number, number] = [
+  8.70, 9.50, -80.40, -79.20,
+];
+
+/**
+ * Compute the set of graph nodes sitting inside the requested avoid
+ * bboxes. Cheap: one pass over all nodes, no allocations per edge.
+ */
+function buildBlockedSet(
+  graph: RuntimeGraph,
+  opts: { avoidSuez?: boolean; avoidPanama?: boolean }
+): Set<number> | undefined {
+  const boxes: Array<[number, number, number, number]> = [];
+  if (opts.avoidSuez) boxes.push(AVOID_BBOX_SUEZ);
+  if (opts.avoidPanama) boxes.push(AVOID_BBOX_PANAMA);
+  if (boxes.length === 0) return undefined;
+  const blocked = new Set<number>();
+  for (const n of graph.nodes) {
+    for (const [minLat, maxLat, minLon, maxLon] of boxes) {
+      if (
+        n.lat >= minLat &&
+        n.lat <= maxLat &&
+        n.lon >= minLon &&
+        n.lon <= maxLon
+      ) {
+        blocked.add(n.id);
+        break;
+      }
+    }
+  }
+  return blocked;
 }
 
 /**
@@ -258,12 +499,47 @@ export function dijkstra(
     return base ?? extra ?? [];
   };
 
+  const blocked = extras?.blockedNodeIds;
+  const chains = graph.chainNodeIds;
+  const forbidden = graph.forbiddenNodeIds;
   while (pq.size() > 0) {
     const { id: u, key: d } = pq.pop()!;
     if (d > dist[u]) continue;          // stale entry
     if (u === end) break;                // early termination
+    // Ports are endpoints, not transit nodes. A port's 5 "connect-to-
+    // nearest-base-node" edges create a tight triangle that Dijkstra
+    // happily treats as a shortcut — which is how Monrovia / Santa
+    // Cruz / etc. end up in the middle of routes that never intended
+    // to visit them. Blocking transit through non-endpoint ports
+    // forces the path to stay on the searoute transit network,
+    // which is what we actually want.
+    if (u !== start && graph.portNodeIds.has(u)) continue;
+    const uIsChain = chains.has(u);
     for (const { to: v, weight: w } of edgesFor(u)) {
-      const nd = d + w;
+      // Avoid-Suez / avoid-Panama: skip edges whose target is inside
+      // the blocked region. The start / end are never in this set
+      // (they're always ports outside the bbox), so legitimate
+      // routing through the passage is still possible if needed —
+      // we just prevent *transit* through the avoided bbox.
+      if (blocked && v !== end && blocked.has(v)) continue;
+      // Intra-chain edge "stickiness": if BOTH endpoints sit on a
+      // hand-curated channel chain, treat the edge as much cheaper
+      // than reality so Dijkstra picks the chain even when a coastal
+      // shortcut would shave a few NM. True distance is recomputed
+      // from the reconstructed path coordinates so the operator
+      // still sees the real haversine total.
+      let searchWeight =
+        uIsChain && chains.has(v) ? w * CHAIN_WEIGHT_DISCOUNT : w;
+      // Forbidden-zone "stickiness" (inverse of the chain trick):
+      // any edge whose target sits inside an operator-drawn
+      // forbidden polygon looks 10× further than it really is, so
+      // Dijkstra takes the long way around. Zones are never hard-
+      // blocked — if no alternative exists, the route can still
+      // cross at the expense of a much higher cumulative weight.
+      if (forbidden.size > 0 && v !== end && forbidden.has(v)) {
+        searchWeight *= FORBIDDEN_WEIGHT_PENALTY;
+      }
+      const nd = d + searchWeight;
       if (nd < dist[v]) {
         dist[v] = nd;
         prev[v] = u;
@@ -386,9 +662,20 @@ export interface RouteOutput {
  * unreachable (should never happen on a connected graph — every port
  * is wired in by connect_ports in the Python pipeline).
  */
-export function routeThroughGraph(waypoints: Waypoint[]): RouteOutput | null {
+export interface RouteThroughGraphOptions {
+  avoidSuez?: boolean;
+  avoidPanama?: boolean;
+}
+
+export function routeThroughGraph(
+  waypoints: Waypoint[],
+  opts?: RouteThroughGraphOptions
+): RouteOutput | null {
   if (waypoints.length < 2) return null;
   const graph = getRuntimeGraph();
+  // Avoid-set computed once per call — reused across every leg so
+  // we don't re-scan all ~10k nodes for each hop.
+  const blockedNodeIds = buildBlockedSet(graph, opts ?? {});
 
   const legs: RouteLeg[] = [];
   let totalNm = 0;
@@ -403,6 +690,9 @@ export function routeThroughGraph(waypoints: Waypoint[]): RouteOutput | null {
     if (to.type === "custom") customs.push({ lat: to.lat, lon: to.lon });
 
     const { extras, customIds } = buildCustomExtras(graph, customs);
+    // Thread the blocked-node set into the per-leg extras so the same
+    // Dijkstra sees it without any other call-site changes.
+    if (blockedNodeIds) extras.blockedNodeIds = blockedNodeIds;
 
     // Map port/custom to actual ids (port via portMap, custom via injected)
     let customCursor = 0;
@@ -432,13 +722,27 @@ export function routeThroughGraph(waypoints: Waypoint[]): RouteOutput | null {
       return [temp.lat, temp.lon];
     });
 
+    // Recompute the leg length from the ACTUAL chosen path — the
+    // dijkstra cumulative is computed with chain weights discounted,
+    // so it would underreport. Real haversine sum is the source of
+    // truth once we know the path.
+    let legDistance = 0;
+    for (let k = 0; k < coords.length - 1; k++) {
+      legDistance += haversineNm(
+        coords[k][0],
+        coords[k][1],
+        coords[k + 1][0],
+        coords[k + 1][1]
+      );
+    }
+
     legs.push({
       from: from.label,
       to: to.label,
       coordinates: coords,
-      distanceNm: Math.round(result.distanceNm * 10) / 10,
+      distanceNm: Math.round(legDistance * 10) / 10,
     });
-    totalNm += result.distanceNm;
+    totalNm += legDistance;
   }
 
   return { legs, totalNm: Math.round(totalNm * 10) / 10 };

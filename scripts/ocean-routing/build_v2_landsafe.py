@@ -248,6 +248,31 @@ PORT_CONNECT_K = 6            # connect each port to N nearest network nodes
 SAMPLE_STEP_NM = 2.0
 ENDPOINT_BUF_NM = 2.0
 
+# Bathymetry-based safety filter, applied BOTH at node load time and
+# inside arc_is_clear. The threshold is deliberately the SMALLEST
+# tanker class (chemical/product at ~6 m draft + UKC ~2 m = 8 m).
+# That way the graph is usable for every tanker size in our world:
+#   - Small tankers actually use routes over the 8-20 m shelf.
+#   - Larger tankers (MR ≈ 12 m, Suezmax ≈ 16 m, VLCC ≈ 20 m) can
+#     still follow all those paths — they just never go into water
+#     shallower than their own draft, and their operators verify
+#     per-voyage against bigger-ship route books + live soundings.
+#
+# Earlier a 20 m threshold left 33% of port pairs unreachable — far
+# too aggressive because it closed legitimate shallow-shelf lanes
+# (Gulf of Bothnia, Baltic approaches, Gulf of Finland, much of the
+# Black Sea, Gulf of Mexico inshore, parts of the Arabian Gulf).
+#
+# CRITICAL_CHANNELS (Kiel, Bosphorus, Malacca, Suez, Panama, Danish
+# Straits, Dover, Red Sea, Hormuz, Corinth) are EXEMPT — ETOPO
+# artefacts there can force false positives; we trust the manual
+# curation of those passages.
+#
+# If we later want per-vessel-class routing (submenu "tanker class"
+# in the planner), expose this threshold as a RouteOptions field
+# and emit variants at 8 / 12 / 16 / 20 m.
+MIN_WATER_DEPTH_M = 5.0
+
 
 # ─────────────────────────────────────────────────────────────
 # Build graph from searoute's marnet + port nodes.
@@ -294,7 +319,80 @@ def load_searoute_network():
                     continue
                 w = haversine_nm(lat1, lon1, lat2, lon2)
                 edges.append((a, b, w))
+
+    # Drop shallow nodes — see MIN_WATER_DEPTH_M above for rationale.
+    nodes, edges = filter_shallow_nodes(nodes, edges)
+
     return nodes, edges
+
+
+# Module-level singleton so arc_is_clear can call the depth check
+# cheaply on its hot path (17k+ samples per pipeline run).
+_BATHY_SINGLETON = None
+
+
+def get_bathymetry():
+    """Lazy-load the ETOPO bathymetry mask (shared across checks)."""
+    global _BATHY_SINGLETON
+    if _BATHY_SINGLETON is None:
+        import bathymetry
+        try:
+            _BATHY_SINGLETON = bathymetry.BathymetryMask.load()
+        except FileNotFoundError:
+            _BATHY_SINGLETON = False   # sentinel: tried + failed
+    return _BATHY_SINGLETON if _BATHY_SINGLETON is not False else None
+
+
+def filter_shallow_nodes(nodes, edges):
+    """
+    Remove searoute nodes whose ETOPO 60s depth is shallower than
+    MIN_WATER_DEPTH_M metres. Also drops any edge that referenced a
+    removed node so the graph stays consistent.
+
+    Nodes sitting deep inside CRITICAL_CHANNELS bboxes are exempted —
+    the ETOPO 60s average over a ~2 km cell can report a shallow
+    number in a narrow deep strait (Bosphorus, Kiel) because the cell
+    mixes channel + bank. The same regions are already tagged as
+    critical passages in the arc-clearance check, so this exemption
+    keeps routing through them consistent with that logic.
+    """
+    b = get_bathymetry()
+    if b is None:
+        print("  [!] Bathymetry data not found — skipping depth filter.")
+        print(f"      Run: curl -L -o scripts/ocean-routing/data/etopo_60s_bed.nc"
+              f" https://www.ngdc.noaa.gov/thredds/fileServer/global/ETOPO2022/"
+              f"60s/60s_bed_elev_netcdf/ETOPO_2022_v1_60s_N90W180_bed.nc")
+        return nodes, edges
+
+    kept: dict[int, tuple[float, float]] = {}
+    dropped_ids: set[int] = set()
+    for nid, (lat, lon) in nodes.items():
+        # Critical channels get a pass — their narrow geometry fools
+        # 1' bathymetry cells into reporting artificially shallow depths.
+        if in_critical_channel(lat, lon):
+            kept[nid] = (lat, lon)
+            continue
+        # Dredged river / estuary channels likewise — ETOPO shows the
+        # surrounding shallows and misses the dredged fairway.
+        if in_navigable_river_channel(lat, lon):
+            kept[nid] = (lat, lon)
+            continue
+        if b.is_unsafe(lat, lon, MIN_WATER_DEPTH_M):
+            dropped_ids.add(nid)
+        else:
+            kept[nid] = (lat, lon)
+
+    kept_edges = [
+        (a, c, w) for (a, c, w) in edges
+        if a not in dropped_ids and c not in dropped_ids
+    ]
+
+    print(
+        f"  Bathymetry filter (depth < {MIN_WATER_DEPTH_M:g} m): "
+        f"dropped {len(dropped_ids):,} nodes, "
+        f"{len(edges) - len(kept_edges):,} edges"
+    )
+    return kept, kept_edges
 
 
 def load_gshhg_with_tolerance():
@@ -319,12 +417,37 @@ def load_gshhg_with_tolerance():
 # as land because they're only a few hundred metres wide. An arc
 # sample landing inside one of these boxes is forced to count as
 # water. Kept deliberately tight.
+# Surgical "keep routes further offshore" zones. Each entry is a
+# lat/lon bounding box + minimum offshore distance + reason. During
+# arc_is_clear, any sample point that falls inside the bbox AND is
+# within `min_offshore_nm` of the nearest land polygon causes the
+# whole arc to be rejected.
+#
+# Deliberately tight — we only list regions where searoute's AIS
+# data puts transit edges unreasonably close to shore (e.g. ship
+# anchorage clusters surfaced as through-routes). Everywhere else
+# the default 0.5 NM coastal-tolerance behaviour applies.
+#
+# Format: (name, lat_min, lat_max, lon_min, lon_max, min_offshore_nm, reason)
+MANUAL_EXCLUSION_ZONES = [
+    ("Liberia coast", 4.0, 7.0, -11.5, -7.0, 5.0,
+     "AIS puts edges within a few NM of Monrovia coast; transit should stay >=5 NM offshore"),
+]
+
+
 CRITICAL_CHANNELS = [
     (29.80, 31.30, 32.20, 32.80, "Suez Canal"),
     (53.80, 54.50, 8.80, 10.50, "Kiel Canal"),
     (8.80, 9.40, -80.30, -79.30, "Panama Canal"),
-    # Turkish Straits — Dardanelles → Marmara → Bosphorus
-    (40.00, 41.40, 26.00, 29.50, "Turkish Straits"),
+    # Turkish Straits — three tight bboxes that EXCLUDE Gallipoli
+    # peninsula. A single wide bbox used to cover 40-41.4°N × 26-29.5°E
+    # but that let a 130 NM searoute edge cut straight across Gallipoli
+    # land (arc_is_clear skipped the land check inside the bbox). Split
+    # to three snug rectangles around actual water so arcs that clip
+    # Gallipoli get rejected and the hand-curated chain is forced in.
+    (40.97, 41.28, 28.90, 29.25, "Bosphorus"),
+    (40.38, 40.95, 26.90, 29.00, "Sea of Marmara"),
+    (40.00, 40.42, 26.10, 26.78, "Dardanelles"),
     (37.85, 38.10, 22.85, 23.20, "Corinth Canal"),
     (24.80, 26.90, 54.80, 57.00, "Strait of Hormuz"),
     # Red Sea end-to-end — narrow GSHHG coast forces us to whitelist
@@ -348,12 +471,92 @@ def in_critical_channel(lat, lon):
     return False
 
 
+# River / estuary navigation channels that are DREDGED to tanker-safe
+# drafts but show as shallow in ETOPO 60s (1-minute grid averages the
+# dredged channel with the surrounding mud/sandbanks). Ports whose
+# pilot-station approaches cross these must not be rejected by the
+# depth filter — they're reached every day by real tankers.
+#
+# Format: (name, lat_min, lat_max, lon_min, lon_max).
+NAVIGABLE_RIVER_CHANNELS = [
+    # Mississippi River — Gulf entrance through Birds Foot Delta up to
+    # Baton Rouge (330 miles inland). Maintained to ~14 m draft.
+    # Serves New Orleans, Baton Rouge, refinery terminals along the
+    # Lower Mississippi.
+    ("Mississippi River", 28.5, 31.0, -92.5, -88.5),
+    # St Lawrence Seaway — Gulf of St Lawrence up to Montreal. Federal
+    # channel maintained to 11.3 m in the Lakes, deeper downstream.
+    # Serves Quebec, Montreal + Great Lakes access.
+    ("St Lawrence Seaway", 45.0, 52.0, -74.5, -56.0),
+    # Yangtze Estuary + Hangzhou Bay — approach to Ningbo-Zhoushan +
+    # Shanghai via dredged channels (12.5 m main channel).
+    ("Yangtze / Hangzhou Bay", 28.5, 32.5, 120.5, 125.0),
+    # Strait of Canso — Nova Scotia causeway-narrow channel, deep
+    # dredged (~24 m) but ETOPO cells near the bank look shallow.
+    ("Strait of Canso", 45.4, 46.0, -61.7, -60.8),
+]
+
+
+def in_navigable_river_channel(lat, lon):
+    """
+    Bypass the bathymetry depth filter inside known dredged navigation
+    channels. Functionally identical to `in_critical_channel` but
+    kept as a separate list so we can evolve them independently:
+    critical channels are about narrow land geometry, navigable
+    channels are about dredged depth vs ETOPO-reported shallow.
+    """
+    for _name, mla, mxa, mlo, mxo in NAVIGABLE_RIVER_CHANNELS:
+        if mla <= lat <= mxa and mlo <= lon <= mxo:
+            return True
+    return False
+
+
+def in_manual_exclusion_zone(lat, lon, land):
+    """
+    True if the point is in a MANUAL_EXCLUSION_ZONES bbox AND within
+    `min_offshore_nm` of the nearest land polygon.
+
+    The bbox check is O(1) per zone and runs first, so points outside
+    every listed zone return False immediately (most arc samples).
+    Only when we're in a zone do we pay the STRtree.nearest() cost to
+    measure distance-to-coast. That keeps build time nearly unchanged
+    when the list is empty or small.
+    """
+    if not MANUAL_EXCLUSION_ZONES:
+        return False
+    from shapely.geometry import Point
+    pt = None
+    for _name, mla, mxa, mlo, mxo, min_offshore_nm, _reason in MANUAL_EXCLUSION_ZONES:
+        if not (mla <= lat <= mxa and mlo <= lon <= mxo):
+            continue
+        if pt is None:
+            pt = Point(lon, lat)
+        # Find nearest land polygon. STRtree.nearest returns an ndarray
+        # in shapely 2.x; coerce to a scalar index defensively.
+        idx = land.tree.nearest(pt)
+        if hasattr(idx, "__iter__"):
+            idx = int(list(idx)[0])
+        else:
+            idx = int(idx)
+        # `polygons` on LandMask contains the original polygon objects.
+        # Distance in degrees, multiply by 60 for approximate NM — fine
+        # at the ~5 NM scale we care about here.
+        d_deg = land.polygons[idx].distance(pt)
+        if d_deg * 60.0 < min_offshore_nm:
+            return True
+    return False
+
+
 def arc_is_clear(p1, p2, land, sample_step=SAMPLE_STEP_NM, endpoint_buf=ENDPOINT_BUF_NM):
     from shapely.geometry import Point
     d = haversine_nm(p1[0], p1[1], p2[0], p2[1])
     if d < 2 * endpoint_buf:
         return True
     samples = max(8, int(d / sample_step))
+    # Bathymetry lookup is cheap (numpy array index), so we keep a
+    # reference on the arc-clear call rather than looking it up inside
+    # the per-sample loop.
+    bathy = get_bathymetry()
     for i in range(1, samples):
         t = i / samples
         lat, lon = gc_interpolate(p1, p2, t)
@@ -365,6 +568,21 @@ def arc_is_clear(p1, p2, land, sample_step=SAMPLE_STEP_NM, endpoint_buf=ENDPOINT
             continue
         if land.contains(Point(lon, lat)):
             return False
+        # Manual "keep offshore" zones — narrow regions where searoute's
+        # AIS network puts edges too close to shore. Runs AFTER the
+        # critical-channels bypass so known narrow straits stay passable.
+        if in_manual_exclusion_zone(lat, lon, land):
+            return False
+        # Bathymetry check — rejects arcs that cross water shallower than
+        # our min-tanker threshold even when the endpoints sit in deep
+        # water. Example: great-circle across the Sherbro / Bijagós
+        # delta off Sierra Leone passes over extensive sandbars between
+        # two nodes in 500+ m water. Depth-per-sample catches it;
+        # node-only filter misses it. Dredged river channels bypass
+        # since they ARE tanker-navigable despite nominal shallow depth.
+        if bathy is not None and not in_navigable_river_channel(lat, lon):
+            if bathy.is_unsafe(lat, lon, MIN_WATER_DEPTH_M):
+                return False
     return True
 
 
@@ -413,7 +631,135 @@ TRANSIT_ANCHORS: dict[str, tuple[float, float]] = {
     "_tx_atl_s_w":  (-25.00,  -30.00),
     # Arctic corridor (Norway ↔ Russian Arctic)
     "_tx_arctic_ne":(72.00,   45.00),
+    # West African coastal corridor. searoute's AIS-derived marnet has a
+    # gap between offshore Liberia and the Gulf of Guinea — the only
+    # "bridge" through the region was via Monrovia port itself, which is
+    # unacceptable now that Dijkstra blocks port transit. These pure-
+    # ocean anchors (all ≥ 50 NM from coast, ≥ 1000 m depth per ETOPO)
+    # restore the natural ~4°N shipping highway that tankers actually
+    # sail. See https://map.searoutes.com — the real AIS traffic follows
+    # almost exactly this latitude band.
+    "_tx_waf_1":    ( 8.00,  -15.00),  # offshore Sierra Leone
+    "_tx_waf_2":    ( 5.50,  -13.00),  # offshore Liberia (W)
+    "_tx_waf_3":    ( 4.00,  -10.00),  # offshore Liberia (S)
+    "_tx_waf_4":    ( 4.00,   -6.00),  # offshore Ivory Coast
+    "_tx_waf_5":    ( 4.00,   -2.00),  # offshore Ghana
+    "_tx_waf_6":    ( 4.00,    2.00),  # offshore Togo / Benin
+    "_tx_waf_7":    ( 3.00,    6.00),  # offshore Nigeria
 }
+
+
+# ──────────────────────────────────────────────────────────────
+# Hand-curated channel chains for narrow waterways
+# ──────────────────────────────────────────────────────────────
+# searoute's AIS-derived network is very sparse in narrow straits: the
+# Bosphorus is a single node-pair, which Dijkstra connects with a
+# straight edge that visually cuts across Istanbul. CRITICAL_CHANNELS
+# whitelists these regions as "water" for the land-safety check, but
+# that alone doesn't give Dijkstra enough waypoints to TRACE the
+# channel — it can only pick from what's in the graph.
+#
+# CHANNEL_CHAINS injects dense, hand-picked waypoints along the real
+# navigable centerline. Each chain is a sequence of (lat, lon) points
+# ordered from one end of the waterway to the other. Consecutive
+# waypoints within a chain are connected with a direct edge (land
+# check bypassed — a maritime expert already vetted the path).
+# Intermediate + endpoint nodes are wired into the broader graph via
+# the normal arc-clear + nearest-k search.
+#
+# The chain becomes the cheapest (and on narrow straits, the ONLY
+# land-safe) path between water on either side, so every route
+# through the region automatically follows it.
+#
+# Coordinates live in `channel_chains.json` so the Fleet dev-tools
+# Channel Editor can add/edit them without Python code changes.
+CHANNEL_CHAINS_PATH = Path(__file__).parent / "channel_chains.json"
+
+
+def load_channel_chains() -> dict[str, list[tuple[float, float]]]:
+    """Load chains from JSON. Returns empty dict if the file is missing
+    — the pipeline still builds, just without hand-curated overrides."""
+    if not CHANNEL_CHAINS_PATH.exists():
+        return {}
+    data = json.loads(CHANNEL_CHAINS_PATH.read_text(encoding="utf-8"))
+    out: dict[str, list[tuple[float, float]]] = {}
+    for chain in data.get("chains", []):
+        cid = chain.get("id")
+        waypoints = chain.get("waypoints", [])
+        if not cid or len(waypoints) < 2:
+            continue
+        out[cid] = [(float(wp[0]), float(wp[1])) for wp in waypoints]
+    return out
+
+
+CHANNEL_CHAINS: dict[str, list[tuple[float, float]]] = load_channel_chains()
+
+
+def add_channel_chains(nodes, edges, land):
+    """Inject hand-curated channel chains (see CHANNEL_CHAINS) as dense
+    waypoint sequences. Intra-chain edges bypass the land check (chain
+    is expert-vetted); endpoint edges to the broader graph use the
+    normal arc_is_clear check. Returns the set of chain node ids so
+    callers (export_graph.py) can surface them to the runtime Dijkstra
+    for the weight-discount trick that makes chains "sticky"."""
+    from scipy.spatial import cKDTree
+    all_chain_ids: set[int] = set()
+    if not CHANNEL_CHAINS:
+        return all_chain_ids
+    existing_ids = sorted(nodes.keys())
+    coords = [(nodes[i][0], nodes[i][1]) for i in existing_ids]
+    tree = cKDTree(coords)
+    total_nodes = 0
+    for name, chain in CHANNEL_CHAINS.items():
+        if len(chain) < 2:
+            continue
+        # Register each chain waypoint as a new graph node.
+        chain_ids = []
+        for lat, lon in chain:
+            nid = max(nodes) + 1
+            nodes[nid] = (lat, lon)
+            chain_ids.append(nid)
+        all_chain_ids.update(chain_ids)
+        # Connect consecutive waypoints with direct (land-bypass) edges.
+        for i in range(len(chain_ids) - 1):
+            a, b = chain_ids[i], chain_ids[i + 1]
+            d = haversine_nm(*nodes[a], *nodes[b])
+            edges.append((a, b, d))
+        # Wire EVERY chain node into the broader graph with a land-safe
+        # arc to the 1-2 nearest existing nodes. Connecting only the
+        # endpoints would leave any searoute nodes sitting next to the
+        # chain's middle (e.g. Marmara nodes that need to reach the
+        # Dardanelles) stranded: they'd have to backtrack out of the
+        # region and come in through the chain's endpoint, making the
+        # chain less preferable than the original cross-peninsula edges.
+        # With per-node connections the chain becomes a true "highway"
+        # any nearby searoute node can hop onto and off.
+        for chain_nid in chain_ids:
+            cp = nodes[chain_nid]
+            ks = min(5, len(coords))
+            _, idxs = tree.query([cp[0], cp[1]], k=ks)
+            if not hasattr(idxs, "__len__"):
+                idxs = [idxs]
+            connected = 0
+            for idx in idxs:
+                if connected >= 2:
+                    break
+                other_id = existing_ids[idx]
+                other = nodes[other_id]
+                # Skip connections > 30 NM — a chain node 50 NM from its
+                # nearest base graph node is in the middle of nowhere
+                # and such a long jump likely crosses land anyway.
+                d = haversine_nm(*cp, *other)
+                if d > 30:
+                    continue
+                if arc_is_clear(cp, other, land):
+                    edges.append((chain_nid, other_id, d))
+                    connected += 1
+        total_nodes += len(chain)
+        print(f"  Added channel chain '{name}' with {len(chain)} waypoints")
+    if total_nodes:
+        print(f"  Channel chains total: {total_nodes} nodes")
+    return all_chain_ids
 
 
 def add_transit_anchors(nodes, edges, land):
@@ -469,7 +815,12 @@ def connect_ports(nodes, edges, land):
     inland ports: the routing endpoint is always the pilot-boarding
     position offshore, not the city centre."""
     from scipy.spatial import cKDTree
-    coords = [(nodes[i][0], nodes[i][1]) for i in sorted(nodes.keys())]
+    # existing_ids is the authoritative mapping from kd-tree positional
+    # index -> real sparse node id. It MUST be used when writing edges
+    # because after filter_shallow_nodes the id space has holes, so the
+    # positional index in `coords` no longer equals the node id.
+    existing_ids = sorted(nodes.keys())
+    coords = [(nodes[i][0], nodes[i][1]) for i in existing_ids]
     tree = cKDTree(coords)
 
     port_name_to_id: dict[str, int] = {}
@@ -478,7 +829,13 @@ def connect_ports(nodes, edges, land):
         lat, lon = effective_port_coord(port_name)
         if port_name in PILOT_STATIONS:
             pilot_used += 1
-        nid = len(nodes)
+        # Use max(nodes)+1, NOT len(nodes). After filter_shallow_nodes
+        # the id space is sparse (holes where shallow nodes were dropped)
+        # so len(nodes) can collide with an already-assigned id — the
+        # port would then silently overwrite a real searoute node while
+        # all the old edges remain, pulling hundreds of unrelated
+        # connections into one "ghost" node.
+        nid = max(nodes) + 1
         nodes[nid] = (lat, lon)
         port_name_to_id[port_name] = nid
 
@@ -497,11 +854,11 @@ def connect_ports(nodes, edges, land):
             if connected >= PORT_CONNECT_K:
                 break
             if arc_is_clear((lat, lon), (coords[idx][0], coords[idx][1]), land):
-                edges.append((nid, idx, d_nm))
+                edges.append((nid, existing_ids[idx], d_nm))
                 connected += 1
         if connected == 0:
             d_nm, idx = candidates[0]
-            edges.append((nid, idx, d_nm))
+            edges.append((nid, existing_ids[idx], d_nm))
     print(f"  Pilot stations used for {pilot_used} ports "
           f"(the rest sit directly on the coast).")
     return port_name_to_id
@@ -558,6 +915,12 @@ def main():
     t0 = time.time()
     edges = filter_edges_landsafe(nodes, edges, land)
     print(f"  Edge filter took {time.time() - t0:.0f}s")
+
+    print(f"\nInjecting trans-ocean transit anchors...")
+    add_transit_anchors(nodes, edges, land)
+
+    print(f"\nInjecting hand-curated channel chains...")
+    add_channel_chains(nodes, edges, land)
 
     print(f"\nConnecting {len(PORTS)} ports to nearest {PORT_CONNECT_K} nodes...")
     port_ids = connect_ports(nodes, edges, land)

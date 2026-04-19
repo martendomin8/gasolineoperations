@@ -1,0 +1,174 @@
+{
+  "_meta": {
+    "description": "Hand-curated dense waypoint chains for narrow waterways. searoute's AIS-derived network is too sparse in channels like the Bosphorus / Dardanelles / Greek archipelago — a straight edge between two sparse nodes cuts across islands or peninsulas. Each chain is a sequence of (lat, lon) waypoints along the real navigable centerline. Consecutive waypoints are connected with direct edges (no land check — a maritime expert already vetted the path). Endpoints + intermediate nodes are wired into the broader graph via nearest-k search so any route crossing the region is forced through the chain.",
+    "source_of_truth": "This JSON is edited via the Fleet dev-tools Channel Editor. Committed to git so every deployment ships the same chains.",
+    "schema_version": 1
+  },
+  "chains": [
+    {
+      "id": "turkish-straits",
+      "label": "Turkish Straits (Black Sea → Aegean)",
+      "notes": "Dense centerline through Bosphorus (narrow, Istanbul), Sea of Marmara, Dardanelles (narrow, Çanakkale). Avoid Şarköy peninsula (~40.65°N, 27.10°E) and Gallipoli peninsula (~40.3°N, 26.5°E) when placing intermediate Marmara waypoints.",
+      "waypoints": [
+        [
+          41.257304488147525,
+          29.157434063540506
+        ],
+        [
+          41.224047949735336,
+          29.134458877360657
+        ],
+        [
+          41.19478149037133,
+          29.098426755054447
+        ],
+        [
+          41.154547769196824,
+          29.058671754071725
+        ],
+        [
+          41.12188155720463,
+          29.08282420416674
+        ],
+        [
+          41.10476622293535,
+          29.06311374149476
+        ],
+        [
+          41.08021806860924,
+          29.059772985109817
+        ],
+        [
+          41.074677729557806,
+          29.050418867231514
+        ],
+        [
+          41.05190658131073,
+          29.04254372036175
+        ],
+        [
+          41.02453268142011,
+          28.99874324030199
+        ],
+        [
+          40.985,
+          28.985
+        ],
+        [
+          40.92913166628804,
+          28.86590463139885
+        ],
+        [
+          40.92,
+          28.6
+        ],
+        [
+          40.734506359021225,
+          27.561740879677416
+        ],
+        [
+          40.611456219112824,
+          27.335731233274885
+        ],
+        [
+          40.50976387359103,
+          27.005933899241512
+        ],
+        [
+          40.427207472208806,
+          26.742493125747814
+        ],
+        [
+          40.35945410268101,
+          26.65531204195139
+        ],
+        [
+          40.2540753817473,
+          26.5194993331381
+        ],
+        [
+          40.19938778628841,
+          26.387858736654636
+        ],
+        [
+          40.13361670877845,
+          26.388459810188493
+        ],
+        [
+          40.047145256406736,
+          26.289241546248917
+        ],
+        [
+          40.02211760377895,
+          26.181838560023948
+        ],
+        [
+          39.92,
+          25.95
+        ],
+        [
+          39.82,
+          25.7
+        ]
+      ]
+    },
+    {
+      "id": "izmit-south",
+      "label": "Izmit south",
+      "waypoints": [
+        [
+          40.728434666635934,
+          29.313100178664428
+        ],
+        [
+          40.7634290133972,
+          29.10382952003812
+        ],
+        [
+          40.84691245444532,
+          29.031244651955944
+        ],
+        [
+          40.977426741470595,
+          28.9845518545377
+        ]
+      ]
+    },
+    {
+      "id": "izmit-north",
+      "label": "Izmit north",
+      "waypoints": [
+        [
+          40.72777283218261,
+          29.31230433409098
+        ],
+        [
+          40.73829611928207,
+          27.614481942052237
+        ]
+      ]
+    },
+    {
+      "id": "izmit-main-port",
+      "label": "Izmit main(port)",
+      "waypoints": [
+        [
+          40.746640559157896,
+          29.912577162720368
+        ],
+        [
+          40.72841449051555,
+          29.7624006807267
+        ],
+        [
+          40.7535168500053,
+          29.497129146098445
+        ],
+        [
+          40.72543967615695,
+          29.324198651612335
+        ]
+      ]
+    }
+  ]
+}

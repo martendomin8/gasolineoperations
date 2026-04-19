@@ -42,22 +42,25 @@ import type {
   PortAmbiguityResult,
 } from "../../types";
 
-import distancesRaw from "./distances.json";
-import pathsRaw from "./paths.json";
-import handDrawnKeysRaw from "./hand_drawn_keys.json";
+import { routeThroughGraph, getRuntimeGraph } from "./graph-runtime";
 
-// Passage-avoidance variants: same 106 ports, same pipeline, but with
-// Suez / Panama / both filtered out of the underlying searoute network.
-// The default (`paths.json` / `distances.json` above) permits every
-// passage. Operators toggling "Avoid Suez" (e.g. Houthi risk in Red
-// Sea) or "Avoid Panama" (drought-driven transit limits) switch to
-// the relevant variant JSON.
-import distancesNoSuezRaw from "./variants/distances-no-suez.json";
-import pathsNoSuezRaw from "./variants/paths-no-suez.json";
-import distancesNoPanamaRaw from "./variants/distances-no-panama.json";
-import pathsNoPanamaRaw from "./variants/paths-no-panama.json";
-import distancesNoSuezNoPanamaRaw from "./variants/distances-no-suez-no-panama.json";
-import pathsNoSuezNoPanamaRaw from "./variants/paths-no-suez-no-panama.json";
+// ─────────────────────────────────────────────────────────────
+// Runtime Dijkstra — single source of truth for all routes.
+// Earlier the provider also shipped precomputed paths.json +
+// distances.json for every port pair (and variants for
+// avoid-Suez / avoid-Panama). Those are now redundant:
+//
+//   - graph.json carries the same graph the pipeline ran Dijkstra on
+//   - runtime Dijkstra over ~10k nodes is ~50 ms, plenty fast
+//   - avoid-passage is now an edge filter driven by bbox, no
+//     separate variant files needed
+//   - chain-editor edits are reflected immediately on the next
+//     pipeline rebuild — no stale paths.json to drift out of sync
+//
+// The old JSON files can stay on disk for diff / audit but we no
+// longer import them. Dropping ~25 MB of bundled JSON + one class
+// of "why does my edit not show up" bug.
+// ─────────────────────────────────────────────────────────────
 
 export interface RouteOptions {
   avoidSuez?: boolean;
@@ -359,36 +362,76 @@ for (const port of PORTS) {
   for (const alias of port.aliases) portIndex.set(alias.toLowerCase(), port);
 }
 
-// Pre-computed data — default variant (all passages allowed)
-const distances = distancesRaw as Record<string, number>;
-const paths = pathsRaw as unknown as Record<string, [number, number][]>;
-const distancesNoSuez = distancesNoSuezRaw as Record<string, number>;
-const pathsNoSuez = pathsNoSuezRaw as unknown as Record<string, [number, number][]>;
-const distancesNoPanama = distancesNoPanamaRaw as Record<string, number>;
-const pathsNoPanama = pathsNoPanamaRaw as unknown as Record<string, [number, number][]>;
-const distancesNoSuezNoPanama = distancesNoSuezNoPanamaRaw as Record<string, number>;
-const pathsNoSuezNoPanama = pathsNoSuezNoPanamaRaw as unknown as Record<string, [number, number][]>;
-const handDrawnKeys = new Set<string>(
-  (handDrawnKeysRaw as { keys: string[] }).keys
-);
+// Tiny per-request memoisation so a Planner panel that renders both
+// the distance and the polyline doesn't run Dijkstra twice for the
+// same (from, to, avoid) tuple. Cache key includes the options so
+// toggling Avoid-Suez doesn't leak a stale result. LRU-eviction is
+// overkill for our scale (one user clicking a handful of ports per
+// session); a plain Map with a size cap is enough.
+const ROUTE_CACHE_MAX = 256;
+const routeCache = new Map<
+  string,
+  { totalNm: number; coords: [number, number][] }
+>();
 
-function pickVariant(opts?: RouteOptions): {
-  distances: Record<string, number>;
-  paths: Record<string, [number, number][]>;
-} {
-  const avoidSuez = !!opts?.avoidSuez;
-  const avoidPanama = !!opts?.avoidPanama;
-  if (avoidSuez && avoidPanama) return { distances: distancesNoSuezNoPanama, paths: pathsNoSuezNoPanama };
-  if (avoidSuez)                 return { distances: distancesNoSuez,          paths: pathsNoSuez };
-  if (avoidPanama)               return { distances: distancesNoPanama,        paths: pathsNoPanama };
-  return { distances, paths };
+function cacheKey(a: string, b: string, opts?: RouteOptions): string {
+  const ordered = a < b ? `${a}|${b}` : `${b}|${a}`;
+  const sz = opts?.avoidSuez ? "1" : "0";
+  const pz = opts?.avoidPanama ? "1" : "0";
+  return `${ordered}|s${sz}p${pz}`;
+}
+
+/**
+ * Wipe the per-request route memo. Called after the dev editor
+ * invalidates the graph (zone edits) so the next Planner lookup
+ * recomputes against the new forbidden set instead of returning
+ * the stale pre-edit path.
+ */
+export function flushRouteCache(): void {
+  routeCache.clear();
+}
+
+function computeRoute(
+  from: string,
+  to: string,
+  opts?: RouteOptions
+): { totalNm: number; coords: [number, number][] } | null {
+  if (from === to) return { totalNm: 0, coords: [] };
+  const k = cacheKey(from, to, opts);
+  const hit = routeCache.get(k);
+  if (hit) return hit;
+  // Port names must resolve in the graph.portMap — if they don't, the
+  // port is either missing from the pipeline or mis-spelled. Return
+  // null so callers can report "not_found" upstream.
+  const graph = getRuntimeGraph();
+  if (!graph.portMap.has(from) || !graph.portMap.has(to)) return null;
+  const result = routeThroughGraph(
+    [
+      { type: "port", label: from, portName: from, lat: 0, lon: 0 },
+      { type: "port", label: to, portName: to, lat: 0, lon: 0 },
+    ],
+    { avoidSuez: opts?.avoidSuez, avoidPanama: opts?.avoidPanama }
+  );
+  if (!result || result.legs.length === 0) return null;
+  // Direction: portMap key lookups are order-insensitive in the
+  // cache, but the returned coord list MUST run from `from` to `to`.
+  // routeThroughGraph already walks in waypoint order so this is
+  // correct without reversing.
+  const coords = result.legs[0].coordinates;
+  const out = { totalNm: result.totalNm, coords };
+  if (routeCache.size >= ROUTE_CACHE_MAX) {
+    // Evict oldest insertion — Map preserves insertion order.
+    const oldest = routeCache.keys().next().value;
+    if (oldest !== undefined) routeCache.delete(oldest);
+  }
+  routeCache.set(k, out);
+  return out;
 }
 
 // Internal helpers
 function lookupDistance(a: string, b: string, opts?: RouteOptions): number | null {
-  if (a === b) return 0;
-  const key = a < b ? `${a}|${b}` : `${b}|${a}`;
-  return pickVariant(opts).distances[key] ?? null;
+  const r = computeRoute(a, b, opts);
+  return r ? r.totalNm : null;
 }
 
 // Provider methods (each matches the DistanceProvider interface)
@@ -575,16 +618,18 @@ function getMultiStopDistance(portNames: string[], opts?: RouteOptions): RouteRe
 
 function getRoutePath(a: string, b: string, opts?: RouteOptions): [number, number][] | null {
   if (a === b) return null;
-  const aFirst = a < b;
-  const key = aFirst ? `${a}|${b}` : `${b}|${a}`;
-  const stored = pickVariant(opts).paths[key];
-  if (!stored) return null;
-  return aFirst ? stored : [...stored].reverse();
+  const r = computeRoute(a, b, opts);
+  if (!r || r.coords.length === 0) return null;
+  return r.coords;
 }
 
-function isHandDrawnRoute(a: string, b: string): boolean {
-  const key = a < b ? `${a}|${b}` : `${b}|${a}`;
-  return handDrawnKeys.has(key);
+function isHandDrawnRoute(_a: string, _b: string): boolean {
+  // Legacy port-pair hand-drawn routes lived in hand_drawn_routes.json
+  // (deprecated after the channel-editor + zone-editor took over).
+  // The provider interface still requires this method; always returning
+  // false is honest — no port pair has a full override; every route
+  // runs through the runtime Dijkstra on graph.json.
+  return false;
 }
 
 export const oceanRoutingProvider: DistanceProvider = {
