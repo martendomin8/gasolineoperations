@@ -1,14 +1,14 @@
 {
   "_meta": {
-    "description": "Hand-curated dense waypoint chains for narrow waterways. searoute's AIS-derived network is too sparse in channels like the Bosphorus / Dardanelles / Greek archipelago — a straight edge between two sparse nodes cuts across islands or peninsulas. Each chain is a sequence of (lat, lon) waypoints along the real navigable centerline. Consecutive waypoints are connected with direct edges (no land check — a maritime expert already vetted the path). Endpoints + intermediate nodes are wired into the broader graph via nearest-k search so any route crossing the region is forced through the chain.",
+    "description": "Hand-curated dense waypoint chains for narrow waterways. searoute's AIS-derived network is too sparse in channels like the Bosphorus / Dardanelles / Greek archipelago \u00e2\u20ac\u201d a straight edge between two sparse nodes cuts across islands or peninsulas. Each chain is a sequence of (lat, lon) waypoints along the real navigable centerline. Consecutive waypoints are connected with direct edges (no land check \u00e2\u20ac\u201d a maritime expert already vetted the path). Endpoints + intermediate nodes are wired into the broader graph via nearest-k search so any route crossing the region is forced through the chain.",
     "source_of_truth": "This JSON is edited via the Fleet dev-tools Channel Editor. Committed to git so every deployment ships the same chains.",
     "schema_version": 1
   },
   "chains": [
     {
       "id": "turkish-straits",
-      "label": "Turkish Straits (Black Sea → Aegean)",
-      "notes": "Dense centerline through Bosphorus (narrow, Istanbul), Sea of Marmara, Dardanelles (narrow, Çanakkale). Avoid Şarköy peninsula (~40.65°N, 27.10°E) and Gallipoli peninsula (~40.3°N, 26.5°E) when placing intermediate Marmara waypoints.",
+      "label": "Turkish Straits (Black Sea \u00e2\u2020\u2019 Aegean)",
+      "notes": "Dense centerline through Bosphorus (narrow, Istanbul), Sea of Marmara, Dardanelles (narrow, \u00c3\u2021anakkale). Avoid \u00c5\u017eark\u00c3\u00b6y peninsula (~40.65\u00c2\u00b0N, 27.10\u00c2\u00b0E) and Gallipoli peninsula (~40.3\u00c2\u00b0N, 26.5\u00c2\u00b0E) when placing intermediate Marmara waypoints.",
       "waypoints": [
         [
           41.257304488147525,
@@ -673,7 +673,6 @@
           -5.838378939820188
         ]
       ],
-      "avoidable": true,
       "sticky": false
     },
     {
@@ -725,7 +724,6 @@
           14.010526973320594
         ]
       ],
-      "avoidable": true,
       "sticky": false
     },
     {
@@ -1562,8 +1560,7 @@
           27.838098945887225,
           -16.118259031369348
         ]
-      ],
-      "avoidable": true
+      ]
     },
     {
       "id": "naples-fix",
