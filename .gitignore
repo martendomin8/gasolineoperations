@@ -43,6 +43,14 @@ yarn-error.log*
 # Ocean routing source data (Natural Earth shapefiles, redownloadable — 12MB)
 /scripts/ocean-routing/data/
 
+# Ocean routing pipeline outputs — regenerable from build_v2_landsafe.py.
+# paths.json hit 135 MB (above GitHub's 100 MB hard limit) so keeping it
+# out of the repo is non-negotiable. distances.json is smaller but equally
+# a derived artefact; runtime reads graph.json + runs Dijkstra, neither
+# of these is loaded by the server.
+/scripts/ocean-routing/output/paths.json
+/scripts/ocean-routing/output/distances.json
+
 # Python bytecode
 __pycache__/
 *.pyc

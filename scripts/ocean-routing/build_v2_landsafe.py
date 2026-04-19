@@ -52,7 +52,7 @@ PILOT_STATIONS: dict[str, tuple[float, float]] = {
     # (lat, lon) of the pilot-boarding position the route should use.
     "Amsterdam, NL":       (52.47, 4.55),   # Ijmuiden North
     "Rotterdam, NL":       (52.00, 3.80),   # Maas North Pilot
-    "Antwerp, BE":         (51.40, 3.15),   # Wandelaar pilot
+    "Antwerp, BE":         (51.40, 3.15),   # Wandelaar pilot. Tried moving to the antwerp-fix chain's inner end (51.288, 4.318) to represent the real terminal, but GSHHG full-res classifies that dock area as land — connect_ports couldn't snap the inland node to a water anchor and routing collapsed to "not_found". Netpas reports pilot-to-pilot distances anyway, so this is the right endpoint. The antwerp-fix chain still renders the Scheldt approach visually (its offshore end connects to the North Sea grid), the inland end just dangles and doesn't affect routing.
     "Ghent, BE":           (51.45, 3.20),   # same Scheldt pilot as Antwerp
     "Flushing, NL":        (51.55, 3.00),
     "Hamburg, DE":         (54.00, 8.30),   # Elbe pilot (Cuxhaven)
@@ -779,6 +779,20 @@ TRANSIT_ANCHORS.update({
     "_tx_waf_5":    ( 4.00,   -2.00),  # offshore Ghana
     "_tx_waf_6":    ( 4.00,    2.00),  # offshore Togo / Benin
     "_tx_waf_7":    ( 3.00,    6.00),  # offshore Nigeria
+})
+
+# Canary Islands → Dakar coastal corridor. The 3°×6° ocean-grid's only
+# water-safe meridian between the Canaries and Senegal is -19°W (because
+# -13°W hits Mauritanian / Western Saharan land-shelf and gets dropped
+# by the land + bathymetry filter). That forces every Las Palmas ↔ Dakar
+# route ~90 NM too far west, producing +9.6% vs PUB 151 / Netpas. These
+# anchors sit on the real tanker track along the Mauritanian EEZ and
+# let Dijkstra follow the -17°W corridor instead.
+TRANSIT_ANCHORS.update({
+    "_tx_cnyd_1":   (26.00, -17.00),   # offshore Fuerteventura S / Morocco
+    "_tx_cnyd_2":   (23.00, -17.00),   # offshore Western Sahara
+    "_tx_cnyd_3":   (20.00, -17.50),   # offshore Nouadhibou, MR
+    "_tx_cnyd_4":   (17.50, -17.50),   # Dakar approach from N
 })
 
 
