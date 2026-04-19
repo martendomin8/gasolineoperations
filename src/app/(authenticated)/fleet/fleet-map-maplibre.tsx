@@ -37,6 +37,7 @@ import type {
   MapRef,
   ProjectionSpecification,
 } from "react-map-gl/maplibre";
+import type maplibregl from "maplibre-gl";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import greatCircle from "@turf/great-circle";
 // @ts-expect-error — @turf/helpers ships types but doesn't expose them via package.json "exports"
@@ -108,13 +109,99 @@ export const STATUS_LABELS: Record<string, string> = {
   completed: "Completed",
 };
 
-// ── Basemap style — CARTO dark (MapLibre-compatible vector) ──
+// ── Basemap styles — Mercator uses CARTO dark, Globe uses NASA ──
 
 // CARTO publishes a gl-style.json mirror of the dark_all raster we
 // used with Leaflet. Using their hosted style means attribution,
 // sprites and tiles all come from one CDN with no setup.
-const BASEMAP_STYLE_URL =
+const MERCATOR_STYLE_URL =
   "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json";
+
+/**
+ * Satellite basemap — EOX Sentinel-2 Cloudless.
+ *
+ * Works with either Mercator or globe projection; user picks via
+ * the floating basemap toggle on the top-left of the map.
+ *
+ * Source choice rationale (2026-04-19):
+ *  - Started with NASA GIBS Blue Marble (500m/px, cloud-free but
+ *    soft at close zoom) + MODIS Terra daily (250m/px, higher res
+ *    BUT has orbital-swath black stripes and daily cloud cover that
+ *    obscures vessel routes). MODIS looked broken, Blue Marble alone
+ *    was too low-res when zoomed in. Both dropped.
+ *  - Settled on EOX Sentinel-2 Cloudless: a pre-processed global
+ *    cloud-free composite built from a year of Sentinel-2
+ *    observations. 10m/px native, seamless (no orbital stripes),
+ *    no clouds, no signup / no API key.
+ *  - License: Copernicus Data License + CC BY 4.0 on the
+ *    composite — commercial use allowed with attribution.
+ *
+ * FUTURE UPGRADE PATH (when we want submeter sharp at close zoom):
+ *   Swap the source below for Mapbox Satellite or MapTiler Satellite.
+ *   Both need a free API key (~15 min signup) and have free tiers
+ *   covering ~50k-500k loads/mo. Above that: $5-40/mo for the
+ *   whole company, not per-user. At 5000 active users it's still
+ *   well under 1% of SaaS revenue — safe to upgrade whenever a
+ *   customer asks for "nicer satellite imagery".
+ *
+ *   Mapbox swap example (when ready, with MAPBOX_TOKEN in env):
+ *     mapStyle = "mapbox://styles/mapbox/satellite-streets-v12"
+ *     // + add accessToken={MAPBOX_TOKEN} on <Map>
+ *
+ * raster-resampling: "nearest" keeps pixels crisp rather than
+ * smearing during zoom — sharper look on retina screens.
+ */
+const SATELLITE_STYLE: maplibregl.StyleSpecification = {
+  version: 8,
+  name: "Earth — Sentinel-2 Cloudless",
+  glyphs: "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf",
+  sources: {
+    "s2-cloudless": {
+      type: "raster",
+      // EOX hosts the Sentinel-2 Cloudless composite on a public
+      // WMTS endpoint — no API key, commercial use permitted under
+      // the Copernicus Data License. The "2023_3857" slug picks
+      // the 2023 vintage in EPSG:3857 (Web Mercator), which is
+      // the freshest currently published.
+      tiles: [
+        "https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2023_3857/default/g/{z}/{y}/{x}.jpg",
+      ],
+      tileSize: 256,
+      maxzoom: 15,
+      attribution:
+        'Sentinel-2 Cloudless &copy; <a href="https://s2maps.eu" target="_blank" rel="noreferrer">EOX IT Services GmbH</a> (contains modified Copernicus Sentinel data 2023)',
+    },
+  },
+  layers: [
+    {
+      // Pitch-black background shows through around the globe when
+      // the projection leaves empty canvas — gives a space feel.
+      id: "space-background",
+      type: "background",
+      paint: { "background-color": "#000000" },
+    },
+    {
+      id: "s2-cloudless",
+      type: "raster",
+      source: "s2-cloudless",
+      paint: {
+        // "nearest" keeps pixels crisp at zoom transitions rather
+        // than the default "linear" which smears mid-zoom.
+        "raster-resampling": "nearest",
+      },
+    },
+  ],
+  sky: {
+    // Atmospheric haze around the globe silhouette. Subtle blue
+    // tint + horizon blend for the "Earth from orbit" look.
+    "sky-color": "#0b1020",
+    "sky-horizon-blend": 0.5,
+    "horizon-color": "#0a1a3a",
+    "horizon-fog-blend": 0.6,
+    "fog-color": "#0b0f1a",
+    "fog-ground-blend": 0.2,
+  },
+};
 
 // ── Geodesic helper (still needed for route arc curves) ──────
 
@@ -205,8 +292,10 @@ interface FleetMapProps {
   showRiskZones?: boolean;
   onPortClick?: (port: { name: string; lat: number; lon: number }) => void;
   onMapClick?: (coords: { lat: number; lon: number }) => void;
-  /** 2D Mercator or 3D globe — toggled from the planner header. */
+  /** 2D Mercator or 3D globe — controlled from the Fleet page header. */
   projection?: "mercator" | "globe";
+  /** `dark` = CARTO dark flat style, `satellite` = EOX Sentinel-2. */
+  basemap?: "dark" | "satellite";
 }
 
 // ID constants for GeoJSON sources/layers. MapLibre requires stable
@@ -239,6 +328,7 @@ export function FleetMapInner({
   onPortClick,
   onMapClick,
   projection = "mercator",
+  basemap = "dark",
 }: FleetMapProps) {
   const mapRef = useRef<MapRef | null>(null);
   const [hoveredZone, setHoveredZone] = useState<{
@@ -583,7 +673,14 @@ export function FleetMapInner({
         zoom: 3,
       }}
       minZoom={1.5}
-      mapStyle={BASEMAP_STYLE_URL}
+      // Swap basemap style based on the `basemap` prop (dark CARTO
+      // vs EOX satellite). The `projection` prop is applied
+      // imperatively via setProjection in a separate useEffect so
+      // the two toggles (basemap, projection) can be combined
+      // freely. MapLibre re-loads the style when this prop changes;
+      // react-map-gl re-adds our Source + Layer components
+      // automatically, so all overlays come back intact.
+      mapStyle={basemap === "satellite" ? SATELLITE_STYLE : MERCATOR_STYLE_URL}
       style={{ width: "100%", height: "100%", background: "#0a0c10" }}
       attributionControl={false}
       interactiveLayerIds={interactiveLayerIds}
@@ -593,6 +690,12 @@ export function FleetMapInner({
       cursor={interactiveLayerIds.length > 0 && hoveredZone ? "pointer" : undefined}
     >
       <NavigationControl position="top-left" showCompass={false} />
+
+      {/* Map chrome (basemap + projection toggles) lives in the Fleet
+          page header — not as floating overlays on the map — because
+          Arne prefers them visible alongside the Fleet title. The
+          page renders the buttons and passes `projection` + `basemap`
+          down here as props. */}
       <AttributionControl
         position="bottom-right"
         compact

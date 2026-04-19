@@ -178,6 +178,19 @@ switched.
 **How**: MapLibre GL v5 `projection: {name: 'globe'}`. Trivial toggle
 once 5 is done — same layer code works in both projections.
 
+**Basemap upgrade path** (not blocking — ship EOX Sentinel-2 Cloudless
+first, upgrade when a customer asks for sharper imagery):
+
+| Source | Resolution | Cost | Setup |
+|---|---|---|---|
+| EOX Sentinel-2 Cloudless *(current)* | 10 m/px, z≤15 | Free forever | No API key, CC BY 4.0 attribution |
+| Mapbox Satellite | submeter, z≤22 | Free ≤50k loads/mo, then $5/1k loads total *(not per-user)* | Free signup, `MAPBOX_TOKEN` env |
+| MapTiler Satellite | submeter, z≤20 | Free ≤500k tile loads/mo, then ~$39/mo | Free signup, `MAPTILER_KEY` env |
+
+Mapbox @ 5,000 active users ≈ €250/mo total for the company, ~0.1%
+of revenue at typical SaaS pricing. Upgrade whenever imagery
+quality becomes a sales objection.
+
 ---
 
 ## 🔴 Long-term (big moves — weeks, not days)

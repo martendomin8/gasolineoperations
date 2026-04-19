@@ -14,7 +14,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
-import { Ship, X, ExternalLink, MapPin, AlertTriangle, Anchor, ArrowRight, Route, Trash2, GripVertical, Plus, ChevronRight, GitCompareArrows, Globe, Map as MapIcon } from "lucide-react";
+import { Ship, X, ExternalLink, MapPin, AlertTriangle, Anchor, ArrowRight, Route, Trash2, GripVertical, Plus, ChevronRight, GitCompareArrows, Globe, Map as MapIcon, Satellite, Moon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { buildLinkageCards } from "@/app/(authenticated)/dashboard/page";
@@ -139,8 +139,13 @@ export default function FleetPage() {
   const [avoidSuez, setAvoidSuez] = useState(false);
   const [avoidPanama, setAvoidPanama] = useState(false);
   // Map projection — 2D Mercator or 3D globe. Toggled from the
-  // header button next to Planner.
+  // floating overlay control on the top-left of the map.
   const [projection, setProjection] = useState<"mercator" | "globe">("mercator");
+  // Basemap — dark CARTO vector or EOX Sentinel-2 satellite imagery.
+  // Independent of projection; any combination (dark flat, dark
+  // globe, satellite flat, satellite globe) is valid and each has
+  // its own look + use case.
+  const [basemap, setBasemap] = useState<"dark" | "satellite">("dark");
   // ECA/SECA overlay — purely visual, does not influence routing.
   const [showEmissionZones, setShowEmissionZones] = useState(false);
   // Piracy / war-risk / tension overlay — also purely visual. If an
@@ -473,25 +478,10 @@ export default function FleetPage() {
               ))}
             </div>
           </div>
-        </div>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => {
-              setPlannerMode(!plannerMode);
-              if (!plannerMode) setSelectedVesselId(null);
-            }}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-[var(--radius-md)] text-xs font-semibold transition-colors cursor-pointer ${
-              plannerMode
-                ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/40"
-                : "bg-[var(--color-surface-2)] text-[var(--color-text-secondary)] border border-[var(--color-border-default)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-border-strong)]"
-            }`}
-          >
-            <Route className="h-3.5 w-3.5" />
-            Planner
-          </button>
-          {/* Projection toggle — click once to switch Mercator → globe,
-              click again to return. MapLibre v5 handles the projection
-              swap natively; fleet-map-maplibre reacts to the prop. */}
+          {/* Map chrome — lives next to the Fleet title so the header
+              stays the single source of "what am I looking at" info.
+              Both toggles are independent (any combination of
+              mercator/globe + dark/satellite is valid). */}
           <button
             onClick={() =>
               setProjection(projection === "mercator" ? "globe" : "mercator")
@@ -514,6 +504,49 @@ export default function FleetPage() {
             )}
             {projection === "mercator" ? "Globe" : "Map"}
           </button>
+          <button
+            onClick={() =>
+              setBasemap(basemap === "dark" ? "satellite" : "dark")
+            }
+            title={
+              basemap === "dark"
+                ? "Switch to satellite imagery (EOX Sentinel-2)"
+                : "Switch back to dark vector map"
+            }
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-[var(--radius-md)] text-xs font-semibold transition-colors cursor-pointer ${
+              basemap === "satellite"
+                ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40"
+                : "bg-[var(--color-surface-2)] text-[var(--color-text-secondary)] border border-[var(--color-border-default)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-border-strong)]"
+            }`}
+          >
+            {basemap === "dark" ? (
+              <Satellite className="h-3.5 w-3.5" />
+            ) : (
+              <Moon className="h-3.5 w-3.5" />
+            )}
+            {basemap === "dark" ? "Satellite" : "Dark"}
+          </button>
+        </div>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => {
+              setPlannerMode(!plannerMode);
+              if (!plannerMode) setSelectedVesselId(null);
+            }}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-[var(--radius-md)] text-xs font-semibold transition-colors cursor-pointer ${
+              plannerMode
+                ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/40"
+                : "bg-[var(--color-surface-2)] text-[var(--color-text-secondary)] border border-[var(--color-border-default)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-border-strong)]"
+            }`}
+          >
+            <Route className="h-3.5 w-3.5" />
+            Planner
+          </button>
+          {/* Projection + basemap toggles moved to the floating
+              overlay control on the map itself (top-left, below
+              the zoom buttons) — that's the idiomatic place for
+              map-specific chrome in a web-map app, and keeps the
+              header focused on fleet-status info. */}
           {urgentCount > 0 && (
             <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[var(--color-danger)]/15 text-[var(--color-danger)] text-[0.6875rem] font-semibold animate-pulse">
               <AlertTriangle className="h-3 w-3" />
@@ -574,6 +607,7 @@ export default function FleetPage() {
               showEmissionZones={showEmissionZones}
               showRiskZones={showRiskZones}
               projection={projection}
+              basemap={basemap}
               onPortClick={
                 // Only clickable when planner panel is open — otherwise
                 // accidental clicks while just panning would be noisy.
