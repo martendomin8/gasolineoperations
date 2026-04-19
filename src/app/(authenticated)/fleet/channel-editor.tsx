@@ -43,6 +43,22 @@ export interface ChannelChain {
    * without removing it from the graph entirely.
    */
   avoidable?: boolean;
+  /**
+   * Sticky (default true) = Dijkstra gets a 3.3× weight discount on
+   * intra-chain edges so it prefers the hand-curated path over sparse
+   * anchor shortcuts. Use for narrow passages where the chain IS the
+   * obvious natural route (Turkish Straits, Panama, Suez, fixes like
+   * las-palmas-fix).
+   *
+   * Sticky false = chain is available as a navigable alternative but
+   * Dijkstra doesn't get a preference — the organic shortest graph
+   * path wins. Use for chains where the passage is one option of
+   * several and the default routing should match what a generic
+   * tanker actually sails (Kiel Canal = around Skagen by default for
+   * MR-class tankers that don't fit the canal). Missing field is
+   * treated as true for backward compatibility.
+   */
+  sticky?: boolean;
 }
 
 interface ChannelEditorProps {
@@ -159,6 +175,7 @@ export function ChannelEditor({
           channelChains: chains.map((c) => ({
             id: c.id,
             waypoints: c.waypoints,
+            sticky: c.sticky,
           })),
         });
         flushRouteCache();
@@ -236,7 +253,7 @@ export function ChannelEditor({
                       <div className="text-[0.6875rem] text-[var(--color-text-tertiary)] mt-0.5">
                         {chain.waypoints.length} waypoints · {chain.id}
                       </div>
-                      <div className="mt-1">
+                      <div className="mt-1 flex flex-col gap-0.5">
                         <label
                           onClick={(e) => e.stopPropagation()}
                           className="inline-flex items-center gap-1 text-[0.65rem] text-[var(--color-text-secondary)] cursor-pointer hover:text-[var(--color-text-primary)]"
@@ -255,6 +272,26 @@ export function ChannelEditor({
                             className="h-3 w-3 cursor-pointer"
                           />
                           <span>Planner can avoid (size-restricted passage)</span>
+                        </label>
+                        <label
+                          onClick={(e) => e.stopPropagation()}
+                          className="inline-flex items-center gap-1 text-[0.65rem] text-[var(--color-text-secondary)] cursor-pointer hover:text-[var(--color-text-primary)]"
+                          title="When checked, Dijkstra prefers this chain (0.3× weight discount). Uncheck for 'regular route' — chain is available but not preferred over shorter graph alternatives (e.g. Kiel Canal should NOT be preferred for MR tankers)."
+                        >
+                          <input
+                            type="checkbox"
+                            checked={chain.sticky !== false}
+                            onChange={(e) => {
+                              setChains(chains.map((c) =>
+                                c.id === chain.id
+                                  ? { ...c, sticky: e.target.checked }
+                                  : c
+                              ));
+                              setDirty(true);
+                            }}
+                            className="h-3 w-3 cursor-pointer"
+                          />
+                          <span>Dijkstra prefers (sticky shortcut)</span>
                         </label>
                       </div>
                     </div>

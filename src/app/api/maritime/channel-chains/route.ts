@@ -48,6 +48,15 @@ const chainSchema = z.object({
   notes: z.string().max(2000).optional().nullable(),
   waypoints: z.array(waypointSchema).min(2).max(500),
   avoidable: z.boolean().optional(),
+  // Sticky chains get the CHAIN_WEIGHT_DISCOUNT (0.3×) on their intra-
+  // chain edges so Dijkstra prefers them over nearby coastal/anchor
+  // shortcuts. Turn this OFF for chains that are "available if useful
+  // but not the obvious default" — Kiel Canal is the canonical case:
+  // the chain exists so operators can explicitly route through it for
+  // smaller vessels, but generic tanker routing should go around
+  // Skagen instead. Field is optional with an implicit default of true
+  // so legacy chains continue to behave as they did.
+  sticky: z.boolean().optional(),
 });
 
 const payloadSchema = z.object({
@@ -60,6 +69,7 @@ interface StoredChain {
   notes?: string | null;
   waypoints: Array<[number, number]>;
   avoidable?: boolean;
+  sticky?: boolean;
 }
 
 interface ChainsFile {
@@ -165,6 +175,7 @@ export const POST = withAuth(async (req) => {
       channelChains: parsed.data.chains.map((c) => ({
         id: c.id,
         waypoints: c.waypoints,
+        sticky: c.sticky,
       })),
     });
     flushRouteCache();

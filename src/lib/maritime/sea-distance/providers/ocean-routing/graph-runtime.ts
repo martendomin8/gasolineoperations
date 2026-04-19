@@ -49,6 +49,15 @@ import zonesData from "../../../../../../scripts/ocean-routing/zones.json";
 // chains into this module's override slot and take effect on the
 // next route calculation, no pipeline rebuild needed.
 import channelChainsData from "../../../../../../scripts/ocean-routing/channel_chains.json";
+// Natural Earth 1:50m land polygons. Used by isArcClearOfLand() to
+// decide whether a direct great-circle between two points is safe
+// to skip the graph with. 1.6 MB on disk, loaded once per serverless
+// container at first use and kept in memory alongside an RBush
+// spatial index for O(log n) bbox rejection. Source:
+// github.com/nvkelso/natural-earth-vector, ne_50m_land.geojson.
+import landData from "./land-50m.json";
+import RBush from "rbush";
+import booleanPointInPolygon from "@turf/boolean-point-in-polygon";
 
 // ── File format (must match export_graph.py output) ──────────
 interface GraphFile {
@@ -115,6 +124,17 @@ export interface RuntimeGraph {
    */
   chainNodesByChainId: Map<string, Set<number>>;
   /**
+   * Nodes whose chain has `sticky !== false` — i.e. the subset of
+   * chain nodes that should benefit from the CHAIN_WEIGHT_DISCOUNT
+   * in Dijkstra's edge evaluation. Split out from the general
+   * chainNodeIds so "optional" chains (like Kiel Canal) can exist
+   * in the graph as navigable paths without Dijkstra artificially
+   * preferring them over graph alternatives. If BOTH endpoints of
+   * an intra-chain edge are in this set, the discount applies;
+   * otherwise the edge runs at full haversine weight.
+   */
+  stickyChainNodeIds: Set<number>;
+  /**
    * Set of node ids sitting inside any `blocksRouting=true` zone
    * (operator-drawn forbidden polygons, persisted in zones.json).
    * Any edge whose target is in this set gets its weight multiplied
@@ -163,6 +183,7 @@ let zonesOverride: Array<{
 let chainsOverride: Array<{
   id: string;
   waypoints: Array<[number, number]>;
+  sticky?: boolean;
 }> | null = null;
 
 /**
@@ -186,6 +207,7 @@ export function invalidateRuntimeGraph(opts?: {
   channelChains?: Array<{
     id: string;
     waypoints: Array<[number, number]>;
+    sticky?: boolean;
   }> | null;
 }): void {
   if (opts && "zones" in opts) {
@@ -247,9 +269,16 @@ export function getRuntimeGraph(): RuntimeGraph {
   // Both sources feed into the same Set<number>; downstream Dijkstra
   // only sees dense ids and doesn't care where they came from.
   const chainNodeIds = new Set<number>();
+  const stickyChainNodeIds = new Set<number>();
   for (const origId of data.chainNodeIds ?? []) {
     const idx = idMap.get(origId);
-    if (idx !== undefined) chainNodeIds.add(idx);
+    if (idx !== undefined) {
+      chainNodeIds.add(idx);
+      // Legacy baked-in chains always get the discount (there was no
+      // sticky flag when they were exported — behaviour stays
+      // unchanged).
+      stickyChainNodeIds.add(idx);
+    }
   }
 
   // INJECTION: read channel chains from override (fresh editor state)
@@ -265,6 +294,13 @@ export function getRuntimeGraph(): RuntimeGraph {
     if (!Array.isArray(chain.waypoints) || chain.waypoints.length < 2) {
       continue;
     }
+    // `sticky` defaults to true so pre-flag chains keep their
+    // Dijkstra-preference behaviour. A chain marked sticky=false
+    // still gets its nodes + edges injected (and stays toggle-able
+    // via avoidedChainIds) but loses the 0.3× weight discount so
+    // Dijkstra only follows it when it's actually the organic
+    // shortest path.
+    const isSticky = chain.sticky !== false;
     const perChainSet = new Set<number>();
     const chainIds: number[] = [];
     for (const [lat, lon] of chain.waypoints) {
@@ -273,6 +309,7 @@ export function getRuntimeGraph(): RuntimeGraph {
       adj.push([]);
       chainIds.push(id);
       chainNodeIds.add(id);
+      if (isSticky) stickyChainNodeIds.add(id);
       perChainSet.add(id);
     }
     chainNodesByChainId.set(chain.id, perChainSet);
@@ -351,6 +388,7 @@ export function getRuntimeGraph(): RuntimeGraph {
     portNodeIds,
     chainNodeIds,
     chainNodesByChainId,
+    stickyChainNodeIds,
     forbiddenNodeIds,
     hardBlockedNodeIds,
     meta: data.meta,
@@ -374,6 +412,7 @@ interface ChainsFile {
   chains?: Array<{
     id?: string;
     waypoints?: Array<[number, number]>;
+    sticky?: boolean;
   }>;
 }
 
@@ -384,12 +423,17 @@ interface ChainsFile {
 function collectBundledChains(): Array<{
   id: string;
   waypoints: Array<[number, number]>;
+  sticky?: boolean;
 }> {
   const raw = channelChainsData as unknown as ChainsFile;
-  const out: Array<{ id: string; waypoints: Array<[number, number]> }> = [];
+  const out: Array<{
+    id: string;
+    waypoints: Array<[number, number]>;
+    sticky?: boolean;
+  }> = [];
   for (const c of raw.chains ?? []) {
     if (!c.id || !c.waypoints || c.waypoints.length < 2) continue;
-    out.push({ id: c.id, waypoints: c.waypoints });
+    out.push({ id: c.id, waypoints: c.waypoints, sticky: c.sticky });
   }
   return out;
 }
@@ -477,16 +521,31 @@ function pointInPolygon(
 }
 
 /**
- * Edges where BOTH endpoints are chain nodes are fed to Dijkstra at
- * this fraction of their real weight. At 0.3 the chain "looks" ~3.3×
- * cheaper to traverse than the real NM it covers, so Dijkstra picks
- * the chain even when a coastal shortcut would be ~3× shorter.
- * Tune down (e.g. 0.1) if chains are still being ignored, or up
- * (e.g. 0.6) if chains are pulling in routes that should stay
- * elsewhere. The returned distance to the operator stays honest —
- * we recompute true haversine from the chosen path coords.
+ * Two tiers of chain-edge preference:
+ *
+ *   - STICKY chains (default) — applied via CHAIN_WEIGHT_DISCOUNT.
+ *     0.3 means the chain "looks" 3.3× cheaper than its real NM,
+ *     so Dijkstra picks it over nearby coastal / sparse-anchor
+ *     shortcuts even when the alternative is a few NM shorter.
+ *     Use for chains that ARE the natural path through a region
+ *     (Turkish Straits, Panama, Suez, las-palmas-fix).
+ *
+ *   - REGULAR chains (sticky: false) — applied via
+ *     CHAIN_REGULAR_DISCOUNT. 0.9 means the chain "looks" 10%
+ *     cheaper, so Dijkstra prefers it in near-tie cases (a 100 NM
+ *     chain vs a 105 NM anchor zigzag wins) but doesn't overrule
+ *     a clearly shorter alternative (Kiel Canal 637 NM vs Skagen
+ *     513 NM → Skagen wins regardless). Use for chains that
+ *     represent a valid option but shouldn't auto-win as the
+ *     generic default (Kiel Canal for MR-class tankers, any chain
+ *     marked "optional" by the operator).
+ *
+ * The reported distance stays honest — we always recompute true
+ * haversine from the chosen path coords after Dijkstra decides.
+ * The discount only lives inside the search.
  */
 const CHAIN_WEIGHT_DISCOUNT = 0.3;
+const CHAIN_REGULAR_DISCOUNT = 0.9;
 
 /**
  * Mirror of the chain discount but INVERTED — edges whose target
@@ -508,6 +567,203 @@ function haversineNm(lat1: number, lon1: number, lat2: number, lon2: number): nu
     Math.sin(dLat / 2) ** 2 +
     Math.cos(lat1 * toRad) * Math.cos(lat2 * toRad) * Math.sin(dLon / 2) ** 2;
   return EARTH_NM * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+// ── Land-safety check (Option A — direct-first routing) ─────
+/**
+ * The graph-based Dijkstra guarantees land-safe paths by construction
+ * (pipeline filters every edge against GSHHG), but it hops through a
+ * 3°×6° anchor grid that causes visible zigzags and distance inflation
+ * for open-ocean legs where a direct great-circle would be fine. This
+ * helper provides the missing piece: given two points, decide whether
+ * the great-circle between them is water-only. If yes, the caller
+ * (routeThroughGraph etc.) uses the direct arc — no zigzag, no graph
+ * hops. If no, fall back to the graph routing which knows how to
+ * detour around land.
+ *
+ * Data: Natural Earth 1:50m land polygons (~4k features, 1.6 MB).
+ * Resolution is enough for tanker routing — catches every continent
+ * and island > ~5 NM wide, misses only tiny atolls / rocks which
+ * tankers avoid visually anyway (and wouldn't route through by
+ * accident on 100+ NM great-circle segments).
+ *
+ * Performance: RBush bbox index rejects most polygons per sample
+ * (typical: 0-3 candidates). Point-in-polygon only runs on survivors.
+ * Target: ~0.5 ms per sample, ~10 ms for a 20-sample arc check. A
+ * multi-leg voyage with 15 legs is ~150 ms overhead — acceptable for
+ * the "cold Dijkstra is 50 ms" baseline.
+ */
+interface LandBboxItem {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+  /** Index into landData.features — retrieved at point-in-polygon time. */
+  idx: number;
+}
+
+/**
+ * Lazy-built land index. Initialised on first isArcClearOfLand() call
+ * (adds ~40 ms one-time to the first request in a container). Shared
+ * across all subsequent calls and survives until the container recycles.
+ */
+let landIndex: RBush<LandBboxItem> | null = null;
+
+function buildLandIndex(): RBush<LandBboxItem> {
+  const tree = new RBush<LandBboxItem>();
+  const items: LandBboxItem[] = [];
+  // `landData` is a Feature / FeatureCollection depending on source —
+  // we expect FeatureCollection from ne_50m_land.geojson but guard
+  // defensively anyway.
+  const features = (landData as { features?: GeoJsonFeature[] }).features ?? [];
+  for (let i = 0; i < features.length; i++) {
+    const bbox = geometryBbox(features[i].geometry);
+    if (!bbox) continue;
+    items.push({
+      minX: bbox[0],
+      minY: bbox[1],
+      maxX: bbox[2],
+      maxY: bbox[3],
+      idx: i,
+    });
+  }
+  tree.load(items);
+  return tree;
+}
+
+interface GeoJsonFeature {
+  type: "Feature";
+  geometry: {
+    type: "Polygon" | "MultiPolygon";
+    coordinates: number[][][] | number[][][][];
+  };
+  properties?: Record<string, unknown>;
+}
+
+/** Flat scan over a polygon/multipolygon ring to get its bbox. */
+function geometryBbox(
+  geom: GeoJsonFeature["geometry"]
+): [number, number, number, number] | null {
+  let minX = Infinity,
+    minY = Infinity,
+    maxX = -Infinity,
+    maxY = -Infinity;
+  const walk = (coords: number[][]) => {
+    for (const [x, y] of coords) {
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+    }
+  };
+  if (geom.type === "Polygon") {
+    for (const ring of geom.coordinates as number[][][]) walk(ring);
+  } else if (geom.type === "MultiPolygon") {
+    for (const poly of geom.coordinates as number[][][][])
+      for (const ring of poly) walk(ring);
+  } else {
+    return null;
+  }
+  if (!Number.isFinite(minX)) return null;
+  return [minX, minY, maxX, maxY];
+}
+
+/** Is a single (lat, lon) point inside any land polygon? */
+function pointIsLand(lat: number, lon: number): boolean {
+  const tree = landIndex ?? (landIndex = buildLandIndex());
+  const hits = tree.search({ minX: lon, minY: lat, maxX: lon, maxY: lat });
+  if (hits.length === 0) return false;
+  const features = (landData as { features: GeoJsonFeature[] }).features;
+  // turf.booleanPointInPolygon expects [lon, lat] — GeoJSON convention.
+  for (const hit of hits) {
+    const feat = features[hit.idx];
+    if (booleanPointInPolygon([lon, lat], feat as never)) return true;
+  }
+  return false;
+}
+
+/**
+ * Interpolate a point on the great-circle arc from (lat1,lon1) to
+ * (lat2,lon2) at fractional distance f ∈ [0,1]. Spherical slerp
+ * formula — handles antimeridian crossings naturally because it
+ * operates in 3D Cartesian and projects back at the end.
+ */
+function greatCircleInterp(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number,
+  f: number
+): [number, number] {
+  const toRad = Math.PI / 180;
+  const toDeg = 180 / Math.PI;
+  const phi1 = lat1 * toRad;
+  const lam1 = lon1 * toRad;
+  const phi2 = lat2 * toRad;
+  const lam2 = lon2 * toRad;
+  // Angular distance between the two endpoints.
+  const d =
+    2 *
+    Math.asin(
+      Math.sqrt(
+        Math.sin((phi2 - phi1) / 2) ** 2 +
+          Math.cos(phi1) * Math.cos(phi2) * Math.sin((lam2 - lam1) / 2) ** 2
+      )
+    );
+  if (d < 1e-10) return [lat1, lon1];
+  const A = Math.sin((1 - f) * d) / Math.sin(d);
+  const B = Math.sin(f * d) / Math.sin(d);
+  const x =
+    A * Math.cos(phi1) * Math.cos(lam1) + B * Math.cos(phi2) * Math.cos(lam2);
+  const y =
+    A * Math.cos(phi1) * Math.sin(lam1) + B * Math.cos(phi2) * Math.sin(lam2);
+  const z = A * Math.sin(phi1) + B * Math.sin(phi2);
+  const phi = Math.atan2(z, Math.sqrt(x * x + y * y));
+  const lam = Math.atan2(y, x);
+  return [phi * toDeg, lam * toDeg];
+}
+
+/**
+ * Is the great-circle arc between two points water-only?
+ * Samples the arc at `samples` points and rejects any hit on land.
+ * Endpoints are NOT tested — the caller is expected to pass water
+ * coords (ports via pilot stations, custom waypoints on click-safe
+ * surfaces); testing them would false-reject legitimate queries
+ * when the port coord sits inside a polygon that nominally outlines
+ * the port city (Natural Earth treats coastal cities as land).
+ *
+ * Sample density targets ~5 NM spacing along the arc so narrow
+ * peninsulas (e.g. Calabria's tip between Tyrrhenian and Ionian
+ * Sea, < 40 NM wide) can't slip between samples. RBush-backed bbox
+ * rejection makes open-ocean samples effectively free — a 2000 NM
+ * trans-Med arc with 400 samples is ~40 ms even if every sample
+ * did a full point-in-polygon (which it doesn't, most have zero
+ * bbox hits).
+ *
+ * Earlier version used dist/100 → 13 samples for a 1366 NM arc =
+ * ~105 NM spacing, which happily skipped over Sicily + Calabria
+ * and let Dijkstra declare a land-crossing arc "safe". The new
+ * floor catches every feature visible at Natural Earth 1:50m
+ * resolution.
+ */
+export function isArcClearOfLand(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number
+): boolean {
+  const dist = haversineNm(lat1, lon1, lat2, lon2);
+  // Target ~5 NM between samples; cap at 600 so we don't blow up
+  // on trans-Pacific pairs. 600 samples × 0.05 ms/rbush-miss ≈
+  // 30 ms worst case on open ocean; coastal arcs may hit more
+  // full point-in-polygon tests but still finish under 150 ms.
+  const samples = Math.min(600, Math.max(30, Math.ceil(dist / 5)));
+  for (let i = 1; i < samples; i++) {
+    const f = i / samples;
+    const [lat, lon] = greatCircleInterp(lat1, lon1, lat2, lon2, f);
+    if (pointIsLand(lat, lon)) return false;
+  }
+  return true;
 }
 
 // ── Nearest-node lookup ──────────────────────────────────────
@@ -707,7 +963,17 @@ export function dijkstra(
     }
     blocked = merged;
   }
-  const chains = graph.chainNodeIds;
+  // Two chain-preference tiers:
+  //   stickyChains  — 0.3× discount (strong preference, e.g. Turkish
+  //                   Straits, Panama, Suez, las-palmas-fix)
+  //   allChains     — 0.9× discount (regular / fallback preference for
+  //                   non-sticky chains like Kiel Canal; Dijkstra tips
+  //                   toward the chain in near-ties but doesn't
+  //                   overrule a clearly shorter graph alternative)
+  // The check below tries stickyChains first; if not both sticky, it
+  // falls back to the regular-chain check against the union set.
+  const stickyChains = graph.stickyChainNodeIds;
+  const allChains = graph.chainNodeIds;
   const forbidden = graph.forbiddenNodeIds;
   while (pq.size() > 0) {
     const { id: u, key: d } = pq.pop()!;
@@ -721,7 +987,8 @@ export function dijkstra(
     // forces the path to stay on the searoute transit network,
     // which is what we actually want.
     if (u !== start && graph.portNodeIds.has(u)) continue;
-    const uIsChain = chains.has(u);
+    const uIsSticky = stickyChains.has(u);
+    const uIsAnyChain = allChains.has(u);
     for (const { to: v, weight: w } of edgesFor(u)) {
       // Avoid-Suez / avoid-Panama: skip edges whose target is inside
       // the blocked region. The start / end are never in this set
@@ -729,14 +996,20 @@ export function dijkstra(
       // routing through the passage is still possible if needed —
       // we just prevent *transit* through the avoided bbox.
       if (blocked && v !== end && blocked.has(v)) continue;
-      // Intra-chain edge "stickiness": if BOTH endpoints sit on a
-      // hand-curated channel chain, treat the edge as much cheaper
-      // than reality so Dijkstra picks the chain even when a coastal
-      // shortcut would shave a few NM. True distance is recomputed
-      // from the reconstructed path coordinates so the operator
-      // still sees the real haversine total.
-      let searchWeight =
-        uIsChain && chains.has(v) ? w * CHAIN_WEIGHT_DISCOUNT : w;
+      // Intra-chain edge discount. Two tiers:
+      //   sticky + sticky  →  0.3× (strong preference, default)
+      //   chain  + chain   →  0.9× (mild preference — enough to pick
+      //                       the hand-drawn path over a ~5-10%-longer
+      //                       graph zigzag, but not enough to win
+      //                       against a clearly shorter alternative)
+      // True distance is recomputed from the reconstructed path
+      // coords, so the operator still sees the real haversine total.
+      let searchWeight = w;
+      if (uIsSticky && stickyChains.has(v)) {
+        searchWeight = w * CHAIN_WEIGHT_DISCOUNT;
+      } else if (uIsAnyChain && allChains.has(v)) {
+        searchWeight = w * CHAIN_REGULAR_DISCOUNT;
+      }
       // Forbidden-zone "stickiness" (inverse of the chain trick):
       // any edge whose target sits inside an operator-drawn
       // forbidden polygon looks 10× further than it really is, so
@@ -902,9 +1175,64 @@ export function routeThroughGraph(
   const legs: RouteLeg[] = [];
   let totalNm = 0;
 
+  // Resolve the real lat/lon for a waypoint. Port callers sometimes
+  // pass { lat: 0, lon: 0 } as a placeholder (see computeRoute in
+  // ./index.ts) since they identify the endpoint by portName — look
+  // up the actual coord in the graph when that happens.
+  const coordFor = (wp: Waypoint): { lat: number; lon: number } | null => {
+    if (wp.type === "custom") return { lat: wp.lat, lon: wp.lon };
+    const nid = graph.portMap.get(wp.portName ?? wp.label);
+    if (nid === undefined) return null;
+    const n = graph.nodes[nid];
+    return { lat: n.lat, lon: n.lon };
+  };
+
   for (let i = 0; i < waypoints.length - 1; i++) {
     const from = waypoints[i];
     const to = waypoints[i + 1];
+
+    // Option A — direct-first routing. If the great-circle between the
+    // two waypoints doesn't cross land, we take the straight path and
+    // skip Dijkstra entirely. This solves two classes of problem at
+    // once:
+    //   - open-ocean custom-waypoint zigzags (path was forced through
+    //     base graph nodes because direct custom↔custom edges were
+    //     disabled to avoid straight-line-across-continent bugs)
+    //   - port-to-port legs where our 3°×6° anchor grid doesn't line
+    //     up with the ideal great-circle (Las Palmas→Dakar, etc.)
+    // The land check uses Natural Earth 1:50m and an RBush index so
+    // it's ~5-10 ms per leg. Any avoid-passage or avoided-chain flag
+    // disqualifies the direct shortcut (the whole point of those
+    // toggles is to FORCE a graph detour), so we drop to Dijkstra in
+    // that case without testing.
+    const usingAvoidance =
+      (opts?.avoidSuez || opts?.avoidPanama || (opts?.avoidedChainIds?.length ?? 0) > 0);
+    const fromCoord = coordFor(from);
+    const toCoord = coordFor(to);
+    if (
+      !usingAvoidance &&
+      fromCoord &&
+      toCoord &&
+      isArcClearOfLand(fromCoord.lat, fromCoord.lon, toCoord.lat, toCoord.lon)
+    ) {
+      const directDist = haversineNm(
+        fromCoord.lat,
+        fromCoord.lon,
+        toCoord.lat,
+        toCoord.lon
+      );
+      legs.push({
+        from: from.label,
+        to: to.label,
+        coordinates: [
+          [fromCoord.lat, fromCoord.lon],
+          [toCoord.lat, toCoord.lon],
+        ],
+        distanceNm: Math.round(directDist * 10) / 10,
+      });
+      totalNm += directDist;
+      continue;
+    }
 
     // Collect customs for this leg so each one gets a temp id
     const customs: CustomWaypoint[] = [];
