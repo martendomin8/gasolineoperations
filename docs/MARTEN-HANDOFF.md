@@ -17,19 +17,21 @@
 
 ## What this feature is (60 seconds)
 
-NEFGO's fleet map now has an overlay that animates **wind and
-waves** Windy-style, driven by a **unified time-slider** that also
-projects each tanker's position forward along its route. Drag the
-slider six hours ahead, and both the wind particles and every
-vessel marker slide forward in lock-step — "here's where my ships
-are and what weather they'll hit".
+NEFGO's fleet map now has a **three-layer weather overlay** —
+animated wind particles, wave particles with coloured-magnitude
+raster underneath, and a 2 m temperature raster — all Windy-style,
+driven by a **unified time-slider** that also projects each tanker's
+position forward along its route. Drag the slider six hours ahead,
+and both the wind particles and every vessel marker slide forward
+in lock-step — "here's where my ships are and what weather they'll
+hit".
 
 Data source: **NOAA GFS + GFS-Wave**, US public-domain global
-forecasts, published every 6 hours. A Python pipeline fetches the
-latest cycle, converts the GRIB2 files to `weatherlayers-gl`-
-compatible RGBA PNGs, and writes a manifest. The frontend reads
-that manifest, loads the bracketing PNGs for the slider's current
-time, and lets the GPU blend between them.
+forecasts, published every 6 hours with a 16-day horizon. A Python
+pipeline fetches the latest cycle, converts the GRIB2 files to
+`weatherlayers-gl`-compatible RGBA PNGs, and writes a manifest. The
+frontend reads that manifest, loads the bracketing PNGs for the
+slider's current time, and lets the GPU blend between them.
 
 ---
 
@@ -37,7 +39,9 @@ time, and lets the GPU blend between them.
 
 Arne's laptop has the demo running end-to-end in **local mode**:
 
-1. `python run_pipeline.py --latest --local ../../public/weather --types=wind`
+1. `python run_pipeline.py --latest --local ../../public/weather`
+   (defaults to `--types=wind,waves,temperature`; pass an explicit
+   `--types=wind` subset for faster iteration while debugging)
 2. The script writes PNGs + JSON + manifest into
    `public/weather/` inside the Next.js app.
 3. Next.js serves them as static files (`/weather/...` URLs).
@@ -229,19 +233,22 @@ proper CDN caching at scale.
 
 ## Cost ceiling (back-of-envelope)
 
-Our pipeline writes ~150 KB per forecast step. With wind + waves
-× 13 steps per run × 4 runs/day, that's ~16 MB/day new data.
-After pruning to "last 2 runs" kept, steady-state storage is
-~40 MB.
+Our pipeline writes ~150–400 KB per forecast step depending on
+layer (wind ~1 MB, waves ~400 KB, temperature ~400 KB). With
+wind + waves + temperature × 173 steps per run (full 16-day
+horizon) × 4 runs/day, that's ~900 MB/day new data. After pruning
+to "last 2 runs" kept, steady-state storage is **~350 MB**.
 
 Frontend egress depends on how many operators view the fleet map.
-Typical session: loads manifest (~10 KB), then maybe 4-8 frames
-(~150 KB each) as the slider gets scrubbed. Call it 1 MB per
-session. At 50 operators × 20 sessions/day = ~1 GB/month egress.
+Typical session loads the manifest (~30 KB) + ~20 frames total
+across active layers during slider scrubbing (~400 KB avg each;
+LRU cache in `frame-fetcher.ts` tops at 64 frames = ~25 MB cap
+per long session). Call it ~10 MB per typical session. At 50
+operators × 20 sessions/day ≈ 10 GB/month egress.
 
-Vercel Blob pricing as of 2026: ~€0.50/month. Cloudflare R2: €0.
-AWS S3: ~€0.10/month. All comfortably under the noise floor —
-don't over-engineer this.
+Vercel Blob pricing as of 2026: ~€3/month. Cloudflare R2: €0
+(egress is free there). AWS S3: ~€1/month. All comfortably under
+the noise floor — don't over-engineer this.
 
 ---
 
