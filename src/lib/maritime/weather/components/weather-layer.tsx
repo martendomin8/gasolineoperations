@@ -1,12 +1,15 @@
 "use client";
 
 /**
- * `<WeatherLayer />` — drops a `weatherlayers-gl` ParticleLayer onto
- * the active MapLibre map via a `@deck.gl/mapbox` overlay.
+ * `<WeatherLayer />` — drops a weather visualisation onto the active
+ * MapLibre map via a `@deck.gl/mapbox` overlay.
  *
- * Week 3 scope: static display of the latest frame. No time slider,
- * no frame interpolation. Week 4 wires this up to the unified
- * TimeSlider and starts passing `image2` + `imageWeight`.
+ * Branches on the frame's `imageType`:
+ *   - `VECTOR` (wind, waves) → animated `ParticleLayer`
+ *   - `SCALAR` (temperature)  → colour-mapped `RasterLayer`
+ *
+ * Both use the same bracket-frames + imageWeight primitive, so the
+ * TimeSlider interpolates across forecast steps uniformly.
  *
  * Rendered as a child of `<Map>` from `react-map-gl/maplibre` — it
  * uses `useControl` to attach a single shared deck.gl overlay to the
@@ -20,6 +23,7 @@ import { useControl } from "react-map-gl/maplibre";
 import {
   ImageType,
   ParticleLayer,
+  RasterLayer,
   loadTextureData,
   type Palette,
   type TextureData,
@@ -34,46 +38,96 @@ import type { BracketFrames, WeatherFrame, WeatherType } from "../types";
 // string format it expects is the GMT CPT file format; easy to get
 // subtly wrong, easy to avoid.
 //
+// Each VECTOR type has TWO palettes: a RasterLayer palette (for the
+// colour overlay under the particles) and a ParticleLayer palette
+// (for the particle colour itself). Windy uses this two-layer idiom
+// — coloured raster carries the magnitude, particles carry the
+// direction. Particles over a coloured raster are typically white or
+// high-contrast so they stay legible regardless of raster colour.
+//
 // Values are in the unscaled field's units (m/s for wind, metres for
-// waves). Transparent at 0 so calm areas fade into the basemap
-// instead of producing a coloured flood.
+// waves, Kelvin for temperature). Transparent at 0 so calm areas
+// fade into the basemap instead of producing a coloured flood.
 // ---------------------------------------------------------------------------
-const WIND_PALETTE: Palette = [
-  [0, [0, 0, 0, 0]],            // calm — transparent
-  [5, [50, 136, 189, 255]],     // light breeze — blue
-  [10, [102, 194, 165, 255]],   // moderate — teal
-  [15, [171, 221, 164, 255]],   // fresh — green
-  [20, [230, 245, 152, 255]],   // strong — pale yellow
-  [25, [254, 224, 139, 255]],   // near-gale — yellow
-  [30, [253, 174, 97, 255]],    // gale — orange
-  [35, [244, 109, 67, 255]],    // severe gale — red-orange
-  [40, [213, 62, 79, 255]],     // storm — red
-];
 
-// Wave palette — values are wave heights in metres. Transparent under
-// 0.5 m (calm water visually irrelevant), cool blues for small/typical
-// swell, warm colours for dangerous heights (≥ 5 m is demurrage
-// territory; ≥ 8 m is where tanker insurers start asking questions).
-const WAVE_PALETTE: Palette = [
+// Wind raster — magnitude in m/s. Pink → red → magenta, matching
+// Windy's heat-ramp look for wind speed. 0–5 m/s transparent (calm
+// areas shouldn't flood the map); gale+ saturates deep magenta.
+const WIND_RASTER_PALETTE: Palette = [
   [0, [0, 0, 0, 0]],
-  [0.5, [13, 59, 102, 255]],
-  [1, [30, 136, 229, 255]],
-  [2, [79, 195, 247, 255]],
-  [3, [38, 166, 154, 255]],
-  [4, [156, 204, 101, 255]],
-  [5, [253, 216, 53, 255]],
-  [6, [251, 140, 0, 255]],
-  [8, [229, 57, 53, 255]],
-  [10, [142, 36, 170, 255]],
+  [5, [252, 193, 219, 120]],     // soft pink — light breeze
+  [10, [247, 104, 161, 170]],    // pink — moderate
+  [15, [221, 52, 151, 200]],     // magenta — fresh
+  [20, [174, 1, 126, 220]],      // deep magenta — strong
+  [25, [122, 1, 119, 240]],      // violet — near gale
+  [30, [73, 0, 106, 250]],       // dark violet — gale
+  [40, [49, 0, 66, 255]],        // near-black — storm
 ];
 
-// Per-type render defaults. Tweak these to adjust "feel" — higher
-// speedFactor = faster particles; higher maxAge = longer trails;
-// higher numParticles = denser field.
+// Wave raster — Hs in metres. Green → yellow → orange → red →
+// magenta, same gradient ops use for sea-state charts.
+const WAVE_RASTER_PALETTE: Palette = [
+  [0, [0, 0, 0, 0]],
+  [0.5, [200, 230, 201, 100]],   // very pale green — glass-flat
+  [1, [165, 214, 167, 150]],     // pale green — light chop
+  [2, [102, 187, 106, 180]],     // green — typical open ocean
+  [3, [205, 220, 57, 200]],      // yellow-green — moderate swell
+  [4, [255, 235, 59, 220]],      // yellow — caution (late-arrival risk rises)
+  [5, [255, 152, 0, 230]],       // orange — significant seas
+  [6, [244, 67, 54, 240]],       // red — large waves
+  [8, [194, 24, 91, 250]],       // magenta — very large
+  [10, [136, 14, 79, 255]],      // deep magenta — extreme
+];
+
+// Wind particle palette — ParticleLayer colours the animated trails.
+// We want them WHITE over the coloured raster so direction reads
+// clearly without fighting the underlying colour. Near-transparent
+// in calm zones (no distracting clutter where there's no wind).
+const WIND_PARTICLE_PALETTE: Palette = [
+  [0, [255, 255, 255, 0]],
+  [3, [255, 255, 255, 120]],
+  [10, [255, 255, 255, 200]],
+  [40, [255, 255, 255, 255]],
+];
+
+// Wave particle palette — same white-on-raster philosophy, but
+// slightly dimmer since wave raster has more red saturation and we
+// don't want the particles to look like spray.
+const WAVE_PARTICLE_PALETTE: Palette = [
+  [0, [255, 255, 255, 0]],
+  [1, [255, 255, 255, 100]],
+  [4, [255, 255, 255, 180]],
+  [10, [255, 255, 255, 220]],
+];
+
+// Temperature palette — values are Kelvin, same convention as the
+// encoder's `imageUnscale`. Covers realistic Earth t2m from deep
+// Antarctic winter (-50 °C ≈ 223 K) to extreme desert summer
+// (+50 °C ≈ 323 K). Blue → white → red gradient, matching the
+// industry-standard meteorological ramp Windy uses.
+const TEMPERATURE_PALETTE: Palette = [
+  [223, [13, 8, 135, 200]],       // -50 °C — deep blue
+  [243, [75, 3, 161, 200]],       // -30 °C — purple
+  [263, [0, 92, 175, 200]],       // -10 °C — navy blue
+  [273, [52, 152, 219, 200]],     //   0 °C — sky blue (freezing point)
+  [283, [144, 202, 249, 200]],    // +10 °C — pale blue
+  [288, [232, 245, 233, 180]],    // +15 °C — near-white (mid-temperate)
+  [293, [197, 225, 165, 200]],    // +20 °C — light green
+  [298, [255, 235, 59, 220]],     // +25 °C — yellow
+  [303, [255, 152, 0, 230]],      // +30 °C — orange
+  [313, [244, 67, 54, 240]],      // +40 °C — red
+  [323, [136, 14, 79, 250]],      // +50 °C — deep magenta
+];
+
+// Per-type render defaults. `rasterPalette` colours the magnitude
+// overlay; `particlePalette` colours the animated particles on top
+// (SCALAR types like temperature ignore `particlePalette`).
 const LAYER_DEFAULTS: Record<
   WeatherType,
   {
-    palette: Palette;
+    rasterPalette: Palette;
+    rasterOpacity: number;
+    particlePalette: Palette;
     numParticles: number;
     maxAge: number;
     speedFactor: number;
@@ -81,27 +135,31 @@ const LAYER_DEFAULTS: Record<
   }
 > = {
   wind: {
-    palette: WIND_PALETTE,
+    rasterPalette: WIND_RASTER_PALETTE,
+    rasterOpacity: 1.0, // already alpha-encoded in the palette
+    particlePalette: WIND_PARTICLE_PALETTE,
     numParticles: 5000,
     maxAge: 60,
     speedFactor: 10,
-    width: 2,
+    width: 1.5,
   },
   waves: {
-    palette: WAVE_PALETTE,
+    rasterPalette: WAVE_RASTER_PALETTE,
+    rasterOpacity: 1.0,
+    particlePalette: WAVE_PARTICLE_PALETTE,
     // Fewer, longer-lived particles read as slower, heavier swell;
     // a good visual contrast with wind's busier fast trails.
     numParticles: 2500,
     maxAge: 120,
     speedFactor: 6,
-    width: 2.5,
+    width: 2,
   },
   temperature: {
-    // Temperature is scalar — ParticleLayer won't render anything
-    // sensible. Temperature rendering goes through a RasterLayer in
-    // a later iteration; the defaults here make the ParticleLayer a
-    // silent no-op if someone toggles it on by mistake.
-    palette: WIND_PALETTE,
+    rasterPalette: TEMPERATURE_PALETTE,
+    rasterOpacity: 0.55, // keep coastline + borders readable underneath
+    // Temperature is a scalar — the particle fields below are unused
+    // but kept populated so the defaults record stays uniform.
+    particlePalette: TEMPERATURE_PALETTE,
     numParticles: 0,
     maxAge: 0,
     speedFactor: 0,
@@ -248,24 +306,58 @@ export function WeatherLayer({
       // The before-bounds are authoritative — both frames from the
       // same provider + type must share bounds, so using either is
       // fine. Use `before` for stable keying.
-      const particleLayer = new ParticleLayer({
-        id: `weather-${type}`,
+      const frameImageType = bracket.before.metadata.imageType;
+      const commonImageProps = {
         image: bracket.beforeTexture,
         // When image2 is the same as image (static case), GPU still
         // does the mix but with weight=0 it's a no-op.
         image2: bracket.afterTexture,
         imageWeight: bracket.weight,
-        imageType: ImageType.VECTOR,
         imageUnscale: bracket.before.metadata.imageUnscale ?? null,
         bounds: bracket.before.bounds,
-        numParticles: resolved.numParticles,
-        maxAge: resolved.maxAge,
-        speedFactor: resolved.speedFactor,
-        width: resolved.width,
-        palette: resolved.palette,
-        animate: true,
-      });
-      layers.push(particleLayer);
+      };
+
+      if (frameImageType === "SCALAR") {
+        // Temperature + future scalar products — just the colour-
+        // mapped raster. No animation layer on top.
+        layers.push(
+          new RasterLayer({
+            ...commonImageProps,
+            id: `weather-${type}-raster`,
+            imageType: ImageType.SCALAR,
+            palette: resolved.rasterPalette,
+            opacity: resolved.rasterOpacity,
+          }),
+        );
+      } else {
+        // Wind, waves — Windy-style stacked pair: a magnitude raster
+        // underneath carries the colour (sqrt(u² + v²) computed on
+        // the GPU), animated particles on top carry the direction.
+        // Order matters: raster pushed first, particles pushed second
+        // so particles draw ON TOP.
+        layers.push(
+          new RasterLayer({
+            ...commonImageProps,
+            id: `weather-${type}-raster`,
+            imageType: ImageType.VECTOR,
+            palette: resolved.rasterPalette,
+            opacity: resolved.rasterOpacity,
+          }),
+        );
+        layers.push(
+          new ParticleLayer({
+            ...commonImageProps,
+            id: `weather-${type}-particles`,
+            imageType: ImageType.VECTOR,
+            palette: resolved.particlePalette,
+            numParticles: resolved.numParticles,
+            maxAge: resolved.maxAge,
+            speedFactor: resolved.speedFactor,
+            width: resolved.width,
+            animate: true,
+          }),
+        );
+      }
     }
     overlay.setProps({ layers });
   }, [overlay, enabled, bracket, type, resolved]);

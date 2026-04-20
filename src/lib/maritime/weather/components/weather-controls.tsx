@@ -32,13 +32,13 @@ interface WeatherControlsProps {
 const ROWS: Array<{ type: WeatherType; label: string; hint?: string }> = [
   { type: "wind", label: "Wind" },
   { type: "waves", label: "Waves" },
-  { type: "temperature", label: "Temperature", hint: "coming later" },
+  { type: "temperature", label: "Temperature" },
 ];
 
 export function WeatherControls({
   visibility,
   onChange,
-  disabled = { temperature: true },
+  disabled = {},
 }: WeatherControlsProps) {
   const toggle = (type: WeatherType) => {
     onChange({ ...visibility, [type]: !visibility[type] });

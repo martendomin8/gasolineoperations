@@ -939,38 +939,39 @@ export default function FleetPage() {
                 enabled={weatherVisibility.waves}
                 time={weatherTime}
               />
+              <WeatherLayer
+                provider={weatherProvider}
+                type="temperature"
+                enabled={weatherVisibility.temperature}
+                time={weatherTime}
+              />
             </FleetMapInner>
           )}
 
-          {/* Floating weather controls — top-right of the map area so
-              they don't overlap MapLibre's bottom-left attribution or
-              the top-left projection / basemap chrome. */}
+          {/* Bottom-row chrome — weather controls on the left, time
+              slider stretching through the middle/right. Earlier
+              versions put the controls top-right, but the Planner
+              panel then occluded them when the operator opened a
+              voyage — bottom-left stays out of the way of every
+              right-side sidebar. */}
           {!loading && (
-            <div className="pointer-events-none absolute right-3 top-3 z-10 w-44">
-              <div className="pointer-events-auto">
+            <div className="pointer-events-none absolute inset-x-3 bottom-3 z-10 flex items-end gap-3">
+              <div className="pointer-events-auto w-44 flex-shrink-0">
                 <WeatherControls
                   visibility={weatherVisibility}
                   onChange={setWeatherVisibility}
                 />
               </div>
-            </div>
-          )}
-
-          {/* Unified time slider — bottom-centre of the map area, only
-              visible when at least one weather layer is enabled (the
-              slider is useless without a layer to animate). Drives
-              both the WeatherLayer's `time` prop AND the vessel
-              position projection above. */}
-          {!loading && anyWeatherOn && (
-            <div className="pointer-events-none absolute inset-x-3 bottom-3 z-10 flex justify-center">
-              <div className="pointer-events-auto w-full max-w-2xl">
-                <TimeSlider
-                  provider={weatherProvider}
-                  type="wind"
-                  time={weatherTime}
-                  onChange={handleWeatherTimeChange}
-                />
-              </div>
+              {anyWeatherOn && (
+                <div className="pointer-events-auto min-w-0 flex-1">
+                  <TimeSlider
+                    provider={weatherProvider}
+                    type="wind"
+                    time={weatherTime}
+                    onChange={handleWeatherTimeChange}
+                  />
+                </div>
+              )}
             </div>
           )}
         </div>

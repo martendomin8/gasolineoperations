@@ -45,6 +45,55 @@ _HS_NAMES = ("swh", "htsgw", "HTSGW")
 _DIR_NAMES = ("mwd", "dirpw", "DIRPW", "pp1dir")
 
 
+def _fill_nan_nearest(arr: np.ndarray, max_iters: int = 150) -> np.ndarray:
+    """Replace NaN pixels with their nearest valid neighbour.
+
+    Why: GFS-Wave marks any 0.25° cell that contains ANY land as NaN
+    (Hs undefined). When we encode that as alpha=0 and the renderer
+    linearly interpolates the PNG, the NaN values BLEED into adjacent
+    ocean pixels' colour channels — small islands appear surrounded
+    by a ~2-pixel "no wave" halo that looks far bigger than the
+    actual land. Inpainting replaces the NaN pixels with nearby ocean
+    values so the raster colour is continuous across the boundary.
+    The ALPHA channel stays 0 over land — the renderer still paints
+    nothing there, but now the neighbouring colour isn't polluted.
+
+    Pure numpy — iterative 4-neighbour dilation. Slower than scipy's
+    `distance_transform_edt` but we don't want scipy as a dependency.
+    Each iteration is O(N); empirically 100 iterations fully fills the
+    GFS-Wave global grid (deep interior of Antarctica / central Asia).
+    Default 150 leaves headroom.
+    """
+    mask = np.isnan(arr)
+    if not mask.any():
+        return arr
+    result = arr.copy()
+    for _ in range(max_iters):
+        if not mask.any():
+            break
+        # Shift valid values into adjacent NaN slots, one pixel at a
+        # time in each of four cardinal directions. First valid neigh-
+        # bour wins (order below = up, down, left, right).
+        for axis, shift in ((0, 1), (0, -1), (1, 1), (1, -1)):
+            shifted = np.roll(result, shift, axis=axis)
+            # Invalidate wrap-around edge so data from the opposite
+            # side of the globe doesn't spill into newly filled cells.
+            if axis == 0:
+                if shift == 1:
+                    shifted[0, :] = np.nan
+                else:
+                    shifted[-1, :] = np.nan
+            else:
+                if shift == 1:
+                    shifted[:, 0] = np.nan
+                else:
+                    shifted[:, -1] = np.nan
+            can_fill = mask & ~np.isnan(shifted)
+            result[can_fill] = shifted[can_fill]
+            mask[can_fill] = False
+    return result
+
+
 def _find_var(ds: xr.Dataset, candidates: tuple[str, ...]) -> xr.DataArray:
     for name in candidates:
         if name in ds.data_vars:
@@ -128,11 +177,67 @@ def encode_file(
         float(np.nanmax(hs)),
     )
 
-    u, v = waves_to_uv(hs, direction_deg)
+    # Preserve the TRUE land/ocean mask before we start inpainting —
+    # we still want alpha close to 0 over land in the final PNG so the
+    # renderer doesn't paint waves on continents.
+    valid_mask = ~np.isnan(hs)
+    # Inpaint Hs and DIRPW so the NaN pixels carry the nearest ocean
+    # value. Without this, encoding NaN to uint8 leaves undefined
+    # garbage in the R/G channels, which then gets linearly
+    # interpolated into neighbouring ocean pixels — producing the
+    # oversized "dark halo" around small islands that used to show up
+    # visibly on the map.
+    hs_filled = _fill_nan_nearest(hs)
+    direction_filled = _fill_nan_nearest(direction_deg)
+
+    u, v = waves_to_uv(hs_filled, direction_filled)
     u, v = reorient_to_web(u, v, lons)
 
+    # Soft alpha via iterative 4-neighbour box blur of the valid mask.
+    # Gives a multi-cell "surf zone" feather at coastlines instead of
+    # the hard alpha=0/255 edge that used to punch "dark square" holes
+    # around small islands. Physically also more correct — real waves
+    # dissipate as they approach shore due to shoaling.
+    #
+    # Three iterations at 0.25° ≈ 80 km feather. Enough to eliminate
+    # the "dark square" around small islands (their wave-coloured fade
+    # covers them up) while keeping the "waves on land" projection
+    # across the actual coast short enough that continental shorelines
+    # look clean. Raising this widens the continental surf-zone effect
+    # at the cost of more wave colour bleeding inland.
+    blur_iters = 3
+    alpha_soft = valid_mask.astype(np.float32)
+    for _ in range(blur_iters):
+        alpha_soft = (
+            alpha_soft
+            + np.roll(alpha_soft, 1, axis=0)
+            + np.roll(alpha_soft, -1, axis=0)
+            + np.roll(alpha_soft, 1, axis=1)
+            + np.roll(alpha_soft, -1, axis=1)
+        ) / 5.0
+    # Clamp so TRUE ocean cells stay fully opaque — only land cells
+    # pick up the blurred-down values. Keeps deep-ocean wave colours
+    # vibrant right up to the coast instead of getting pulled toward
+    # transparency by the blur averaging in neighbouring land zeros.
+    alpha_soft = np.maximum(alpha_soft, valid_mask.astype(np.float32))
+
+    # Threshold to kill the blur "tail" deep inside land. Without this
+    # the 0.1–0.2 alpha values a few cells inland show up as grey
+    # "fog" over complex archipelagos (Canadian Arctic, Svalbard,
+    # Antarctic peninsula) because every land cell there is within a
+    # few cells of ocean — cumulative faint alpha covers the basemap
+    # darkness with a bleed of wave colour. Zeroing anything below
+    # ~0.3 keeps the coast-adjacent soft feather and removes the
+    # inland fog.
+    alpha_soft = np.where(alpha_soft < 0.3, 0.0, alpha_soft)
+    # Reorient alpha + u/v with the same geographic transforms.
+    alpha_reoriented, _ = reorient_to_web(
+        alpha_soft, np.zeros_like(alpha_soft), lons
+    )
+    alpha_uint8 = (alpha_reoriented.clip(0, 1) * 255.0).astype(np.uint8)
+
     png_path = output_dir / f"{basename}.png"
-    stats = encode_uv_to_png(u, v, png_path)
+    stats = encode_uv_to_png(u, v, png_path, alpha_override=alpha_uint8)
 
     sidecar: dict = {
         "width": int(u.shape[1]),

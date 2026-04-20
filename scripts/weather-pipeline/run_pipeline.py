@@ -44,8 +44,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import encode_png
+import encode_scalar
 import encode_waves
 from fetch_gfs import _parse_cycle_arg, fetch_gfs, latest_cycle
+from fetch_gfs_temp import fetch_gfs_temp
 from fetch_gfs_wave import fetch_gfs_wave
 from update_manifest import Frame, Manifest, Run
 from upload_blob import upload_file
@@ -76,6 +78,7 @@ MAX_KEEP_RUNS = 2
 
 WEATHER_TYPE_WIND = "wind"
 WEATHER_TYPE_WAVES = "waves"
+WEATHER_TYPE_TEMPERATURE = "temperature"
 
 
 def _run_id(cycle_dt: datetime) -> str:
@@ -122,6 +125,51 @@ def _process_wind_step(
     return _finalise_step(
         run_id=run_id,
         weather_type=WEATHER_TYPE_WIND,
+        forecast_hour=forecast_hour,
+        png_path=png_path,
+        json_path=json_path,
+        upload=upload,
+        local_url_prefix=local_url_prefix,
+        token=token,
+    )
+
+
+def _process_temperature_step(
+    *,
+    cycle_dt: datetime,
+    forecast_hour: int,
+    data_dir: Path,
+    out_dir: Path,
+    upload: bool,
+    local_url_prefix: str | None,
+    token: str | None,
+) -> Frame | None:
+    """Fetch + encode + upload a single 2m-temperature forecast step."""
+    run_id = _run_id(cycle_dt)
+    basename = f"{WEATHER_TYPE_TEMPERATURE}_f{forecast_hour:03d}"
+    try:
+        grib_path = fetch_gfs_temp(
+            cycle_dt=cycle_dt,
+            forecast_hour=forecast_hour,
+            output_dir=data_dir,
+        )
+    except Exception as e:
+        logger.warning("temp fetch failed for f%03d: %s", forecast_hour, e)
+        return None
+    try:
+        png_path, json_path = encode_scalar.encode_file(
+            grib_path=grib_path,
+            output_dir=out_dir / run_id,
+            basename=basename,
+            cycle_time=cycle_dt,
+            forecast_hour=forecast_hour,
+        )
+    except Exception as e:
+        logger.warning("temp encode failed for f%03d: %s", forecast_hour, e)
+        return None
+    return _finalise_step(
+        run_id=run_id,
+        weather_type=WEATHER_TYPE_TEMPERATURE,
         forecast_hour=forecast_hour,
         png_path=png_path,
         json_path=json_path,
@@ -252,7 +300,11 @@ def run_pipeline(
     cycle_dt: datetime,
     *,
     forecast_steps: tuple[int, ...] = FORECAST_STEPS,
-    weather_types: tuple[str, ...] = (WEATHER_TYPE_WIND, WEATHER_TYPE_WAVES),
+    weather_types: tuple[str, ...] = (
+        WEATHER_TYPE_WIND,
+        WEATHER_TYPE_WAVES,
+        WEATHER_TYPE_TEMPERATURE,
+    ),
     data_dir: Path = Path("data"),
     out_dir: Path = Path("out"),
     upload: bool = True,
@@ -307,6 +359,7 @@ def run_pipeline(
     processors = {
         WEATHER_TYPE_WIND: _process_wind_step,
         WEATHER_TYPE_WAVES: _process_wave_step,
+        WEATHER_TYPE_TEMPERATURE: _process_temperature_step,
     }
 
     logger.info(
@@ -415,9 +468,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--types",
         type=str,
-        default="wind,waves",
-        help="Comma-separated weather types to fetch. Default: wind,waves. "
-        "Useful for quick runs: --types=wind skips the GFS-Wave download.",
+        default="wind,waves,temperature",
+        help="Comma-separated weather types to fetch. Default: wind,waves,temperature. "
+        "Useful for quick runs: --types=wind skips GFS-Wave + temperature downloads.",
     )
     parser.add_argument("--data-dir", type=Path, default=Path("data"))
     parser.add_argument("--out-dir", type=Path, default=Path("out"))

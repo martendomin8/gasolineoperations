@@ -152,6 +152,8 @@ def encode_uv_to_png(
     u: np.ndarray,
     v: np.ndarray,
     output_path: Path,
+    valid_mask: np.ndarray | None = None,
+    alpha_override: np.ndarray | None = None,
 ) -> UVStats:
     """Encode a u/v float field into an 8-bit RGBA PNG.
 
@@ -159,6 +161,13 @@ def encode_uv_to_png(
     single `imageUnscale = [min, max]` prop can recover them: after the
     shader reads a channel's 0..255 value it computes
     `mix(min, max, value/255)`, giving us back real-world m/s.
+
+    Alpha channel sources (in precedence order):
+      1. `alpha_override` — caller-supplied pre-computed uint8 alpha
+         (used by waves to feather coastlines; gives a soft surf-zone
+         look instead of hard "dark square" holes around islands).
+      2. `valid_mask` — boolean; True → 255, False → 0.
+      3. NaN-detection on u + v (fallback).
 
     Returns a UVStats with per-channel debug values and the shared
     `[min, max]` unscale range.
@@ -176,13 +185,13 @@ def encode_uv_to_png(
     r = ((u - umin_shared) / span * 255.0).clip(0, 255).astype(np.uint8)
     g = ((v - umin_shared) / span * 255.0).clip(0, 255).astype(np.uint8)
     b = np.zeros_like(r)
-    # Alpha encodes validity. GFS wind has no NaN pixels (wind is defined
-    # globally, even over land — just with boundary-layer values), so A
-    # is typically 255 everywhere. We still compute the mask so the same
-    # encoder works for WaveWatch III outputs later, which DO have NaN
-    # over land.
-    valid = ~(np.isnan(u) | np.isnan(v))
-    a = np.where(valid, 255, 0).astype(np.uint8)
+
+    if alpha_override is not None:
+        a = alpha_override.astype(np.uint8)
+    else:
+        if valid_mask is None:
+            valid_mask = ~(np.isnan(u) | np.isnan(v))
+        a = np.where(valid_mask, 255, 0).astype(np.uint8)
 
     rgba = np.dstack([r, g, b, a])  # shape: (height, width, 4)
     Image.fromarray(rgba, mode="RGBA").save(output_path, optimize=True)
