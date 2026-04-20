@@ -1,0 +1,90 @@
+name: Weather pipeline
+
+# Runs the NOAA GFS → PNG → Vercel Blob pipeline 4x/day, one hour after
+# each GFS cycle is fully published (NOAA takes 4–5 h to publish a full
+# cycle after the nominal cycle time).
+#
+# GFS cycles:    00 / 06 / 12 / 18 UTC
+# Published by:  05 / 11 / 17 / 23 UTC (approximately)
+# We run at:     06 / 12 / 18 / 00 UTC — one extra hour of buffer to
+#                absorb GitHub Actions queue delays.
+#
+# Required repo secrets:
+#   BLOB_READ_WRITE_TOKEN           Vercel Blob R/W token for the weather store
+#   NEXT_PUBLIC_WEATHER_CDN_BASE_URL Base URL of the Blob store, e.g.
+#                                   https://<store-id>.public.blob.vercel-storage.com
+#
+# Manual trigger is enabled via workflow_dispatch so cycles can be
+# re-run on demand from the Actions tab.
+
+on:
+  schedule:
+    # GitHub cron is UTC, minute precision. "0 */6 * * *" fires at
+    # 00:00, 06:00, 12:00, 18:00 UTC — matching our target windows.
+    - cron: "0 */6 * * *"
+  workflow_dispatch:
+    inputs:
+      cycle:
+        description: "Specific cycle YYYYMMDDHH (leave empty for --latest)"
+        required: false
+        default: ""
+
+# Don't pile up queued runs if one is still going — that would race on
+# the manifest.
+concurrency:
+  group: weather-pipeline
+  cancel-in-progress: false
+
+jobs:
+  fetch-encode-upload:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install ECCODES (GRIB2 decoder)
+        # cfgrib + xarray both need the eccodes C library at OS level.
+        # It's a standard Debian package, so this is fast and cached
+        # between runs by GitHub's apt layer.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libeccodes-dev libeccodes-tools
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: scripts/weather-pipeline/requirements.txt
+
+      - name: Install Python dependencies
+        working-directory: scripts/weather-pipeline
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run pipeline
+        working-directory: scripts/weather-pipeline
+        env:
+          BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
+          NEXT_PUBLIC_WEATHER_CDN_BASE_URL: ${{ secrets.NEXT_PUBLIC_WEATHER_CDN_BASE_URL }}
+        run: |
+          if [ -n "${{ inputs.cycle }}" ]; then
+            python run_pipeline.py --cycle "${{ inputs.cycle }}" --verbose
+          else
+            python run_pipeline.py --latest --verbose
+          fi
+
+      - name: Upload pipeline logs as artefact
+        # Saves the encoded PNGs + sidecars so we can eyeball what each
+        # run produced without digging through Blob. Retained for 7 days.
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: weather-output-${{ github.run_id }}
+          path: |
+            scripts/weather-pipeline/out/**
+          retention-days: 7
+          if-no-files-found: ignore

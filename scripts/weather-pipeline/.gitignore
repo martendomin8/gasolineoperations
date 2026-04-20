@@ -1,0 +1,12 @@
+# Local venv
+.venv/
+
+# Downloaded GRIB2 files (regenerated on every pipeline run)
+data/
+
+# Encoded PNG + JSON output (built artefacts)
+out/
+
+# Python cache
+__pycache__/
+*.pyc

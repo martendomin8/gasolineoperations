@@ -38,7 +38,14 @@ import type {
   ProjectionSpecification,
 } from "react-map-gl/maplibre";
 import type maplibregl from "maplibre-gl";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import greatCircle from "@turf/great-circle";
 // @ts-expect-error — @turf/helpers ships types but doesn't expose them via package.json "exports"
 import { point as turfPoint } from "@turf/helpers";
@@ -355,6 +362,13 @@ interface FleetMapProps {
   onZoneMoveVertex?: (idx: number, coords: { lat: number; lon: number }) => void;
   onZoneDeleteVertex?: (idx: number) => void;
   onZoneInsertVertex?: (afterIdx: number, coords: { lat: number; lon: number }) => void;
+  /**
+   * Slot for extra overlays that need to attach to the MapLibre map
+   * instance — rendered as children of the inner `<MapLibreMap>` so
+   * they can use `useMap`, `useControl`, etc. The weather overlay
+   * (`<WeatherLayer />`) plugs in here.
+   */
+  children?: ReactNode;
 }
 
 // ID constants for GeoJSON sources/layers. MapLibre requires stable
@@ -400,6 +414,7 @@ export function FleetMapInner({
   onZoneMoveVertex,
   onZoneDeleteVertex,
   onZoneInsertVertex,
+  children,
 }: FleetMapProps) {
   const mapRef = useRef<MapRef | null>(null);
   const [hoveredZone, setHoveredZone] = useState<{
@@ -1661,6 +1676,12 @@ export function FleetMapInner({
 
       {/* ── Status legend (fixed HTML overlay, not a map feature) ── */}
       <StatusLegend />
+
+      {/* ── External overlay slot (weather, ais-tracks, etc.) ──
+           Rendered last so the DOM order matches visual z-order
+           expectations. Components mounted here can use `useMap` or
+           `useControl` to attach to the MapLibre instance. */}
+      {children}
     </MapLibreMap>
   );
 }

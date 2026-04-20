@@ -11,7 +11,7 @@
  * - On-map status legend
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { Ship, X, ExternalLink, MapPin, AlertTriangle, Anchor, ArrowRight, Route, Trash2, GripVertical, Plus, ChevronRight, GitCompareArrows, Globe, Map as MapIcon, Satellite, Moon, Wrench } from "lucide-react";
@@ -28,6 +28,13 @@ import { PortCostsButton } from "./port-costs-button";
 import { type ChannelChain } from "./channel-editor";
 import { DevPanel, type DevTab } from "./dev-panel";
 import { type Zone } from "./zone-editor";
+import { useWeatherProvider } from "@/lib/maritime/weather/hooks/use-weather-provider";
+import {
+  DEFAULT_WEATHER_VISIBILITY,
+  WeatherControls,
+  type WeatherLayerVisibility,
+} from "@/lib/maritime/weather/components/weather-controls";
+import { shipPositionAtTime } from "@/lib/maritime/weather/hooks/use-ship-at-time";
 
 // Dev-tools gate: enabled only when this env flag is set AND the
 // app is actually using our in-house ocean_routing provider. If a
@@ -40,6 +47,26 @@ const DEV_TOOLS_ENABLED =
   process.env.NEXT_PUBLIC_DEV_TOOLS === "true" &&
   (process.env.NEXT_PUBLIC_DISTANCE_PROVIDER ?? "ocean_routing") ===
     "ocean_routing";
+
+// Dynamic import — weatherlayers-gl / deck.gl pull in WebGL + Image
+// APIs that explode under SSR. Same pattern as FleetMapInner below.
+const WeatherLayer = dynamic(
+  () =>
+    import("@/lib/maritime/weather/components/weather-layer").then(
+      (m) => m.WeatherLayer,
+    ),
+  { ssr: false },
+);
+
+// TimeSlider is lighter (no WebGL) but keeps the pattern uniform and
+// defers loading until the fleet route is actually visited.
+const TimeSlider = dynamic(
+  () =>
+    import("@/lib/maritime/weather/components/time-slider").then(
+      (m) => m.TimeSlider,
+    ),
+  { ssr: false },
+);
 
 // Dynamic import — Leaflet requires `window`
 const FleetMapInner = dynamic(
@@ -196,6 +223,30 @@ export default function FleetPage() {
   // operator needs to actually route around the Red Sea, they use the
   // existing "Avoid Suez" passage toggle.
   const [showRiskZones, setShowRiskZones] = useState(false);
+  // Weather layers — wind particles in Week 3, waves + temperature in
+  // later weeks. Visibility state lives here so multiple consumers
+  // (layer + controls + future time slider) stay in sync.
+  const [weatherVisibility, setWeatherVisibility] =
+    useState<WeatherLayerVisibility>(DEFAULT_WEATHER_VISIBILITY);
+  const weatherProvider = useWeatherProvider();
+
+  // Unified time axis. `weatherTime` is what the slider shows; the
+  // WeatherLayer consumes it directly for GPU frame blending, and we
+  // project vessel positions forward from `weatherBaseline` (captured
+  // on the first slider init) using the same value. One t → two
+  // effects, in lock-step.
+  const [weatherTime, setWeatherTime] = useState<Date | null>(null);
+  const weatherBaselineRef = useRef<Date | null>(null);
+  const anyWeatherOn =
+    weatherVisibility.wind ||
+    weatherVisibility.waves ||
+    weatherVisibility.temperature;
+  const handleWeatherTimeChange = useCallback((t: Date) => {
+    if (weatherBaselineRef.current === null) {
+      weatherBaselineRef.current = t;
+    }
+    setWeatherTime(t);
+  }, []);
   // Drag-and-drop state for reordering planner waypoints. `draggedIdx`
   // is the source row's index (null when not dragging); `dragOverIdx`
   // is the hovered drop target so we can render an insertion indicator.
@@ -480,6 +531,11 @@ export default function FleetPage() {
 
   // Build FleetVessel array
   const vessels: FleetVessel[] = [];
+  // Parallel map of vesselId → pre-computed ocean route. Kept separate
+  // from FleetVessel (not every consumer needs the polyline) so we can
+  // use it for the unified time-slider's ship-projection without
+  // inflating the props FleetMapInner receives.
+  const vesselRoutesById = new Map<string, [number, number][]>();
   const unlocated: string[] = [];
 
   for (const card of filteredCards) {
@@ -525,6 +581,9 @@ export default function FleetPage() {
     // Urgency: laycan ≤3 days
     const isUrgent = card.earliestLaycan ? daysUntil(card.earliestLaycan) >= 0 && daysUntil(card.earliestLaycan) <= 3 : false;
 
+    if (routePath !== null) {
+      vesselRoutesById.set(card.id, routePath);
+    }
     vessels.push({
       id: card.id,
       vesselName: card.vessel,
@@ -551,6 +610,30 @@ export default function FleetPage() {
   const statusCounts: Record<string, number> = {};
   for (const v of vessels) {
     statusCounts[v.status] = (statusCounts[v.status] ?? 0) + 1;
+  }
+
+  // Time-projected vessel positions. When the TimeSlider is past the
+  // baseline, each vessel's marker walks forward along its pre-computed
+  // ocean route at DEFAULT_SPEED_KNOTS. This is what makes "see where
+  // your ship is in 6 days" work visually — same `weatherTime` that
+  // drives WeatherLayer's GPU frame blending drives this projection.
+  let displayVessels: FleetVessel[] = vessels;
+  if (weatherTime !== null && weatherBaselineRef.current !== null) {
+    const hoursForward =
+      (weatherTime.getTime() - weatherBaselineRef.current.getTime()) /
+      (60 * 60 * 1000);
+    if (hoursForward > 0) {
+      displayVessels = vessels.map((v) => {
+        const route = vesselRoutesById.get(v.id);
+        if (route === undefined) return v;
+        const [newLat, newLon] = shipPositionAtTime(
+          [v.position.lat, v.position.lng],
+          route,
+          hoursForward,
+        );
+        return { ...v, position: { lat: newLat, lng: newLon } };
+      });
+    }
   }
 
   // Demo vessels were removed. Fleet now reflects only real linkages that
@@ -766,7 +849,7 @@ export default function FleetPage() {
             </div>
           ) : (
             <FleetMapInner
-              vessels={vessels}
+              vessels={displayVessels}
               portMarkers={portMarkers}
               selectedVesselId={selectedVesselId}
               onSelectVessel={setSelectedVesselId}
@@ -838,7 +921,57 @@ export default function FleetPage() {
               onZoneMoveVertex={devMode && devTab === "zones" ? handleZoneMoveVertex : undefined}
               onZoneDeleteVertex={devMode && devTab === "zones" ? handleZoneDeleteVertex : undefined}
               onZoneInsertVertex={devMode && devTab === "zones" ? handleZoneInsertVertex : undefined}
-            />
+            >
+              {/* Weather overlay. The component renders nothing to the
+                  DOM but attaches a deck.gl ParticleLayer to the map
+                  whenever `enabled` is true. Layers added here via
+                  `children` can use `useMap` / `useControl` because
+                  they render inside the react-map-gl <Map> boundary. */}
+              <WeatherLayer
+                provider={weatherProvider}
+                type="wind"
+                enabled={weatherVisibility.wind}
+                time={weatherTime}
+              />
+              <WeatherLayer
+                provider={weatherProvider}
+                type="waves"
+                enabled={weatherVisibility.waves}
+                time={weatherTime}
+              />
+            </FleetMapInner>
+          )}
+
+          {/* Floating weather controls — top-right of the map area so
+              they don't overlap MapLibre's bottom-left attribution or
+              the top-left projection / basemap chrome. */}
+          {!loading && (
+            <div className="pointer-events-none absolute right-3 top-3 z-10 w-44">
+              <div className="pointer-events-auto">
+                <WeatherControls
+                  visibility={weatherVisibility}
+                  onChange={setWeatherVisibility}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Unified time slider — bottom-centre of the map area, only
+              visible when at least one weather layer is enabled (the
+              slider is useless without a layer to animate). Drives
+              both the WeatherLayer's `time` prop AND the vessel
+              position projection above. */}
+          {!loading && anyWeatherOn && (
+            <div className="pointer-events-none absolute inset-x-3 bottom-3 z-10 flex justify-center">
+              <div className="pointer-events-auto w-full max-w-2xl">
+                <TimeSlider
+                  provider={weatherProvider}
+                  type="wind"
+                  time={weatherTime}
+                  onChange={handleWeatherTimeChange}
+                />
+              </div>
+            </div>
           )}
         </div>
 

@@ -1,0 +1,18 @@
+# Weather pipeline — Python dependencies
+#
+# cfgrib + xarray — GRIB2 parsing. Both require the ECCODES C library
+# installed at the OS level (apt install libeccodes-dev on Debian/Ubuntu,
+# brew install eccodes on macOS, or use WSL on Windows).
+#
+# Pillow + numpy — PNG encoding of u/v fields into RGBA rasters.
+#
+# requests — HTTP client for the NOAA NOMADS filter endpoint. We use
+# NOMADS filter (not full files) because it lets us request only the
+# specific variable + level we need, returning ~2-5 MB per step instead
+# of the ~500 MB full GRIB2.
+
+cfgrib>=0.9.11,<1.0
+xarray>=2024.6.0
+numpy>=1.26,<3.0
+Pillow>=10.0,<12.0
+requests>=2.31,<3.0
