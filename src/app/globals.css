@@ -248,6 +248,55 @@ th {
 }
 .leaflet-control-attribution a { color: #9aa0ad !important; }
 
+/* MapLibre attribution — nudge the bottom-right control up a few
+ * px so the bottom edge of the text isn't clipped against the
+ * viewport edge on dense map chrome (WeatherControls + TimeSlider
+ * + Demo Tour live right above it). Also match the dark theme. */
+.maplibregl-ctrl-bottom-right {
+  margin-bottom: 4px !important;
+  margin-right: 4px !important;
+}
+.maplibregl-ctrl-attrib {
+  background: rgba(15, 17, 21, 0.85) !important;
+  color: #6B7280 !important;
+  font-size: 10px !important;
+  padding: 2px 6px !important;
+}
+.maplibregl-ctrl-attrib a {
+  color: #9aa0ad !important;
+}
+
+/* Weather-point popup (click-on-map weather readout). Overrides
+ * MapLibre's default white popup chrome so the dark card we render
+ * inside reads consistently with the rest of the Fleet overlay. */
+.weather-point-popup .maplibregl-popup-content {
+  background: rgba(15, 17, 21, 0.95) !important;
+  color: #FAFAF7 !important;
+  border: 1px solid #272d3a !important;
+  border-radius: 6px !important;
+  padding: 10px 12px !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5) !important;
+  backdrop-filter: blur(6px);
+}
+.weather-point-popup .maplibregl-popup-tip {
+  /* The little triangle that points down at the clicked coordinate —
+   * colour it to match the popup body so it reads as one shape. */
+  border-top-color: rgba(15, 17, 21, 0.95) !important;
+  border-bottom-color: rgba(15, 17, 21, 0.95) !important;
+}
+
+/* Ship markers (and every other MapLibre marker) should always draw
+ * on top of the weather raster. By default the deck.gl overlay canvas
+ * sits above the DOM marker layer, so vessels get swallowed by wind
+ * / wave colour. Bumping the markers' z-index well above the deck.gl
+ * canvas (which doesn't set one explicitly) brings them back to the
+ * top without needing to rewire the overlay as interleaved.
+ * Popups use the same pattern so their callouts also clear. */
+.maplibregl-marker,
+.maplibregl-popup {
+  z-index: 5 !important;
+}
+
 /* Fleet vessel labels — force dark theme on permanent tooltips */
 .fleet-vessel-label {
   background: transparent !important;

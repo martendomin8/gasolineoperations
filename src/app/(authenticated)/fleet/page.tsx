@@ -34,7 +34,9 @@ import {
   WeatherControls,
   type WeatherLayerVisibility,
 } from "@/lib/maritime/weather/components/weather-controls";
+import { WeatherPointPopup } from "@/lib/maritime/weather/components/weather-point-popup";
 import { shipPositionAtTime } from "@/lib/maritime/weather/hooks/use-ship-at-time";
+import type { WeatherType } from "@/lib/maritime/weather/types";
 
 // Dev-tools gate: enabled only when this env flag is set AND the
 // app is actually using our in-house ocean_routing provider. If a
@@ -229,6 +231,15 @@ export default function FleetPage() {
   const [weatherVisibility, setWeatherVisibility] =
     useState<WeatherLayerVisibility>(DEFAULT_WEATHER_VISIBILITY);
   const weatherProvider = useWeatherProvider();
+
+  // Ephemeral "click anywhere on the map to see the weather at that
+  // point" popup. Only active when the planner is OFF (otherwise
+  // clicks insert custom waypoints) AND at least one weather layer
+  // is visible (otherwise the popup has nothing to show).
+  const [weatherPopup, setWeatherPopup] = useState<{
+    lat: number;
+    lon: number;
+  } | null>(null);
 
   // Unified time axis. `weatherTime` is what the slider shows; the
   // WeatherLayer consumes it directly for GPU frame blending, and we
@@ -894,9 +905,14 @@ export default function FleetPage() {
                     }
               }
               onMapClick={
-                // Click on open water (not a port) inserts a custom
-                // waypoint into the active route. Only active in
-                // planner mode.
+                // Three modes:
+                //   - Planner ON  → click inserts a custom @lat,lon
+                //                   waypoint into the active route.
+                //   - Planner OFF + any weather layer on → open the
+                //                   WeatherPointPopup at the clicked
+                //                   coordinate so ops can read wind /
+                //                   waves / temp without a side panel.
+                //   - Planner OFF + all weather off → no-op.
                 plannerMode
                   ? ({ lat, lon }) => {
                       const nsSuffix = lat >= 0 ? "N" : "S";
@@ -907,7 +923,9 @@ export default function FleetPage() {
                         { name: label, lat, lon },
                       ]);
                     }
-                  : undefined
+                  : anyWeatherOn
+                    ? ({ lat, lon }) => setWeatherPopup({ lat, lon })
+                    : undefined
               }
               channelChains={devMode && devTab === "chains" ? channelChains : []}
               activeChainId={devMode && devTab === "chains" ? activeChainId : null}
@@ -945,6 +963,32 @@ export default function FleetPage() {
                 enabled={weatherVisibility.temperature}
                 time={weatherTime}
               />
+              {/* Weather point popup lives INSIDE the map so react-
+                  map-gl's Popup can anchor to lat/lon and pan with
+                  the map instead of sitting in a fixed screen
+                  corner. Conditions mirror the outside render we
+                  used to do — planner OFF + any weather layer on. */}
+              {weatherPopup !== null &&
+                weatherTime !== null &&
+                anyWeatherOn &&
+                !plannerMode && (
+                  <WeatherPointPopup
+                    provider={weatherProvider}
+                    types={
+                      [
+                        weatherVisibility.wind ? "wind" : null,
+                        weatherVisibility.waves ? "waves" : null,
+                        weatherVisibility.temperature
+                          ? "temperature"
+                          : null,
+                      ].filter((t): t is WeatherType => t !== null)
+                    }
+                    time={weatherTime}
+                    lat={weatherPopup.lat}
+                    lon={weatherPopup.lon}
+                    onClose={() => setWeatherPopup(null)}
+                  />
+                )}
             </FleetMapInner>
           )}
 
@@ -955,7 +999,12 @@ export default function FleetPage() {
               voyage — bottom-left stays out of the way of every
               right-side sidebar. */}
           {!loading && (
-            <div className="pointer-events-none absolute inset-x-3 bottom-3 z-10 flex items-end gap-3">
+            // `bottom-8` lifts the whole weather row clear of the
+            // attribution bar at the very bottom of the map. Demo
+            // Tour then floats higher still (see demo-tour.tsx) so
+            // the three occupy three separate vertical bands
+            // instead of piling into the same corner.
+            <div className="pointer-events-none absolute inset-x-3 bottom-8 z-10 flex items-end gap-3">
               <div className="pointer-events-auto w-44 flex-shrink-0">
                 <WeatherControls
                   visibility={weatherVisibility}
@@ -974,6 +1023,7 @@ export default function FleetPage() {
               )}
             </div>
           )}
+
         </div>
 
         {/* Dev Tools panel (chains + zones editor) — replaces the normal

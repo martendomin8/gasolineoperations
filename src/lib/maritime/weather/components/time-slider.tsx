@@ -77,7 +77,18 @@ export function TimeSlider({
   useEffect(() => {
     if (range === null) return;
     if (time === null) {
-      onChange(range.start);
+      // Operators open the map and want to see "now", not the
+      // forecast cycle's analysis timestamp (which is up to 6 h
+      // stale). Round the wall clock down to the current UTC hour
+      // and clamp into the available forecast window.
+      const now = new Date();
+      now.setUTCMinutes(0, 0, 0);
+      const t = now.getTime();
+      const startMs = range.start.getTime();
+      const endMs = range.end.getTime();
+      const clamped =
+        t < startMs ? range.start : t > endMs ? range.end : new Date(t);
+      onChange(clamped);
       return;
     }
     if (time < range.start) onChange(range.start);
@@ -107,6 +118,48 @@ export function TimeSlider({
   }, [range]);
 
   const currentMs = time?.getTime() ?? rangeMs?.min ?? 0;
+
+  // Day ticks for the axis — one label per UTC midnight inside the
+  // range. Each tick gets a percentage position 0–100 so the caller
+  // can absolute-position it under the slider track. We emit a short
+  // "Tue 21" style label (weekday abbreviation + day-of-month) that
+  // matches how Windy labels its axis — enough at-a-glance signal
+  // without eating horizontal space.
+  const dayTicks = useMemo(() => {
+    if (rangeMs === null) return [];
+    const span = rangeMs.max - rangeMs.min;
+    if (span <= 0) return [];
+    const ticks: Array<{ ts: number; label: string; pct: number }> = [];
+    // First UTC midnight at or after range.start.
+    const first = new Date(rangeMs.min);
+    first.setUTCHours(0, 0, 0, 0);
+    if (first.getTime() < rangeMs.min) {
+      first.setUTCDate(first.getUTCDate() + 1);
+    }
+    for (let t = first.getTime(); t <= rangeMs.max; t += 86_400_000) {
+      const d = new Date(t);
+      const weekday = d.toLocaleString("en-US", {
+        weekday: "short",
+        timeZone: "UTC",
+      });
+      const day = d.getUTCDate();
+      ticks.push({
+        ts: t,
+        label: `${weekday} ${day}`,
+        pct: ((t - rangeMs.min) / span) * 100,
+      });
+    }
+    return ticks;
+  }, [rangeMs]);
+
+  // Percentage position of the thumb (0–100) — drives the hour
+  // callout placement above the track.
+  const thumbPct = useMemo(() => {
+    if (rangeMs === null) return 0;
+    const span = rangeMs.max - rangeMs.min;
+    if (span <= 0) return 0;
+    return ((currentMs - rangeMs.min) / span) * 100;
+  }, [rangeMs, currentMs]);
 
   const handleSliderInput = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -138,7 +191,7 @@ export function TimeSlider({
     (time.getTime() - rangeMs.min) / (60 * 60 * 1000);
 
   return (
-    <div className="flex items-center gap-3 rounded border border-[var(--color-border)] bg-[var(--color-surface-1)] px-3 py-2">
+    <div className="flex items-center gap-3 rounded border border-[var(--color-border)] bg-[var(--color-surface-1)] px-3 pt-5 pb-6">
       <button
         onClick={() => setPlaying((p) => !p)}
         className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded bg-sky-500/20 text-sky-400 transition-colors hover:bg-sky-500/30"
@@ -158,15 +211,56 @@ export function TimeSlider({
       >
         <RotateCcw className="h-3 w-3" />
       </button>
-      <input
-        type="range"
-        min={rangeMs.min}
-        max={rangeMs.max}
-        value={currentMs}
-        step={15 * 60 * 1000 /* 15-minute resolution */}
-        onChange={handleSliderInput}
-        className="h-1 flex-1 cursor-pointer accent-sky-500"
-      />
+      <div className="relative flex-1">
+        {/* Hour callout pinned above the thumb. `translateX(-50%)`
+            centres it on the thumb; we clamp `thumbPct` into
+            [0,100] via the inline style so it can't overflow the
+            track visually at the extremes. `pointer-events-none`
+            so it never swallows drag attempts. */}
+        <div
+          className="pointer-events-none absolute bottom-full mb-1 whitespace-nowrap rounded bg-sky-500 px-1.5 py-0.5 font-mono text-[0.6rem] font-semibold text-white shadow-sm"
+          style={{
+            left: `${Math.max(0, Math.min(100, thumbPct))}%`,
+            transform: "translateX(-50%)",
+          }}
+        >
+          {formatHourCallout(time)}
+        </div>
+        <input
+          type="range"
+          min={rangeMs.min}
+          max={rangeMs.max}
+          value={currentMs}
+          step={15 * 60 * 1000 /* 15-minute resolution */}
+          onChange={handleSliderInput}
+          className="h-1 w-full cursor-pointer accent-sky-500"
+        />
+        {/* Day ticks below the track — absolute-positioned so they
+            don't affect row height / layout. Each tick renders two
+            siblings stacked vertically: a short vertical stroke
+            that reads as a "day separator" on the track (same idea
+            Windy uses), and the weekday/day label centred under
+            it. At the 16-day horizon, labels rarely overlap; if
+            they ever do on a narrow screen we just let them pile
+            up rather than add a ResizeObserver pass. */}
+        <div className="pointer-events-none absolute left-0 right-0 top-full h-5">
+          {dayTicks.map((tick) => (
+            <span
+              key={tick.ts}
+              className="absolute top-0 flex flex-col items-center"
+              style={{
+                left: `${tick.pct}%`,
+                transform: "translateX(-50%)",
+              }}
+            >
+              <span className="h-1.5 w-px bg-[var(--color-text-tertiary)]/70" />
+              <span className="mt-0.5 whitespace-nowrap font-mono text-[0.55rem] text-[var(--color-text-tertiary)]">
+                {tick.label}
+              </span>
+            </span>
+          ))}
+        </div>
+      </div>
       <div className="flex flex-shrink-0 flex-col items-end leading-tight">
         <span className="font-mono text-[0.7rem] font-semibold text-[var(--color-text-primary)]">
           {formatTimeLabel(time)}
@@ -183,6 +277,14 @@ export function TimeSlider({
       </div>
     </div>
   );
+}
+
+function formatHourCallout(t: Date): string {
+  // "11:00" — UTC hour+minute. Matches the precision of the main
+  // right-side label so the two never disagree on the same instant.
+  const hh = t.getUTCHours().toString().padStart(2, "0");
+  const mm = t.getUTCMinutes().toString().padStart(2, "0");
+  return `${hh}:${mm}`;
 }
 
 function formatTimeLabel(t: Date): string {

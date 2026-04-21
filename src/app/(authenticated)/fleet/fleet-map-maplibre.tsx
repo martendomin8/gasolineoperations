@@ -1215,6 +1215,41 @@ export function FleetMapInner({
     }
   }, [projection]);
 
+  // ── Basemap label halo override ──────────────────────────
+  // The weather raster sits on top of the basemap (interleaved:
+  // false on the deck.gl overlay), so country labels and place
+  // names would otherwise get swallowed by saturated wind / wave
+  // colour. Windy-style fix: re-style every symbol layer in the
+  // basemap with a thick black text halo so labels stay legible
+  // against any background. Re-applied on every style load so
+  // basemap swaps (dark ↔ satellite) stay consistent.
+  useEffect(() => {
+    const map = mapRef.current?.getMap();
+    if (!map) return;
+    const applyHalos = () => {
+      const style = map.getStyle();
+      if (!style) return;
+      for (const layer of style.layers) {
+        if (layer.type !== "symbol") continue;
+        try {
+          map.setPaintProperty(layer.id, "text-halo-color", "rgba(0, 0, 0, 0.85)");
+          map.setPaintProperty(layer.id, "text-halo-width", 1.5);
+          map.setPaintProperty(layer.id, "text-halo-blur", 0.5);
+        } catch {
+          // Not every symbol layer has a text field — MapLibre
+          // throws on layers that don't. Fine to ignore.
+        }
+      }
+    };
+    if (map.isStyleLoaded()) applyHalos();
+    map.on("style.load", applyHalos);
+    return () => {
+      map.off("style.load", applyHalos);
+    };
+    // Depend on `basemap` so when the user toggles Dark ↔ Satellite
+    // we re-bind to the freshly-loaded style and re-apply halos.
+  }, [basemap]);
+
   return (
     <MapLibreMap
       ref={mapRef}
@@ -1262,11 +1297,18 @@ export function FleetMapInner({
           EOX Sentinel-2 Cloudless / Copernicus. MapLibre auto-merges
           the active style's source attributions with `customAttribution`
           so toggling Dark ↔ Satellite swaps which imagery credit
-          appears without our having to manage it explicitly. */}
+          appears without our having to manage it explicitly.
+
+          The "Weather: NOAA GFS" tail is voluntary — NOAA is US
+          federal public domain (17 USC § 105) and the agency
+          explicitly does not require attribution. Showing the
+          source anyway is a professional courtesy (operators
+          recognise GFS vs ECMWF when comparing forecasts) and
+          keeps us honest if we ever swap providers. */}
       <AttributionControl
         position="bottom-right"
         compact={false}
-        customAttribution='<a href="https://maplibre.org/" target="_blank" rel="noreferrer">MapLibre</a> | &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions" target="_blank" rel="noreferrer">CARTO</a>'
+        customAttribution='<a href="https://maplibre.org/" target="_blank" rel="noreferrer">MapLibre</a> | Weather: <a href="https://www.nco.ncep.noaa.gov/pmb/products/gfs/" target="_blank" rel="noreferrer">NOAA GFS</a>'
       />
 
       {/* ── ECA/SECA fill + boundaries (below routes so ships stay on top) ── */}
@@ -1694,8 +1736,12 @@ function StatusLegend() {
   return (
     <div
       style={{
+        // Top-right corner keeps the legend clear of the TimeSlider
+        // row + attribution bar + Demo Tour button, which all now
+        // share the map's lower edge. Top-3 (12 px) matches the
+        // rhythm the other overlays use.
         position: "absolute",
-        bottom: 28,
+        top: 12,
         right: 10,
         pointerEvents: "auto",
         background: "rgba(15, 17, 21, 0.85)",

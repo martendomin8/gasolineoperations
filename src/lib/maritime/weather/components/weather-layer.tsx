@@ -50,18 +50,28 @@ import type { BracketFrames, WeatherFrame, WeatherType } from "../types";
 // fade into the basemap instead of producing a coloured flood.
 // ---------------------------------------------------------------------------
 
-// Wind raster — magnitude in m/s. Pink → red → magenta, matching
-// Windy's heat-ramp look for wind speed. 0–5 m/s transparent (calm
-// areas shouldn't flood the map); gale+ saturates deep magenta.
+// Wind raster — magnitude in m/s. Full cold→hot rainbow, matching
+// Windy's default wind palette (blue for calm → green moderate →
+// yellow fresh → orange strong → red gale → magenta storm). Stops
+// chosen around Beaufort-scale boundaries so the colour change
+// reads like a scale, not a smooth gradient: a 5 m/s jump
+// (F3 → F4) is always the same colour hop regardless of base
+// wind. Calm zones (< ~1 m/s) stay transparent so the basemap
+// still shows under negligible wind rather than painting the
+// whole map a faint blue.
 const WIND_RASTER_PALETTE: Palette = [
-  [0, [0, 0, 0, 0]],
-  [5, [252, 193, 219, 120]],     // soft pink — light breeze
-  [10, [247, 104, 161, 170]],    // pink — moderate
-  [15, [221, 52, 151, 200]],     // magenta — fresh
-  [20, [174, 1, 126, 220]],      // deep magenta — strong
-  [25, [122, 1, 119, 240]],      // violet — near gale
-  [30, [73, 0, 106, 250]],       // dark violet — gale
-  [40, [49, 0, 66, 255]],        // near-black — storm
+  [0, [0, 0, 0, 0]],              // calm — transparent
+  [1, [10, 56, 136, 110]],        // Beaufort 1 — navy
+  [3, [20, 120, 200, 150]],       // Beaufort 2 — blue
+  [5, [60, 180, 220, 175]],       // Beaufort 3 — cyan
+  [8, [100, 220, 180, 195]],      // Beaufort 4 — teal
+  [11, [120, 210, 100, 210]],     // Beaufort 5 — green
+  [14, [220, 220, 60, 225]],      // Beaufort 6 — yellow-green
+  [17, [250, 200, 40, 235]],      // Beaufort 7 — yellow
+  [20, [250, 140, 40, 245]],      // Beaufort 8 (gale) — orange
+  [24, [235, 70, 50, 250]],       // Beaufort 9 (strong gale) — red
+  [28, [210, 35, 100, 255]],      // Beaufort 10 (storm) — magenta
+  [35, [140, 25, 140, 255]],      // Beaufort 11-12 — deep purple
 ];
 
 // Wave raster — Hs in metres. Green → yellow → orange → red →
@@ -136,7 +146,15 @@ const LAYER_DEFAULTS: Record<
 > = {
   wind: {
     rasterPalette: WIND_RASTER_PALETTE,
-    rasterOpacity: 1.0, // already alpha-encoded in the palette
+    // 0.7 leaves enough of the basemap showing through that country
+    // borders, coastlines, ship markers, and port dots all stay
+    // readable under the coloured wind raster. Full opacity (1.0)
+    // looked great but blanked out exactly the features ops need to
+    // cross-reference wind against. Windy achieves both saturation
+    // AND legibility by rendering country labels ABOVE the weather
+    // raster — that needs `interleaved: true` (or a dedicated
+    // labels-on-top layer) which we haven't wired up yet; follow-up.
+    rasterOpacity: 0.9,
     particlePalette: WIND_PARTICLE_PALETTE,
     numParticles: 5000,
     maxAge: 60,
@@ -145,7 +163,10 @@ const LAYER_DEFAULTS: Record<
   },
   waves: {
     rasterPalette: WAVE_RASTER_PALETTE,
-    rasterOpacity: 1.0,
+    // Same trade-off as wind — 0.7 over the basemap preserves
+    // coastal / port legibility when waves fully saturate the open
+    // ocean with red / magenta at storm heights.
+    rasterOpacity: 0.9,
     particlePalette: WAVE_PARTICLE_PALETTE,
     // Fewer, longer-lived particles read as slower, heavier swell;
     // a good visual contrast with wind's busier fast trails.

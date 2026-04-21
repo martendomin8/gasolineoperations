@@ -221,15 +221,17 @@ def encode_file(
     # transparency by the blur averaging in neighbouring land zeros.
     alpha_soft = np.maximum(alpha_soft, valid_mask.astype(np.float32))
 
-    # Threshold to kill the blur "tail" deep inside land. Without this
-    # the 0.1–0.2 alpha values a few cells inland show up as grey
-    # "fog" over complex archipelagos (Canadian Arctic, Svalbard,
-    # Antarctic peninsula) because every land cell there is within a
-    # few cells of ocean — cumulative faint alpha covers the basemap
-    # darkness with a bleed of wave colour. Zeroing anything below
-    # ~0.3 keeps the coast-adjacent soft feather and removes the
-    # inland fog.
-    alpha_soft = np.where(alpha_soft < 0.3, 0.0, alpha_soft)
+    # A very light threshold to kill numerical noise below 5 % alpha
+    # (sub-pixel float error from the iterative blur). Anything
+    # above keeps its smooth fade so coastlines actually look
+    # feathered — a harder cut at 0.3 used to wipe out most of the
+    # fade and left the Greenland / Iceland / Japan coasts with the
+    # same "hard-edge black cutout" look that the feather was
+    # supposed to fix. If dense archipelagos (Svalbard, Canadian
+    # Arctic) come back with grey fog later we tighten this or add
+    # a separate archipelago-specific mask rather than clipping the
+    # whole fade.
+    alpha_soft = np.where(alpha_soft < 0.05, 0.0, alpha_soft)
     # Reorient alpha + u/v with the same geographic transforms.
     alpha_reoriented, _ = reorient_to_web(
         alpha_soft, np.zeros_like(alpha_soft), lons
