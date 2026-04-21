@@ -42,8 +42,10 @@ export async function GET(req: NextRequest) {
   const hasCustom = rawEntries.some((e) => e.startsWith("@"));
 
   // Custom-waypoint mode: runtime graph provides the full path.
-  // TODO: honor avoid-passage variants here too — would need
-  // per-variant graph.json exports from the Python pipeline.
+  // avoidSuez / avoidPanama are forwarded — graph-runtime.ts applies
+  // them as bbox filters (AVOID_BBOX_SUEZ / AVOID_BBOX_PANAMA), so
+  // Dijkstra reroutes around whichever passage is blocked. No
+  // per-variant graph.json needed.
   if (hasCustom) {
     const waypoints: Waypoint[] = [];
     for (const entry of rawEntries) {
@@ -75,7 +77,11 @@ export async function GET(req: NextRequest) {
     }
 
     try {
-      const routed = routeThroughGraph(waypoints);
+      const routed = routeThroughGraph(waypoints, {
+        avoidSuez: opts.avoidSuez,
+        avoidPanama: opts.avoidPanama,
+        avoidedChainIds: opts.avoidedChainIds,
+      });
       if (!routed) return NextResponse.json({ legs: [] });
       return NextResponse.json({
         legs: routed.legs.map((l) => ({

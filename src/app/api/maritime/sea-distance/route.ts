@@ -80,12 +80,11 @@ export async function GET(req: NextRequest) {
     }
 
     // Custom-waypoint path: resolve entries then route through the
-    // runtime land-safe graph. TODO: when any of opts.avoidSuez /
-    // avoidPanama is set we currently silently fall back to the
-    // default variant — to honor them here we'd need to export
-    // separate graph.json files per variant (~1 MB each) and pick
-    // by opts. Acceptable for now because custom waypoints are
-    // already an override — operator is hand-placing a route.
+    // runtime land-safe graph. The avoidSuez / avoidPanama flags are
+    // forwarded to routeThroughGraph where graph-runtime.ts applies
+    // them as bbox filters (AVOID_BBOX_SUEZ / AVOID_BBOX_PANAMA) —
+    // Dijkstra skips any node whose coords fall inside an active box.
+    // No precomputed variant files involved.
     const waypoints: Waypoint[] = [];
     for (const entry of rawEntries) {
       const parsed = parseWaypoint(entry);
@@ -117,7 +116,11 @@ export async function GET(req: NextRequest) {
     }
 
     try {
-      const routed = routeThroughGraph(waypoints);
+      const routed = routeThroughGraph(waypoints, {
+        avoidSuez: opts.avoidSuez,
+        avoidPanama: opts.avoidPanama,
+        avoidedChainIds: opts.avoidedChainIds,
+      });
       if (!routed) {
         return NextResponse.json({ error: "Route unreachable" }, { status: 500 });
       }

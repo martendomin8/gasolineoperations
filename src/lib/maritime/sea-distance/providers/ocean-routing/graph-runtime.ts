@@ -872,8 +872,17 @@ export interface DijkstraExtras {
 const AVOID_BBOX_SUEZ: [number, number, number, number] = [
   29.50, 31.50, 32.00, 33.00,
 ];
+// Widened to cover the full Panama isthmus + approach waters, not
+// just the canal channel itself. The narrow canal-only bbox used to
+// miss Dijkstra "shortcut" edges between Caribbean and Pacific ocean
+// nodes that straight-lined across the land without either endpoint
+// falling inside the box — giving Guam→San Juan routes that happily
+// transited the isthmus despite avoidPanama=true. The wider polygon
+// ropes those bypass endpoints in. Legitimate coastal transit next
+// to Panama is acceptable collateral — if the operator ticked
+// "avoid Panama" they don't want ships hugging its coast either.
 const AVOID_BBOX_PANAMA: [number, number, number, number] = [
-  8.70, 9.50, -80.40, -79.20,
+  7.20, 10.00, -82.50, -77.50,
 ];
 
 /**
