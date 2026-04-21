@@ -54,23 +54,15 @@ from upload_blob import upload_file
 
 logger = logging.getLogger(__name__)
 
-# Forecast steps to publish — matches NOAA GFS native output cadence so
-# the slider never shows "synthetic" frames that don't correspond to a
-# real model step:
+# Forecast steps to publish. Matches NOAA GFS native output cadence.
 #
-#   0 – 120 h  every  1 h  (121 frames) — the actionable operations window
-#   120 – 240 h every  3 h  (40 frames)  — planning window
-#   240 – 384 h every 12 h  (12 frames)  — strategic / 16-day horizon
-#
-# Total: 173 frames per weather type, ~150 MB encoded PNGs per run.
-# This matches what Windy, VentuSky and every other forecast viewer
-# use — there is no higher-resolution forecast-time-axis available
-# from GFS; denser interpolation would be invented, not forecast.
-FORECAST_STEPS: tuple[int, ...] = (
-    tuple(range(0, 121))            # 0, 1, 2, ..., 120
-    + tuple(range(123, 241, 3))     # 123, 126, ..., 240
-    + tuple(range(252, 385, 12))    # 252, 264, ..., 384
-)
+# Trimmed from the full 173-frame 16-day horizon (which takes ~60-90 min
+# per cycle and timed out the cron) to 41 frames × 3 layers. That's
+# every 3 hours for 5 days — the actionable operations window — and
+# completes in ~12-15 min per cron run with comfortable timeout margin.
+# The 120-240 h planning window and 240-384 h strategic horizon can be
+# re-added once upload parallelism is introduced in the pipeline.
+FORECAST_STEPS: tuple[int, ...] = tuple(range(0, 121, 3))  # 0, 3, 6, ..., 120
 
 # Keep the last N runs in the manifest so the slider has context when
 # the newest run is just published (smooth transition).
