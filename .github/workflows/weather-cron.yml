@@ -38,7 +38,12 @@ concurrency:
 jobs:
   fetch-encode-upload:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # First cold run fetches ~3 products × ~85 forecast steps from NOAA and
+    # uploads each as a PNG to Blob. That's consistently ~40-50 min end-to-
+    # end at NOAA's current throughput. Subsequent runs are faster once
+    # containers and caches are warm, but headroom matters when NOAA is
+    # slow — keep 60 min.
+    timeout-minutes: 60
 
     steps:
       - name: Checkout
