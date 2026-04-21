@@ -3,9 +3,9 @@ import { withAuth } from "@/lib/middleware/with-auth";
 import { getDb } from "@/lib/db";
 import * as schema from "@/lib/db/schema";
 import { and, eq } from "drizzle-orm";
-import { readFile } from "fs/promises";
 import path from "path";
 import { extractQ88Text, parseQ88 } from "@/lib/ai/parse-q88";
+import { hasReadableFile, readDocument } from "@/lib/storage/documents";
 
 // POST /api/linkages/[id]/documents/[docId]/parse-q88
 // Reads the uploaded Q88 from disk, extracts text, and sends it to the AI
@@ -35,18 +35,16 @@ export const POST = withAuth(
     if (doc.fileType !== "q88") {
       return NextResponse.json({ error: "Document is not a Q88" }, { status: 400 });
     }
-    if (!doc.storagePath || !doc.storagePath.startsWith("/uploads/")) {
-      return NextResponse.json({ error: "Document has no local file" }, { status: 400 });
+    if (!hasReadableFile(doc.storagePath)) {
+      return NextResponse.json({ error: "Document has no readable file" }, { status: 400 });
     }
 
-    // Resolve absolute path + load bytes
-    const absolutePath = path.join(process.cwd(), "public", doc.storagePath);
     let buffer: Buffer;
     try {
-      buffer = await readFile(absolutePath);
+      buffer = await readDocument(doc.storagePath!);
     } catch (err) {
-      console.error("[parse-q88] readFile failed:", err);
-      return NextResponse.json({ error: "File not found on disk" }, { status: 404 });
+      console.error("[parse-q88] readDocument failed:", err);
+      return NextResponse.json({ error: "File not found" }, { status: 404 });
     }
 
     const extension = path.extname(doc.filename).toLowerCase();

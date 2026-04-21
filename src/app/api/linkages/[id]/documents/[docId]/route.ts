@@ -3,8 +3,7 @@ import { withAuth } from "@/lib/middleware/with-auth";
 import { getDb } from "@/lib/db";
 import * as schema from "@/lib/db/schema";
 import { and, eq } from "drizzle-orm";
-import { unlink } from "fs/promises";
-import path from "path";
+import { deleteDocument } from "@/lib/storage/documents";
 
 // DELETE /api/linkages/[id]/documents/[docId]
 // Removes the document row and attempts to unlink the file from disk.
@@ -36,15 +35,11 @@ export const DELETE = withAuth(
 
     await db.delete(schema.documents).where(eq(schema.documents.id, docId));
 
-    // Best-effort file cleanup. storagePath is a relative URL like
-    // /uploads/linkages/<id>/<file>. Only unlink if it lives under public/uploads.
-    if (doc.storagePath && doc.storagePath.startsWith("/uploads/")) {
-      const absolutePath = path.join(process.cwd(), "public", doc.storagePath);
+    if (doc.storagePath) {
       try {
-        await unlink(absolutePath);
+        await deleteDocument(doc.storagePath);
       } catch (err) {
-        // File might already be gone (dev restart, manual cleanup). Not fatal.
-        console.warn("[documents DELETE] unlink failed:", err);
+        console.warn("[documents DELETE] deleteDocument failed:", err);
       }
     }
 

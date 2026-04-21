@@ -3,8 +3,8 @@ import { withAuth } from "@/lib/middleware/with-auth";
 import { getDb } from "@/lib/db";
 import * as schema from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
-import { mkdir, writeFile } from "fs/promises";
 import path from "path";
+import { uploadDocument } from "@/lib/storage/documents";
 
 // ---------------------------------------------------------------------------
 // Accepted Q88 / CP Recap formats. Real Q88s arrive as PDF or Word.
@@ -111,26 +111,18 @@ export const POST = withAuth(
       }
 
       const safeName = sanitiseFilename(fileField.name);
-      const storedName = `${Date.now()}-${safeName}`;
-      const linkageDir = path.join(process.cwd(), "public", "uploads", "linkages", id);
-      const absolutePath = path.join(linkageDir, storedName);
-      const relativeUrl = `/uploads/linkages/${id}/${storedName}`;
-
-      // Write bytes to disk. This is the local-dev storage — for prod
-      // deployments this will be swapped for Vercel Blob / S3 via an
-      // IStorageProvider interface.
-      await mkdir(linkageDir, { recursive: true });
+      const key = `linkages/${id}/${safeName}`;
       const buf = Buffer.from(await fileField.arrayBuffer());
-      await writeFile(absolutePath, buf);
+      const storagePath = await uploadDocument(key, buf, fileField.type || undefined);
 
       const [doc] = await db
         .insert(schema.documents)
         .values({
           tenantId,
           linkageId: id,
-          filename: fileField.name, // keep the operator-visible original name
+          filename: fileField.name,
           fileType: fileTypeField as "q88" | "cp_recap" | "bl" | "coa" | "other",
-          storagePath: relativeUrl,
+          storagePath,
           uploadedBy: session.user.id,
         })
         .returning();
