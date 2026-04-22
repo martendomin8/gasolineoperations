@@ -137,7 +137,7 @@ export function PortCostsButton({ portName }: Props) {
         title={`Port costs for ${portName.split(",")[0]}`}
       >
         <DollarSign className="h-3 w-3" />
-        Add port costs
+        Add/view port costs
       </button>
 
       {open && (
