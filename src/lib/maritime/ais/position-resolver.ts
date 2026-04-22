@@ -310,9 +310,10 @@ export const _test = {
   pickBearing,
 };
 
-/** Helper for UI code: a user-friendly "3h 12m ago" string. */
-export function formatAisAge(ageMs: number): string {
-  if (!Number.isFinite(ageMs)) return "never";
+/** Helper for UI code: a user-friendly "3h 12m ago" string. Accepts
+ *  null so call sites don't have to juggle nullish coalesce. */
+export function formatAisAge(ageMs: number | null): string {
+  if (ageMs === null || !Number.isFinite(ageMs)) return "never";
   const s = Math.floor(ageMs / 1000);
   if (s < 60) return `${s}s ago`;
   const m = Math.floor(s / 60);

@@ -98,6 +98,12 @@ export interface FleetVessel {
   /** Milliseconds since last AIS fix. Used in the marker's hover tip
    *  when aisMode is set. */
   aisAgeMs?: number | null;
+  /** AIS-broadcast destination string (e.g. "IT GOA"). Crew-entered,
+   *  often abbreviated port+country codes. Display verbatim. */
+  aisDestination?: string | null;
+  /** AIS-broadcast ETA. Inferred year (AIS protocol gives only
+   *  month/day/hour/minute); see parseAisEta in the ingest worker. */
+  aisEta?: Date | null;
 }
 
 export interface PortMarker {

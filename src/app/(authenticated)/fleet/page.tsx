@@ -39,6 +39,7 @@ import { shipPositionAtTime } from "@/lib/maritime/weather/hooks/use-ship-at-tim
 import type { WeatherType } from "@/lib/maritime/weather/types";
 import { useAisSnapshots } from "@/lib/maritime/ais/hooks/use-ais-snapshots";
 import { AisControls } from "@/lib/maritime/ais/components/ais-controls";
+import { formatAisAge } from "@/lib/maritime/ais/position-resolver";
 
 // Dev-tools gate: enabled only when this env flag is set AND the
 // app is actually using our in-house ocean_routing provider. If a
@@ -142,6 +143,21 @@ function distanceNM(lat1: number, lng1: number, lat2: number, lng2: number): num
 const TANKER_SPEED_KN = 13; // typical MR tanker cruising speed
 
 // ── Helpers ──────────────────────────────────────────────────
+
+/**
+ * Format a Date as a compact "DD Mon HH:MM" for the AIS ETA display in
+ * the planner blue box. UTC-based because AIS ETA is a UTC timestamp
+ * and the rest of the Fleet maritime UI labels timestamps in UTC
+ * (prevents "vessel arrives 23:00 GMT but your slider says 20:00 local"
+ * confusion).
+ */
+function formatEtaShort(d: Date): string {
+  const day = d.getUTCDate().toString().padStart(2, "0");
+  const month = d.toLocaleString("en-US", { month: "short", timeZone: "UTC" });
+  const hh = d.getUTCHours().toString().padStart(2, "0");
+  const mm = d.getUTCMinutes().toString().padStart(2, "0");
+  return `${day} ${month} ${hh}:${mm}`;
+}
 
 function daysUntil(dateStr: string): number {
   const now = new Date();
@@ -686,6 +702,8 @@ export default function FleetPage() {
         heading: ais.position.bearingDeg ?? v.heading,
         aisMode: ais.position.mode,
         aisAgeMs: ais.position.ageMs,
+        aisDestination: ais.vessel.destination ?? null,
+        aisEta: ais.vessel.eta ? new Date(ais.vessel.eta) : null,
       };
     });
   }
@@ -1490,6 +1508,42 @@ export default function FleetPage() {
                         })}
                       </div>
                     )}
+
+                    {/* Live AIS section — only renders when a vessel is
+                        selected AND it has a live snapshot. Emerald
+                        divider + small broadcast icon sets it visually
+                        apart from the planner's own numbers (which are
+                        calm-weather estimates, not vessel-reported). */}
+                    {selectedVessel?.aisMode &&
+                      (selectedVessel.aisDestination || selectedVessel.aisEta) && (
+                        <div className="mt-3 pt-3 border-t border-emerald-500/30 space-y-1.5">
+                          <div className="flex items-center gap-1.5 text-[0.6rem] font-semibold uppercase tracking-wider text-emerald-400">
+                            <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse-amber" />
+                            Live AIS
+                            <span className="ml-auto font-mono text-[var(--color-text-tertiary)] normal-case">
+                              {formatAisAge(selectedVessel.aisAgeMs ?? null)}
+                            </span>
+                          </div>
+                          {selectedVessel.aisDestination && (
+                            <div className="flex items-center gap-1.5 text-[0.7rem]">
+                              <span className="text-emerald-500/60">&rarr;</span>
+                              <span className="text-[var(--color-text-tertiary)]">Destination</span>
+                              <span className="ml-auto font-mono font-semibold text-[var(--color-text-primary)]">
+                                {selectedVessel.aisDestination}
+                              </span>
+                            </div>
+                          )}
+                          {selectedVessel.aisEta && (
+                            <div className="flex items-center gap-1.5 text-[0.7rem]">
+                              <span className="text-emerald-500/60">⏱</span>
+                              <span className="text-[var(--color-text-tertiary)]">ETA (AIS)</span>
+                              <span className="ml-auto font-mono font-semibold text-[var(--color-text-primary)]">
+                                {formatEtaShort(selectedVessel.aisEta)}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      )}
                   </div>
                 </div>
               )}
