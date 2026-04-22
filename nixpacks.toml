@@ -5,9 +5,20 @@
 # `npx tsx scripts/ais-ingest/worker.ts` — no build step compiles to
 # JS. This lets plain `npm ci` install everything the worker needs,
 # which is what Nixpacks runs by default under NODE_ENV=production.
+#
+# Explicitly override the build phase to a no-op — by default Nixpacks
+# detects the `build` script in package.json and runs `npm run build`,
+# which triggers `next build`. That's the Next.js app's build step, not
+# relevant to the worker, and it fails at build time because server
+# env vars (NEXTAUTH_URL, DATABASE_URL, etc.) aren't present during
+# Nixpacks' build phase. Skipping it entirely is correct for this
+# service — the worker runs from source.
 
 [phases.setup]
 nixPkgs = ["nodejs_22"]
+
+[phases.build]
+cmds = ["echo \"Skipping Next.js build — this is the AIS worker service.\""]
 
 [start]
 cmd = "npm run ais:worker"
