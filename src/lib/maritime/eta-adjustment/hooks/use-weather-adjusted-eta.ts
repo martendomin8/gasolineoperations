@@ -19,7 +19,7 @@
  * no frame downloads are required.
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { integrateVoyage } from "../voyage-integrator";
 import { createForecastSampler } from "../forecast-sampler";
 import type { WeatherProvider } from "@/lib/maritime/weather/provider";
@@ -81,26 +81,92 @@ export function useWeatherAdjustedEta({
   // older result when the newer one lands.
   const runIdRef = useRef(0);
 
-  useEffect(() => {
+  // Stable dependency signature. The caller's `route`, `startTime`, and
+  // `ship` are almost always FRESH REFERENCES on every render — the
+  // Fleet page derives `selectedVessel` via `vessels.find(...)` on a
+  // freshly-built `vessels` array, so `useMemo`s downstream of it are
+  // not stable either. Referencing those objects directly in the effect
+  // deps would loop: setState(loading=true) → re-render → new refs →
+  // effect fires → setState again. Collapsing them into a primitive
+  // key means the effect only re-runs when the underlying VALUES
+  // actually change.
+  //
+  // We hash route endpoints + length (not every waypoint — the planner
+  // route is deterministic for given ports, so endpoint drift implies
+  // a genuine route change).
+  const depsKey = useMemo(() => {
     if (
       !enabled ||
       route === null ||
       route.length < 2 ||
       commandedSpeedKn <= 0
     ) {
+      return "disabled";
+    }
+    const first = route[0];
+    const last = route[route.length - 1];
+    const s = ship ?? DEFAULT_SHIP;
+    return [
+      "active",
+      first[0].toFixed(4),
+      first[1].toFixed(4),
+      last[0].toFixed(4),
+      last[1].toFixed(4),
+      route.length,
+      startTime.getTime(),
+      s.type,
+      s.dwt,
+      s.loa,
+      s.beam ?? "",
+      s.loadingState,
+      s.serviceSpeedKn,
+      commandedSpeedKn,
+    ].join("|");
+  }, [enabled, route, startTime, ship, commandedSpeedKn]);
+
+  // Hold the latest props in a ref so the effect body can read them
+  // without adding them to the dep array (they're already factored
+  // into `depsKey`).
+  const latestArgsRef = useRef({
+    route,
+    startTime,
+    ship,
+    commandedSpeedKn,
+    weatherProvider,
+  });
+  latestArgsRef.current = {
+    route,
+    startTime,
+    ship,
+    commandedSpeedKn,
+    weatherProvider,
+  };
+
+  useEffect(() => {
+    if (depsKey === "disabled") {
       setState({ data: null, delayH: null, loading: false, error: null });
       return;
     }
 
+    const {
+      route: curRoute,
+      startTime: curStart,
+      ship: curShip,
+      commandedSpeedKn: curSpeed,
+      weatherProvider: curProvider,
+    } = latestArgsRef.current;
+    // Should be impossible given depsKey != "disabled", but narrow for TS.
+    if (curRoute === null || curRoute.length < 2) return;
+
     const myRunId = ++runIdRef.current;
     setState((prev) => ({ ...prev, loading: true, error: null }));
 
-    const sampler = createForecastSampler(weatherProvider);
+    const sampler = createForecastSampler(curProvider);
     integrateVoyage({
-      route,
-      startTime,
-      ship: ship ?? DEFAULT_SHIP,
-      commandedSpeedKn,
+      route: curRoute,
+      startTime: curStart,
+      ship: curShip ?? DEFAULT_SHIP,
+      commandedSpeedKn: curSpeed,
       weather: sampler,
     })
       .then((data) => {
@@ -122,7 +188,7 @@ export function useWeatherAdjustedEta({
           error: err instanceof Error ? err.message : String(err),
         });
       });
-  }, [enabled, route, startTime, ship, commandedSpeedKn, weatherProvider]);
+  }, [depsKey]);
 
   return state;
 }
