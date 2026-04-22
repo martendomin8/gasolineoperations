@@ -8,6 +8,10 @@ import type { VesselParticulars, VesselTank, VesselLoadline } from "@/lib/db/sch
 export interface ParsedQ88Result {
   vesselName: string | null;
   vesselImo: string | null;
+  /** 9-digit MMSI — broadcast in every AIS message. Used as the join key
+   *  for live vessel tracking. Distinct from IMO because MMSI changes
+   *  when a vessel is re-flagged; IMO is lifetime-fixed. */
+  vesselMmsi: string | null;
   particulars: VesselParticulars;
   confidenceScores: Record<string, number>;
   rawResponse: string;
@@ -60,6 +64,7 @@ Q88 forms describe the vessel's technical specifications: dimensions, deadweight
 Guidance:
 - Vessel name: usually at the top of the form, possibly with the "MT" / "M/V" prefix — strip the prefix and return only the name (e.g. "MT NORDIC BREEZE" → "NORDIC BREEZE").
 - IMO: always exactly 7 digits, often shown as "IMO No. 9123456" or on the same line as the vessel name. Return only the 7 digits.
+- MMSI: always exactly 9 digits, usually labelled "MMSI" or "MMSI No." in the vessel identification section near the top of the Q88. Do NOT confuse with the call sign or IMO. Return only the 9 digits. If absent, return null — not every Q88 includes it.
 - DWT: summer deadweight in metric tonnes. If multiple deadweights are given (summer / winter / tropical), prefer the summer value.
 - LOA, beam, draft: in metres. Convert if the form uses feet (1 ft = 0.3048 m).
 - Flag: country of registration (e.g. "Marshall Islands", "Liberia", "Malta").
@@ -95,6 +100,7 @@ const EXTRACTION_TOOL: Anthropic.Tool = {
     properties: {
       vessel_name: { type: "string", description: "Vessel name without 'MT' / 'M/V' prefix" },
       vessel_imo: { type: "string", description: "7-digit IMO number" },
+      vessel_mmsi: { type: "string", description: "9-digit MMSI — the vessel's AIS identifier" },
       dwt: { type: "number", description: "Summer deadweight in metric tonnes" },
       loa: { type: "number", description: "Length overall in metres" },
       beam: { type: "number", description: "Breadth/beam in metres" },
@@ -241,6 +247,7 @@ export async function parseQ88(text: string): Promise<ParsedQ88Result> {
   return {
     vesselName: strOrNull(raw.vessel_name),
     vesselImo: strOrNull(raw.vessel_imo),
+    vesselMmsi: strOrNull(raw.vessel_mmsi),
     particulars,
     confidenceScores: confidence,
     rawResponse: JSON.stringify(raw),

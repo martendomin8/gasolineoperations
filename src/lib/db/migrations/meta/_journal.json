@@ -15,6 +15,20 @@
       "when": 1776550094528,
       "tag": "0001_stiff_krista_starr",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1776804212126,
+      "tag": "0002_breezy_saracen",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1776806134688,
+      "tag": "0003_fuzzy_the_phantom",
+      "breakpoints": true
     }
   ]
 }

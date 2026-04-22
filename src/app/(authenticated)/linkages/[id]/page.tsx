@@ -93,6 +93,7 @@ interface LinkageData {
   status: string;
   vesselName: string | null;
   vesselImo: string | null;
+  vesselMmsi: string | null;
   vesselParticulars: VesselParticulars | null;
   assignedOperatorId: string | null;
   secondaryOperatorId: string | null;
@@ -491,6 +492,7 @@ function VoyageBar({ linkage, operators, canEdit, onUpdated }: {
   const [editingVessel, setEditingVessel] = useState(false);
   const [vesselDraft, setVesselDraft] = useState(linkage.vesselName ?? "");
   const [imoDraft, setImoDraft] = useState(linkage.vesselImo ?? "");
+  const [mmsiDraft, setMmsiDraft] = useState(linkage.vesselMmsi ?? "");
   const [savingVessel, setSavingVessel] = useState(false);
 
   // Operator editor
@@ -512,10 +514,22 @@ function VoyageBar({ linkage, operators, canEdit, onUpdated }: {
   };
 
   const saveVessel = async () => {
+    // Belt-and-braces MMSI check — worker already filters invalid MMSIs
+    // at runtime, but rejecting here too gives instant feedback instead
+    // of a silent drop later.
+    const mmsiTrimmed = mmsiDraft.trim();
+    if (mmsiTrimmed.length > 0 && !/^\d{9}$/.test(mmsiTrimmed)) {
+      toast.error("MMSI must be exactly 9 digits (or leave blank)");
+      return;
+    }
     setSavingVessel(true);
     const res = await fetch(`/api/linkages/${linkage.id}`, {
       method: "PUT", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ vesselName: vesselDraft.trim() || null, vesselImo: imoDraft.trim() || null }),
+      body: JSON.stringify({
+        vesselName: vesselDraft.trim() || null,
+        vesselImo: imoDraft.trim() || null,
+        vesselMmsi: mmsiTrimmed || null,
+      }),
     });
     setSavingVessel(false);
     if (res.ok) { toast.success("Vessel updated"); setEditingVessel(false); onUpdated(); }
@@ -581,6 +595,11 @@ function VoyageBar({ linkage, operators, canEdit, onUpdated }: {
               onChange={(e) => setImoDraft(e.target.value.replace(/\D/g, "").slice(0, 7))}
               inputMode="numeric" pattern="[0-9]*" maxLength={7} disabled={savingVessel}
               className="w-24 rounded-[var(--radius-sm)] border border-[var(--color-border-default)] bg-[var(--color-surface-1)] px-2 py-1 text-xs font-mono text-[var(--color-text-primary)]" />
+            <input placeholder="MMSI" value={mmsiDraft}
+              onChange={(e) => setMmsiDraft(e.target.value.replace(/\D/g, "").slice(0, 9))}
+              inputMode="numeric" pattern="[0-9]*" maxLength={9} disabled={savingVessel}
+              title="9-digit AIS identifier — enables live position tracking"
+              className="w-28 rounded-[var(--radius-sm)] border border-[var(--color-border-default)] bg-[var(--color-surface-1)] px-2 py-1 text-xs font-mono text-[var(--color-text-primary)]" />
             <button onClick={saveVessel} disabled={savingVessel} className="p-1 text-[var(--color-success)] hover:bg-[var(--color-surface-3)] rounded cursor-pointer disabled:opacity-50">
               {savingVessel ? <div className="h-3.5 w-3.5 rounded-full border-2 border-current border-t-transparent animate-spin" /> : <Save className="h-3.5 w-3.5" />}
             </button>
@@ -589,12 +608,13 @@ function VoyageBar({ linkage, operators, canEdit, onUpdated }: {
             </button>
           </div>
         ) : (
-          <button onClick={canEdit ? () => { setVesselDraft(linkage.vesselName ?? ""); setImoDraft(linkage.vesselImo ?? ""); setEditingVessel(true); } : undefined} disabled={!canEdit}
+          <button onClick={canEdit ? () => { setVesselDraft(linkage.vesselName ?? ""); setImoDraft(linkage.vesselImo ?? ""); setMmsiDraft(linkage.vesselMmsi ?? ""); setEditingVessel(true); } : undefined} disabled={!canEdit}
             className={`flex items-center gap-2 ${canEdit ? "cursor-pointer hover:bg-[var(--color-surface-3)] rounded-[var(--radius-sm)] px-2 py-1 -mx-2 -my-1 transition-colors" : "cursor-default"}`}
             title={canEdit ? "Click to edit vessel" : undefined}>
             <Ship className="h-3.5 w-3.5 text-[var(--color-text-tertiary)]" />
             <span className="text-sm font-medium text-[var(--color-text-primary)]">{linkage.vesselName || "TBN"}</span>
             {linkage.vesselImo && <span className="text-xs font-mono text-[var(--color-text-tertiary)] ml-1">IMO {linkage.vesselImo}</span>}
+            {linkage.vesselMmsi && <span className="text-xs font-mono text-sky-400 ml-1">MMSI {linkage.vesselMmsi}</span>}
             {canEdit && <Pencil className="h-3 w-3 text-[var(--color-text-tertiary)] opacity-60" />}
           </button>
         )}
@@ -812,6 +832,7 @@ function VesselSection({ linkage, steps, docs, canEdit, onUpdated }: {
     docId: string;
     vesselName: string | null;
     vesselImo: string | null;
+    vesselMmsi: string | null;
     particulars: VesselParticulars;
     confidenceScores: Record<string, number>;
   }>(null);
@@ -890,6 +911,7 @@ function VesselSection({ linkage, steps, docs, canEdit, onUpdated }: {
         docId,
         vesselName: data.vesselName ?? null,
         vesselImo: data.vesselImo ?? null,
+        vesselMmsi: data.vesselMmsi ?? null,
         particulars: data.particulars ?? {},
         confidenceScores: data.confidenceScores ?? {},
       });
@@ -904,12 +926,14 @@ function VesselSection({ linkage, steps, docs, canEdit, onUpdated }: {
   const applyParseResult = async (accept: {
     vesselName: boolean;
     vesselImo: boolean;
+    vesselMmsi: boolean;
     particulars: boolean;
   }) => {
     if (!parseResult) return;
     const payload: Record<string, unknown> = {};
     if (accept.vesselName && parseResult.vesselName) payload.vesselName = parseResult.vesselName;
     if (accept.vesselImo && parseResult.vesselImo) payload.vesselImo = parseResult.vesselImo;
+    if (accept.vesselMmsi && parseResult.vesselMmsi) payload.vesselMmsi = parseResult.vesselMmsi;
     if (accept.particulars) payload.vesselParticulars = parseResult.particulars;
 
     if (Object.keys(payload).length === 0) {
@@ -1345,6 +1369,7 @@ function VesselSection({ linkage, steps, docs, canEdit, onUpdated }: {
           result={parseResult}
           currentVesselName={linkage.vesselName}
           currentVesselImo={linkage.vesselImo}
+          currentVesselMmsi={linkage.vesselMmsi}
           hasExistingParticulars={Boolean(linkage.vesselParticulars)}
           onApply={applyParseResult}
           onClose={() => setParseResult(null)}
@@ -1367,6 +1392,7 @@ function Q88ParseModal({
   result,
   currentVesselName,
   currentVesselImo,
+  currentVesselMmsi,
   hasExistingParticulars,
   onApply,
   onClose,
@@ -1374,17 +1400,20 @@ function Q88ParseModal({
   result: {
     vesselName: string | null;
     vesselImo: string | null;
+    vesselMmsi: string | null;
     particulars: VesselParticulars;
     confidenceScores: Record<string, number>;
   };
   currentVesselName: string | null;
   currentVesselImo: string | null;
+  currentVesselMmsi: string | null;
   hasExistingParticulars: boolean;
-  onApply: (accept: { vesselName: boolean; vesselImo: boolean; particulars: boolean }) => void;
+  onApply: (accept: { vesselName: boolean; vesselImo: boolean; vesselMmsi: boolean; particulars: boolean }) => void;
   onClose: () => void;
 }) {
   const [acceptName, setAcceptName] = useState(Boolean(result.vesselName));
   const [acceptImo, setAcceptImo] = useState(Boolean(result.vesselImo));
+  const [acceptMmsi, setAcceptMmsi] = useState(Boolean(result.vesselMmsi));
   const [acceptParticulars, setAcceptParticulars] = useState(true);
 
   const p = result.particulars;
@@ -1454,6 +1483,30 @@ function Q88ParseModal({
                 {currentVesselImo && currentVesselImo !== result.vesselImo && (
                   <span className="text-[0.65rem] text-amber-400 block">
                     replaces current: {currentVesselImo}
+                  </span>
+                )}
+              </span>
+            </label>
+            <label className="flex items-start gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={acceptMmsi}
+                onChange={(e) => setAcceptMmsi(e.target.checked)}
+                disabled={!result.vesselMmsi}
+                className="mt-0.5 accent-cyan-500"
+              />
+              <span className="flex-1">
+                <span className="text-[var(--color-text-tertiary)]">MMSI:</span>{" "}
+                <span className="font-medium text-[var(--color-text-primary)]">
+                  {result.vesselMmsi ?? "— not found —"}
+                </span>{" "}
+                {confidence("vessel_mmsi")}
+                <span className="block text-[0.6rem] text-[var(--color-text-tertiary)]">
+                  Enables live AIS tracking on the Fleet map.
+                </span>
+                {currentVesselMmsi && currentVesselMmsi !== result.vesselMmsi && (
+                  <span className="text-[0.65rem] text-amber-400 block">
+                    replaces current: {currentVesselMmsi}
                   </span>
                 )}
               </span>
@@ -1534,6 +1587,7 @@ function Q88ParseModal({
               onApply({
                 vesselName: acceptName,
                 vesselImo: acceptImo,
+                vesselMmsi: acceptMmsi,
                 particulars: acceptParticulars,
               })
             }

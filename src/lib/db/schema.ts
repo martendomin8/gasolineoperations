@@ -13,7 +13,7 @@ import {
   uniqueIndex,
   index,
 } from "drizzle-orm/pg-core";
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 
 // ============================================================
 // SHARED TYPES
@@ -200,6 +200,10 @@ export const linkages = pgTable(
     status: varchar("status", { length: 50 }).default("active").notNull(),
     vesselName: varchar("vessel_name", { length: 255 }),
     vesselImo: varchar("vessel_imo", { length: 20 }),
+    // MMSI — 9-digit AIS identifier. Populated by Q88 parse (same flow as IMO)
+    // and used as the join key for the AIS live-tracking subsystem. Distinct
+    // from IMO because MMSI can change (re-flagging) while IMO is lifetime-fixed.
+    vesselMmsi: varchar("vessel_mmsi", { length: 15 }),
     // Parsed Q88 particulars — populated when operator drops a Q88 PDF/DOCX on the
     // vessel section. Stowage planner reads tank data from this column. Pure JSONB
     // so the shape can evolve without schema migrations while Q88 parsing matures.
@@ -695,6 +699,133 @@ export const emailDraftsRelations = relations(emailDrafts, ({ one }) => ({
 }));
 
 // ============================================================
+// AIS LIVE TRACKING — vessel positions, static cache, prediction audit
+// ============================================================
+// Populated by the background ingest worker (`scripts/ais-ingest/worker.ts`)
+// which subscribes to AISStream.io over WebSocket. Read by the Fleet UI
+// through `/api/maritime/ais/snapshot` and the `AisProvider` abstraction.
+// See `docs/AIS-LIVE-TRACKING-SPEC.md` for the full design.
+
+// --- Vessels (AIS static-data cache, keyed by MMSI) ---
+// One row per MMSI we've ever received a ShipStaticData message for.
+// Cross-tenant: a vessel is a vessel — but only tenants whose linkages
+// reference this MMSI ever query it via the snapshot API, so there's no
+// leakage concern. Enables MMSI → IMO lookup without hitting the AIS feed.
+export const vessels = pgTable(
+  "vessels",
+  {
+    mmsi: varchar("mmsi", { length: 15 }).primaryKey(),
+    imo: varchar("imo", { length: 20 }),
+    name: varchar("name", { length: 120 }),
+    callSign: varchar("call_sign", { length: 20 }),
+    shipType: integer("ship_type"),       // AIS type code; 80-89 = tankers
+    lengthM: integer("length_m"),         // dim.A + dim.B
+    beamM: integer("beam_m"),             // dim.C + dim.D
+    draughtM: decimal("draught_m", { precision: 4, scale: 1 }),
+    destination: varchar("destination", { length: 120 }),
+    eta: timestamp("eta", { withTimezone: true }),
+    staticUpdatedAt: timestamp("static_updated_at", { withTimezone: true }).notNull(),
+    firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("vessels_imo_idx").on(table.imo),
+  ]
+);
+
+// --- Vessel positions (AIS live feed, hot time-series) ---
+// Trimmed to last 14 days by a daily cron. Every PositionReport /
+// StandardClassBPositionReport becomes one row. Index supports the
+// hot path — "latest N positions for MMSI X" — which is what the
+// snapshot API and the track-replay V2 feature both need.
+export const vesselPositions = pgTable(
+  "vessel_positions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    mmsi: varchar("mmsi", { length: 15 }).notNull(),
+    lat: decimal("lat", { precision: 10, scale: 7 }).notNull(),
+    lon: decimal("lon", { precision: 10, scale: 7 }).notNull(),
+    cog: decimal("cog", { precision: 5, scale: 2 }),      // course over ground, 0-360
+    sog: decimal("sog", { precision: 5, scale: 2 }),      // speed over ground, knots
+    heading: integer("heading"),                           // 0-359 or null if AIS 511
+    navStatus: integer("nav_status"),                      // AIS nav-status code
+    receivedAt: timestamp("received_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    index("vessel_positions_mmsi_received_idx").on(table.mmsi, table.receivedAt),
+    index("vessel_positions_received_idx").on(table.receivedAt),
+  ]
+);
+
+// --- AIS validation flags (Layer 6 of the data-quality stack) ---
+// Every validation decision made by L1-L5 lands here so an operator can
+// see WHY a position was rejected or flagged, and optionally override.
+// Severity determines UI treatment: 'reject' = dropped, never stored as
+// a real position; 'warn' = stored but flagged in UI; 'info' = shown as
+// intelligence signal (e.g. "AIS-off near Primorsk"). Acknowledgement
+// columns let an operator dismiss a flag (and we record who + why, for audit).
+export const aisValidationFlags = pgTable(
+  "ais_validation_flags",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    mmsi: varchar("mmsi", { length: 15 }).notNull(),
+    /** Which validation layer raised the flag — 'sanity'|'temporal'|
+     *  'identity'|'anomaly'|'business'. Kept as varchar (not enum) so
+     *  we can add layers without schema migrations. */
+    layer: varchar("layer", { length: 20 }).notNull(),
+    /** Fine-grained flag identifier — 'null_island', 'teleport',
+     *  'name_mismatch', 'ais_off_sanctioned_port', 'speed_below_cp', etc. */
+    flagType: varchar("flag_type", { length: 50 }).notNull(),
+    /** 'reject' (message dropped), 'warn' (stored, UI flagged),
+     *  'info' (stored as intelligence signal, no warning). */
+    severity: varchar("severity", { length: 10 }).notNull(),
+    /** Structured context: old/new values, distances, deltas, whatever
+     *  the specific check needs to explain itself to the operator. */
+    details: jsonb("details").$type<Record<string, unknown>>(),
+    /** When the AIS message that triggered the flag was received. Separate
+     *  from `createdAt` (row insert time) so a retroactive validator
+     *  can populate this from historical data. */
+    messageReceivedAt: timestamp("message_received_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    acknowledgedAt: timestamp("acknowledged_at", { withTimezone: true }),
+    acknowledgedBy: uuid("acknowledged_by").references(() => users.id),
+    /** 'override' (operator says we're wrong to flag), 'confirmed' (they
+     *  agree it's suspicious), 'snoozed' (check back later). */
+    acknowledgedAction: varchar("acknowledged_action", { length: 30 }),
+  },
+  (table) => [
+    index("ais_flags_mmsi_created_idx").on(table.mmsi, table.createdAt),
+    // Partial index on unresolved flags — the hot path for the UI badge.
+    index("ais_flags_unresolved_idx").on(table.mmsi).where(sql`acknowledged_at IS NULL`),
+  ]
+);
+
+// --- AIS prediction corrections (audit log for our hybrid position logic) ---
+// When an AIS point arrives after a DEAD_RECK / PREDICTED gap, we log the
+// displacement between where we THOUGHT the vessel was and where it ACTUALLY
+// was. Feeds a future accuracy dashboard ("how good is our CP-speed-based
+// ETA model?") and surfaces laycan risk if we're consistently too optimistic.
+export const aisPredictionCorrections = pgTable(
+  "ais_prediction_corrections",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    mmsi: varchar("mmsi", { length: 15 }).notNull(),
+    predictedLat: decimal("predicted_lat", { precision: 10, scale: 7 }).notNull(),
+    predictedLon: decimal("predicted_lon", { precision: 10, scale: 7 }).notNull(),
+    actualLat: decimal("actual_lat", { precision: 10, scale: 7 }).notNull(),
+    actualLon: decimal("actual_lon", { precision: 10, scale: 7 }).notNull(),
+    deltaNm: decimal("delta_nm", { precision: 7, scale: 2 }).notNull(),
+    // Which resolver mode produced the wrong prediction — useful for
+    // splitting "dead-reckoning drift" from "route-based guess error".
+    mode: varchar("mode", { length: 20 }).notNull(),  // 'dead_reck' | 'predicted'
+    aisGapSeconds: integer("ais_gap_seconds").notNull(),
+    recordedAt: timestamp("recorded_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("ais_corrections_mmsi_idx").on(table.mmsi, table.recordedAt),
+  ]
+);
+
+// ============================================================
 // TYPE EXPORTS
 // ============================================================
 
@@ -731,6 +862,15 @@ export type NewLinkageStep = typeof linkageSteps.$inferInsert;
 
 export type WorkflowStepStatus = "pending" | "blocked" | "ready" | "draft_generated" | "sent" | "acknowledged" | "needs_update" | "received" | "done" | "na" | "cancelled";
 export type WorkflowStepType = "nomination" | "instruction" | "order" | "appointment";
+
+export type Vessel = typeof vessels.$inferSelect;
+export type NewVessel = typeof vessels.$inferInsert;
+export type VesselPositionRow = typeof vesselPositions.$inferSelect;
+export type NewVesselPositionRow = typeof vesselPositions.$inferInsert;
+export type AisPredictionCorrection = typeof aisPredictionCorrections.$inferSelect;
+export type NewAisPredictionCorrection = typeof aisPredictionCorrections.$inferInsert;
+export type AisValidationFlag = typeof aisValidationFlags.$inferSelect;
+export type NewAisValidationFlag = typeof aisValidationFlags.$inferInsert;
 
 // Workflow template step shape (JSONB)
 export interface WorkflowTemplateStep {

@@ -65,6 +65,7 @@ export const PUT = withAuth(
       if (updates.status !== undefined) updatePayload.status = updates.status;
       if (updates.vesselName !== undefined) updatePayload.vesselName = updates.vesselName;
       if (updates.vesselImo !== undefined) updatePayload.vesselImo = updates.vesselImo;
+      if (updates.vesselMmsi !== undefined) updatePayload.vesselMmsi = updates.vesselMmsi;
       if (updates.vesselParticulars !== undefined) updatePayload.vesselParticulars = updates.vesselParticulars;
       if (updates.assignedOperatorId !== undefined) updatePayload.assignedOperatorId = updates.assignedOperatorId;
       if (updates.secondaryOperatorId !== undefined) updatePayload.secondaryOperatorId = updates.secondaryOperatorId;
@@ -97,7 +98,9 @@ export const PUT = withAuth(
           );
       }
 
-      // Vessel changed → flag sent linkage steps as "needs_update"
+      // Vessel changed → flag sent linkage steps as "needs_update".
+      // MMSI changes do NOT trigger the re-notification cascade — MMSI
+      // is an AIS-tracking identifier only, no emails reference it.
       const vesselChanged =
         (updates.vesselName !== undefined && updates.vesselName !== current.vesselName) ||
         (updates.vesselImo !== undefined && updates.vesselImo !== current.vesselImo);

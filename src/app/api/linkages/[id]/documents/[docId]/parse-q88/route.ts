@@ -83,6 +83,7 @@ export const POST = withAuth(
       return NextResponse.json({
         vesselName: result.vesselName,
         vesselImo: result.vesselImo,
+        vesselMmsi: result.vesselMmsi,
         particulars,
         confidenceScores: result.confidenceScores,
       });

@@ -28,6 +28,12 @@ export const updateLinkageSchema = z.object({
   status: z.enum(["active", "loading", "sailing", "discharging", "completed"]).optional(),
   vesselName: z.string().max(255).nullable().optional(),
   vesselImo: z.string().max(20).nullable().optional(),
+  // MMSI — the 9-digit AIS identifier. Required for live tracking but
+  // still optional on the linkage (some vessels have only IMO in their
+  // Q88, or the operator is tracking a dry deal before the vessel is
+  // even named). The AIS ingest worker filters out malformed MMSIs at
+  // runtime, so even a bad operator entry can't corrupt the subscription.
+  vesselMmsi: z.string().max(15).nullable().optional(),
   vesselParticulars: vesselParticularsSchema,
   assignedOperatorId: optionalUuid,
   secondaryOperatorId: optionalUuid,
