@@ -107,6 +107,50 @@ def upload_file(
     return public_url
 
 
+def delete_files(
+    urls: list[str],
+    token: str | None = None,
+    timeout: float = 60.0,
+    batch_size: int = 250,
+) -> None:
+    """Delete one or more blobs from Vercel Blob.
+
+    Uses the batch delete endpoint the `@vercel/blob` SDK targets:
+
+        POST https://blob.vercel-storage.com/delete
+        { "urls": [...] }   # up to 250 per call
+
+    Silently no-ops on an empty list. Raises `requests.HTTPError` if the
+    API returns a non-2xx — callers can choose to treat that as fatal or
+    fall back to leaving orphans in the store.
+    """
+    if not urls:
+        return
+    if token is None:
+        token = os.environ.get("BLOB_READ_WRITE_TOKEN")
+    if not token:
+        raise RuntimeError(
+            "BLOB_READ_WRITE_TOKEN is not set. Required for blob deletion."
+        )
+
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+        "x-api-version": "7",
+    }
+    delete_url = f"{BLOB_API_BASE}/delete"
+    for start in range(0, len(urls), batch_size):
+        batch = urls[start : start + batch_size]
+        logger.info("Deleting %d blob(s)…", len(batch))
+        response = requests.post(
+            delete_url,
+            headers=headers,
+            json={"urls": batch},
+            timeout=timeout,
+        )
+        response.raise_for_status()
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Upload one file to Vercel Blob")
     parser.add_argument("local_path", type=Path, help="File to upload")

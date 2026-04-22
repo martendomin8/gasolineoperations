@@ -12,7 +12,7 @@ Pipeline per cycle:
          b. encode to RGBA PNG + JSON sidecar (encode_png)
          c. upload both to Vercel Blob (upload_blob) — optional
     3. Load the current manifest from the CDN (404 → empty)
-    4. Add the new run, prune to the last MAX_KEEP_RUNS
+    4. Add the new run, prune runs older than MAX_AGE_DAYS
     5. Save the manifest back to the CDN
 
 If a single forecast hour fails, the run continues and the other
@@ -43,6 +43,8 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+import requests
+
 import encode_png
 import encode_scalar
 import encode_waves
@@ -50,7 +52,7 @@ from fetch_gfs import _parse_cycle_arg, fetch_gfs, latest_cycle
 from fetch_gfs_temp import fetch_gfs_temp
 from fetch_gfs_wave import fetch_gfs_wave
 from update_manifest import Frame, Manifest, Run
-from upload_blob import upload_file
+from upload_blob import delete_files, upload_file
 
 logger = logging.getLogger(__name__)
 
@@ -64,9 +66,13 @@ logger = logging.getLogger(__name__)
 # re-added once upload parallelism is introduced in the pipeline.
 FORECAST_STEPS: tuple[int, ...] = tuple(range(0, 121, 3))  # 0, 3, 6, ..., 120
 
-# Keep the last N runs in the manifest so the slider has context when
-# the newest run is just published (smooth transition).
-MAX_KEEP_RUNS = 2
+# How many days of history the manifest (and Blob) retains. The AIS
+# replay UI walks vessel positions backwards in time and wants "what
+# weather was the ship in?" alongside — 14 days matches our AIS
+# retention window so past-mode has weather for every replayable
+# moment. 14 d × 4 cycles/day × 41 frames × 3 layers × ~500 KB ≈
+# ~3.4 GB — comfortably within the Vercel Blob Hobby 5 GB ceiling.
+MAX_AGE_DAYS = 14
 
 WEATHER_TYPE_WIND = "wind"
 WEATHER_TYPE_WAVES = "waves"
@@ -301,7 +307,7 @@ def run_pipeline(
     out_dir: Path = Path("out"),
     upload: bool = True,
     local_dir: Path | None = None,
-    keep_runs: int = MAX_KEEP_RUNS,
+    max_age_days: int = MAX_AGE_DAYS,
     base_url: str | None = None,
     token: str | None = None,
 ) -> Run:
@@ -409,13 +415,20 @@ def run_pipeline(
         # --local mode: merge with any existing manifest in the same
         # directory so repeated runs accumulate history, then write
         # back to disk. Next.js serves it as /weather/manifest.json.
+        # We don't touch Blob in local mode, so orphan local PNGs from
+        # pruned runs are left on disk — cheap to clean up manually.
         manifest_path = local_dir / "manifest.json"
         logger.info("Loading existing manifest from %s (if present)…", manifest_path)
         manifest = Manifest.load_from_file(manifest_path)
         manifest.add_run(run)
-        dropped = manifest.prune(keep=keep_runs)
+        dropped = manifest.prune_by_age(max_age_days=max_age_days)
         if dropped:
-            logger.info("Pruned runs from manifest: %s", [r.run_id for r in dropped])
+            logger.info(
+                "Pruned %d run(s) older than %dd from manifest: %s",
+                len(dropped),
+                max_age_days,
+                [r.run_id for r in dropped],
+            )
         manifest.save_to_file(manifest_path)
         logger.info("Manifest written: %s", manifest_path)
         logger.info("=== Cycle %s complete (local mode) ===", run_id)
@@ -436,9 +449,30 @@ def run_pipeline(
     logger.info("Loading existing manifest from %s ...", base_url)
     manifest = Manifest.load_from_blob(base_url)
     manifest.add_run(run)
-    dropped = manifest.prune(keep=keep_runs)
+    dropped = manifest.prune_by_age(max_age_days=max_age_days)
     if dropped:
-        logger.info("Pruned runs from manifest: %s", [r.run_id for r in dropped])
+        logger.info(
+            "Pruned %d run(s) older than %dd from manifest: %s",
+            len(dropped),
+            max_age_days,
+            [r.run_id for r in dropped],
+        )
+        # Delete the corresponding blob files so the store doesn't grow
+        # unboundedly. Treat a delete failure as non-fatal: the manifest
+        # is the source of truth for what the frontend sees, and any
+        # stranded blobs can be reconciled later via a list + delete
+        # sweep. The new manifest is already safe to publish.
+        dropped_urls = [u for r in dropped for u in r.all_file_urls()]
+        if dropped_urls:
+            try:
+                delete_files(dropped_urls, token=token)
+                logger.info("Deleted %d orphan blob(s).", len(dropped_urls))
+            except requests.HTTPError as exc:
+                logger.warning(
+                    "Blob delete returned %s — leaving %d orphan(s) for next run.",
+                    exc.response.status_code if exc.response is not None else "?",
+                    len(dropped_urls),
+                )
 
     manifest_url = manifest.save_to_blob(token=token, scratch_dir=out_dir)
     logger.info("Manifest updated: %s", manifest_url)
@@ -483,7 +517,15 @@ def main(argv: list[str] | None = None) -> int:
             "path entirely — no BLOB_READ_WRITE_TOKEN required."
         ),
     )
-    parser.add_argument("--keep-runs", type=int, default=MAX_KEEP_RUNS)
+    parser.add_argument(
+        "--max-age-days",
+        type=int,
+        default=MAX_AGE_DAYS,
+        help=(
+            f"Drop manifest runs (and their blob files) whose cycle_time is "
+            f"older than this many days. Default: {MAX_AGE_DAYS}."
+        ),
+    )
     parser.add_argument("--base-url", type=str, default=None)
     parser.add_argument("--token", type=str, default=None)
     parser.add_argument("--verbose", "-v", action="store_true")
@@ -520,7 +562,7 @@ def main(argv: list[str] | None = None) -> int:
             out_dir=args.out_dir,
             upload=not args.dry_run,
             local_dir=args.local,
-            keep_runs=args.keep_runs,
+            max_age_days=args.max_age_days,
             base_url=args.base_url,
             token=args.token,
         )

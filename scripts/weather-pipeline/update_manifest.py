@@ -55,7 +55,7 @@ import logging
 import os
 import sys
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -125,6 +125,17 @@ class Run:
                 for k, v in (d.get("frames") or {}).items()
             },
         )
+
+    def all_file_urls(self) -> list[str]:
+        """Every PNG + JSON URL this run published. Used when pruning a
+        run from the manifest so we can delete the corresponding blobs
+        and not let orphans accumulate in the store."""
+        urls: list[str] = []
+        for frames in self.frames.values():
+            for f in frames:
+                urls.append(f.png_url)
+                urls.append(f.json_url)
+        return urls
 
 
 @dataclass
@@ -211,6 +222,45 @@ class Manifest:
             return []
         dropped = self.runs[:-keep]
         self.runs = self.runs[-keep:]
+        return dropped
+
+    def prune_by_age(
+        self,
+        max_age_days: int,
+        now: datetime | None = None,
+    ) -> list[Run]:
+        """Keep runs whose cycle_time is within `max_age_days` of `now`.
+
+        Returns the dropped ones so the caller can delete the
+        corresponding blob files. If `now` is None, uses the current UTC
+        time — parameterised for tests.
+        """
+        if max_age_days < 1:
+            raise ValueError("max_age_days must be >= 1")
+        if now is None:
+            now = datetime.now(timezone.utc)
+        cutoff = now - timedelta(days=max_age_days)
+        kept: list[Run] = []
+        dropped: list[Run] = []
+        for run in self.runs:
+            try:
+                cycle_dt = datetime.fromisoformat(run.cycle_time)
+            except ValueError:
+                # Malformed cycle_time — keep the run rather than silently
+                # dropping it. A surprising stale entry is easier to debug
+                # than a surprising missing one.
+                logger.warning(
+                    "Could not parse cycle_time %r for run %s; keeping.",
+                    run.cycle_time,
+                    run.run_id,
+                )
+                kept.append(run)
+                continue
+            if cycle_dt >= cutoff:
+                kept.append(run)
+            else:
+                dropped.append(run)
+        self.runs = kept
         return dropped
 
     # -- serialisation -----------------------------------------------------
