@@ -34,6 +34,11 @@ export const GET = withAuth(async (req, _ctx, session) => {
         status: linkages.status,
         vesselName: linkages.vesselName,
         vesselImo: linkages.vesselImo,
+        // Q88-parsed particulars (DWT, LOA, beam, vesselType, etc.) —
+        // consumed by the Fleet planner's Kwon weather-adjusted ETA.
+        // Null when no Q88 has been uploaded yet; Kwon falls back to a
+        // generic tanker profile in that case.
+        vesselParticulars: linkages.vesselParticulars,
         assignedOperatorId: linkages.assignedOperatorId,
         secondaryOperatorId: linkages.secondaryOperatorId,
         assignedOperatorName: primaryOp.name,

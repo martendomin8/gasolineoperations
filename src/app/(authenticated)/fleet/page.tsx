@@ -37,6 +37,7 @@ import {
 import { WeatherPointPopup } from "@/lib/maritime/weather/components/weather-point-popup";
 import { shipPositionAtTime } from "@/lib/maritime/weather/hooks/use-ship-at-time";
 import type { WeatherType } from "@/lib/maritime/weather/types";
+import { cn } from "@/lib/utils/cn";
 import { useAisSnapshots } from "@/lib/maritime/ais/hooks/use-ais-snapshots";
 import { AisControls } from "@/lib/maritime/ais/components/ais-controls";
 import { formatAisAge } from "@/lib/maritime/ais/position-resolver";
@@ -128,6 +129,10 @@ interface LinkageRow {
   secondaryOperatorName: string | null;
   vesselName?: string | null;
   vesselImo?: string | null;
+  /** Q88-parsed particulars. Null until a Q88 has been uploaded + the
+   *  operator has accepted the parse results. Fleet planner uses the
+   *  shape keys it cares about (dwt, loa, vesselType) for Kwon. */
+  vesselParticulars?: Record<string, unknown> | null;
 }
 
 // ── Geo helpers ──────────────────────────────────────────────
@@ -263,6 +268,28 @@ export default function FleetPage() {
   // operator needs to actually route around the Red Sea, they use the
   // existing "Avoid Suez" passage toggle.
   const [showRiskZones, setShowRiskZones] = useState(false);
+
+  // Collapsible section state for Avoid Passages + Map Overlays.
+  // Persisted in localStorage so refreshes don't re-collapse a
+  // section the operator left open. Initial state defaults to
+  // collapsed — these sections have high UI surface area but are
+  // tweaked rarely after a voyage is planned.
+  const [avoidOpen, setAvoidOpen] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem("fleet.avoidOpen") === "1";
+  });
+  const [overlaysOpen, setOverlaysOpen] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem("fleet.overlaysOpen") === "1";
+  });
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem("fleet.avoidOpen", avoidOpen ? "1" : "0");
+  }, [avoidOpen]);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem("fleet.overlaysOpen", overlaysOpen ? "1" : "0");
+  }, [overlaysOpen]);
   // Weather layers — wind particles in Week 3, waves + temperature in
   // later weeks. Visibility state lives here so multiple consumers
   // (layer + controls + future time slider) stay in sync.
@@ -663,6 +690,7 @@ export default function FleetPage() {
       etaHours: (card.status === "sailing" && dischCoords)
         ? Math.round(distanceNM(position.lat, position.lng, dischCoords.lat, dischCoords.lng) / TANKER_SPEED_KN)
         : null,
+      vesselParticulars: (linkageRow as LinkageRow)?.vesselParticulars ?? null,
     });
   }
 
@@ -744,20 +772,35 @@ export default function FleetPage() {
     return pts.length >= 2 ? pts : null;
   }, [plannerRouteLegs]);
 
-  // V1: no Q88 integration — all vessels treated as generic loaded
-  // tanker at the commanded speed. V1.5 will pull particulars from
-  // the linkage (DWT, LOA, vesselType) and pass a per-vessel
-  // ShipParams instead. Uses selectedVessel only to decide WHEN to
-  // show the section; the maths fallback is identical regardless.
-  const kwonShip: ShipParams | null = selectedVessel
-    ? {
-        type: classifyShipType(null), // V1: default "general" / "tanker" on classify
-        dwt: 45000,
-        loa: 183,
-        loadingState: "loaded",
-        serviceSpeedKn: plannerSpeed,
-      }
-    : null;
+  // Build Kwon ShipParams from whatever the selected vessel has. When
+  // a Q88 has been parsed onto the linkage, pick up its DWT/LOA/beam/
+  // vessel-type string; otherwise fall back to a generic 45k MR tanker
+  // profile which is still representative of our fleet baseline.
+  //
+  // Loading state is hardcoded "loaded" per product decision: vessels
+  // sailing loadport → discharge are almost always fully loaded. The
+  // rare ballast case can be handled later via an AIS nav_status
+  // heuristic (nav_status 4 = "constrained by draught") if it matters.
+  const kwonShip: ShipParams | null = useMemo(() => {
+    if (!selectedVessel) return null;
+    const p = selectedVessel.vesselParticulars ?? {};
+    const getNum = (k: string): number | undefined => {
+      const v = p[k];
+      return typeof v === "number" && Number.isFinite(v) ? v : undefined;
+    };
+    const getStr = (k: string): string | null => {
+      const v = p[k];
+      return typeof v === "string" && v.trim().length > 0 ? v.trim() : null;
+    };
+    return {
+      type: classifyShipType(getStr("vesselType")),
+      dwt: getNum("dwt") ?? 45000,
+      loa: getNum("loa") ?? 183,
+      beam: getNum("beam"),
+      loadingState: "loaded",
+      serviceSpeedKn: plannerSpeed,
+    };
+  }, [selectedVessel, plannerSpeed]);
 
   // When to start the Kwon integration clock:
   //   - Vessel has LIVE / DEAD_RECK AIS  → the vessel is already moving,
@@ -1454,101 +1497,159 @@ export default function FleetPage() {
                 </label>
               </div>
 
-              {/* Passage-avoidance toggles — Suez (Red Sea), Panama. */}
-              <div className="px-4 py-3 border-b border-[var(--color-border-subtle)]">
-                <div className="text-[0.625rem] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider mb-2">
-                  Avoid passages
-                </div>
-                <label className="flex items-center gap-2 text-xs text-[var(--color-text-secondary)] cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={avoidSuez}
-                    onChange={(e) => setAvoidSuez(e.target.checked)}
-                    className="accent-cyan-500 cursor-pointer"
+              {/* Passage-avoidance toggles — Suez (Red Sea), Panama.
+                  Collapsed by default (operators rarely tweak after a
+                  voyage is planned); click the header row to expand.
+                  The (n) badge surfaces how many toggles are ACTIVE
+                  when the section is closed — tells ops at a glance
+                  "avoidance is affecting my route" without opening. */}
+              <div className="border-b border-[var(--color-border-subtle)]">
+                <button
+                  type="button"
+                  onClick={() => setAvoidOpen((o) => !o)}
+                  className="flex items-center gap-2 w-full px-4 py-3 text-left hover:bg-[var(--color-surface-2)] transition-colors cursor-pointer"
+                >
+                  <ChevronRight
+                    className={cn(
+                      "h-4 w-4 text-[var(--color-text-tertiary)] transition-transform",
+                      avoidOpen && "rotate-90",
+                    )}
                   />
-                  <span>Avoid Suez (Cape of Good Hope)</span>
-                </label>
-                <label className="flex items-center gap-2 text-xs text-[var(--color-text-secondary)] cursor-pointer mt-1.5">
-                  <input
-                    type="checkbox"
-                    checked={avoidPanama}
-                    onChange={(e) => setAvoidPanama(e.target.checked)}
-                    className="accent-cyan-500 cursor-pointer"
-                  />
-                  <span>Avoid Panama</span>
-                </label>
-                {/* Per-chain avoidance — rendered only for chains
-                    marked `avoidable: true` in channel_chains.json.
-                    Useful for size-restricted passages (Kiel Canal
-                    for post-Panamax etc.). */}
-                {avoidableChains.map((ch) => (
-                  <label
-                    key={ch.id}
-                    className="flex items-center gap-2 text-xs text-[var(--color-text-secondary)] cursor-pointer mt-1.5"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={avoidedChainIds.has(ch.id)}
-                      onChange={(e) => {
-                        setAvoidedChainIds((prev) => {
-                          const next = new Set(prev);
-                          if (e.target.checked) next.add(ch.id);
-                          else next.delete(ch.id);
-                          return next;
-                        });
-                      }}
-                      className="accent-cyan-500 cursor-pointer"
-                    />
-                    <span>Avoid {ch.label}</span>
-                  </label>
-                ))}
+                  <span className="text-[0.625rem] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider">
+                    Avoid passages
+                  </span>
+                  {(() => {
+                    const activeCount =
+                      (avoidSuez ? 1 : 0) +
+                      (avoidPanama ? 1 : 0) +
+                      avoidedChainIds.size;
+                    return activeCount > 0 ? (
+                      <span className="ml-auto text-[0.55rem] font-mono rounded-full bg-cyan-500/20 text-cyan-300 px-1.5 py-0.5">
+                        {activeCount} active
+                      </span>
+                    ) : null;
+                  })()}
+                </button>
+                {avoidOpen && (
+                  <div className="px-4 pb-3 -mt-1">
+                    <label className="flex items-center gap-2 text-xs text-[var(--color-text-secondary)] cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={avoidSuez}
+                        onChange={(e) => setAvoidSuez(e.target.checked)}
+                        className="accent-cyan-500 cursor-pointer"
+                      />
+                      <span>Avoid Suez (Cape of Good Hope)</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-[var(--color-text-secondary)] cursor-pointer mt-1.5">
+                      <input
+                        type="checkbox"
+                        checked={avoidPanama}
+                        onChange={(e) => setAvoidPanama(e.target.checked)}
+                        className="accent-cyan-500 cursor-pointer"
+                      />
+                      <span>Avoid Panama</span>
+                    </label>
+                    {/* Per-chain avoidance — rendered only for chains
+                        marked `avoidable: true` in channel_chains.json.
+                        Useful for size-restricted passages (Kiel Canal
+                        for post-Panamax etc.). */}
+                    {avoidableChains.map((ch) => (
+                      <label
+                        key={ch.id}
+                        className="flex items-center gap-2 text-xs text-[var(--color-text-secondary)] cursor-pointer mt-1.5"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={avoidedChainIds.has(ch.id)}
+                          onChange={(e) => {
+                            setAvoidedChainIds((prev) => {
+                              const next = new Set(prev);
+                              if (e.target.checked) next.add(ch.id);
+                              else next.delete(ch.id);
+                              return next;
+                            });
+                          }}
+                          className="accent-cyan-500 cursor-pointer"
+                        />
+                        <span>Avoid {ch.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Map overlays — purely visual, not tied to routing.
                   ECA/SECA = MARPOL Annex VI emission control areas where
                   low-sulphur / low-NOx fuel rules apply. Operators want
                   these visible while planning to anticipate fuel-switch
-                  points. Not a legal substitute for official charts. */}
-              <div className="px-4 py-3 border-b border-[var(--color-border-subtle)]">
-                <div className="text-[0.625rem] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider mb-2">
-                  Map overlays
-                </div>
-                <label className="flex items-center gap-2 text-xs text-[var(--color-text-secondary)] cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={showEmissionZones}
-                    onChange={(e) => setShowEmissionZones(e.target.checked)}
-                    className="accent-orange-500 cursor-pointer"
+                  points. Not a legal substitute for official charts.
+                  Same collapsible pattern as Avoid Passages. */}
+              <div className="border-b border-[var(--color-border-subtle)]">
+                <button
+                  type="button"
+                  onClick={() => setOverlaysOpen((o) => !o)}
+                  className="flex items-center gap-2 w-full px-4 py-3 text-left hover:bg-[var(--color-surface-2)] transition-colors cursor-pointer"
+                >
+                  <ChevronRight
+                    className={cn(
+                      "h-4 w-4 text-[var(--color-text-tertiary)] transition-transform",
+                      overlaysOpen && "rotate-90",
+                    )}
                   />
-                  <span className="flex items-center gap-1.5">
-                    <span
-                      className="inline-block w-3 h-3 rounded-sm"
-                      style={{
-                        // Outlined swatch matches the outline-only map style.
-                        border: "2px solid #f97316",
-                      }}
-                    />
-                    Emission zones (ECA/SECA)
+                  <span className="text-[0.625rem] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider">
+                    Map overlays
                   </span>
-                </label>
-                <label className="flex items-center gap-2 text-xs text-[var(--color-text-secondary)] cursor-pointer mt-1.5">
-                  <input
-                    type="checkbox"
-                    checked={showRiskZones}
-                    onChange={(e) => setShowRiskZones(e.target.checked)}
-                    className="accent-red-500 cursor-pointer"
-                  />
-                  <span className="flex items-center gap-1.5">
-                    <span
-                      className="inline-block w-3 h-3 rounded-sm"
-                      style={{
-                        backgroundColor: "rgba(220, 38, 38, 0.25)",
-                        border: "2px solid #dc2626",
-                      }}
-                    />
-                    Risk zones (piracy / war)
-                  </span>
-                </label>
+                  {(() => {
+                    const activeCount =
+                      (showEmissionZones ? 1 : 0) + (showRiskZones ? 1 : 0);
+                    return activeCount > 0 ? (
+                      <span className="ml-auto text-[0.55rem] font-mono rounded-full bg-orange-500/20 text-orange-300 px-1.5 py-0.5">
+                        {activeCount} shown
+                      </span>
+                    ) : null;
+                  })()}
+                </button>
+                {overlaysOpen && (
+                  <div className="px-4 pb-3 -mt-1">
+                    <label className="flex items-center gap-2 text-xs text-[var(--color-text-secondary)] cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={showEmissionZones}
+                        onChange={(e) => setShowEmissionZones(e.target.checked)}
+                        className="accent-orange-500 cursor-pointer"
+                      />
+                      <span className="flex items-center gap-1.5">
+                        <span
+                          className="inline-block w-3 h-3 rounded-sm"
+                          style={{
+                            // Outlined swatch matches the outline-only map style.
+                            border: "2px solid #f97316",
+                          }}
+                        />
+                        Emission zones (ECA/SECA)
+                      </span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-[var(--color-text-secondary)] cursor-pointer mt-1.5">
+                      <input
+                        type="checkbox"
+                        checked={showRiskZones}
+                        onChange={(e) => setShowRiskZones(e.target.checked)}
+                        className="accent-red-500 cursor-pointer"
+                      />
+                      <span className="flex items-center gap-1.5">
+                        <span
+                          className="inline-block w-3 h-3 rounded-sm"
+                          style={{
+                            backgroundColor: "rgba(220, 38, 38, 0.25)",
+                            border: "2px solid #dc2626",
+                          }}
+                        />
+                        Risk zones (piracy / war)
+                      </span>
+                    </label>
+                  </div>
+                )}
               </div>
 
               {/* Results — single card when compare is off; stacked

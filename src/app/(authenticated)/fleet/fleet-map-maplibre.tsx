@@ -104,6 +104,10 @@ export interface FleetVessel {
   /** AIS-broadcast ETA. Inferred year (AIS protocol gives only
    *  month/day/hour/minute); see parseAisEta in the ingest worker. */
   aisEta?: Date | null;
+  /** Q88-parsed particulars (DWT, LOA, beam, vesselType...) forwarded
+   *  from the linkage. Used by the weather-adjusted-ETA hook to build
+   *  per-vessel Kwon ShipParams. Null when no Q88 was uploaded. */
+  vesselParticulars?: Record<string, unknown> | null;
 }
 
 export interface PortMarker {
