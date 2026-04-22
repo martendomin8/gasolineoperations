@@ -209,6 +209,39 @@ export async function integrateVoyage(
     commandedSpeedKn > 0 ? totalDistanceNm / commandedSpeedKn : 0;
   const adjustedEtaH = forecastHours + climatologyHours;
 
+  // Opt-in debug dump. Enabled via `window.__kwonDebug = true` in the
+  // browser console. Prints one row per segment: position, weather,
+  // Beaufort, relative wave angle, speed loss fraction, effective
+  // speed. Intentionally behind a flag — don't want this in the
+  // normal console stream, but it's invaluable when a delay number
+  // looks suspicious ("why did 84 nm of deviation add 4 hours?").
+  if (
+    typeof globalThis !== "undefined" &&
+    (globalThis as unknown as { __kwonDebug?: boolean }).__kwonDebug === true
+  ) {
+    // eslint-disable-next-line no-console
+    console.groupCollapsed(
+      `[kwon] ${route.length - 1} segments · ${totalDistanceNm.toFixed(0)} nm · calm ${calmEtaH.toFixed(1)}h · adj ${adjustedEtaH.toFixed(1)}h · Δ ${(adjustedEtaH - calmEtaH).toFixed(1)}h`,
+    );
+    // eslint-disable-next-line no-console
+    console.table(
+      segments.map((s, i) => ({
+        "#": i,
+        at: s.tStart.toISOString().slice(5, 16),
+        lat: s.lat.toFixed(2),
+        lon: s.lon.toFixed(2),
+        nm: Math.round(s.distanceNm),
+        hdg: Math.round(s.kwon.relativeWaveAngleDeg),
+        bn: s.kwon.beaufortNumber,
+        eff: s.effectiveSpeedKn.toFixed(1),
+        "loss%": (s.kwon.speedLossFraction * 100).toFixed(1),
+        src: s.weatherSource,
+      })),
+    );
+    // eslint-disable-next-line no-console
+    console.groupEnd();
+  }
+
   return {
     totalDistanceNm,
     calmEtaH,
