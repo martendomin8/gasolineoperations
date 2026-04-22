@@ -759,11 +759,31 @@ export default function FleetPage() {
       }
     : null;
 
+  // When to start the Kwon integration clock:
+  //   - Vessel has LIVE / DEAD_RECK AIS  → the vessel is already moving,
+  //     count from now.
+  //   - Vessel hasn't departed yet        → count from the latest
+  //     laycan end (the deadline by which the vessel must have loaded
+  //     and departed). This is a better-than-`now` proxy for
+  //     "estimated departure from loadport" until we have a richer
+  //     voyage-timeline model (CP recap → actual ETD).
+  // Fallback: use `now` when neither AIS nor laycan end is available.
+  const kwonStartTime = useMemo(() => {
+    if (selectedVessel?.aisMode === "live" || selectedVessel?.aisMode === "dead_reck") {
+      return new Date();
+    }
+    if (selectedVessel?.latestLaycanEnd) {
+      return new Date(selectedVessel.latestLaycanEnd);
+    }
+    return new Date();
+  }, [selectedVessel?.aisMode, selectedVessel?.latestLaycanEnd]);
+
   const kwonEta = useWeatherAdjustedEta({
     route: plannerRoutePolyline,
-    startTime: new Date(),
+    startTime: kwonStartTime,
     ship: kwonShip,
     commandedSpeedKn: plannerSpeed,
+    weatherProvider,
     enabled: plannerMode && plannerRoutePolyline !== null,
   });
 
@@ -1566,38 +1586,77 @@ export default function FleetPage() {
                       </div>
                     )}
 
-                    {/* Weather-adjusted ETA section. Only renders when
-                        the planner has a real route polyline AND the
-                        compute produced a non-trivial delay. Amber
+                    {/* Weather-adjusted ETA section. Loading while the
+                        forecast sampler decodes PNG frames for the
+                        route; filled-in once the compute lands. Amber
                         divider + storm icon distinguishes it from the
-                        LIVE AIS block below (emerald). */}
-                    {kwonEta.data && kwonEta.delayH !== null && kwonEta.delayH > 0.5 && (
+                        LIVE AIS block below (emerald). Includes a
+                        forecast/climatology breakdown so ops knows how
+                        much of the delay is anchored to real forecast
+                        data vs the longer-horizon seasonal average. */}
+                    {kwonEta.loading && (
+                      <div className="mt-3 pt-3 border-t border-amber-500/30">
+                        <div className="flex items-center gap-1.5 text-[0.6rem] font-semibold uppercase tracking-wider text-amber-400">
+                          <span className="inline-block h-2 w-2 rounded-full border border-amber-400 border-t-transparent animate-spin" />
+                          Weather-adjusted
+                          <span className="ml-auto font-mono text-[var(--color-text-tertiary)] normal-case">
+                            computing…
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                    {!kwonEta.loading && kwonEta.data && kwonEta.delayH !== null && (
                       <div className="mt-3 pt-3 border-t border-amber-500/30 space-y-1.5">
                         <div className="flex items-center gap-1.5 text-[0.6rem] font-semibold uppercase tracking-wider text-amber-400">
                           <span>⛈</span>
                           Weather-adjusted
                           <span className="ml-auto font-mono text-[var(--color-text-tertiary)] normal-case">
-                            climatology
+                            {kwonEta.data.forecastHours > 0 && kwonEta.data.climatologyHours > 0
+                              ? "forecast + clim."
+                              : kwonEta.data.forecastHours > 0
+                                ? "forecast"
+                                : "climatology"}
                           </span>
                         </div>
-                        <div className="flex items-center gap-1.5 text-[0.7rem]">
-                          <span className="text-amber-500/60">+</span>
-                          <span className="text-[var(--color-text-tertiary)]">Delay</span>
-                          <span className="ml-auto font-mono font-semibold text-amber-300">
-                            {formatDelayHours(kwonEta.delayH)}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-1.5 text-[0.7rem]">
-                          <span className="text-amber-500/60">=</span>
-                          <span className="text-[var(--color-text-tertiary)]">Adjusted total</span>
-                          <span className="ml-auto font-mono font-semibold text-[var(--color-text-primary)]">
-                            {formatDurationH(kwonEta.data.adjustedEtaH)}
-                          </span>
-                        </div>
-                        <div className="text-[0.55rem] text-[var(--color-text-tertiary)] italic leading-tight pt-0.5">
-                          Kwon&apos;s method, climatology-based. Live
-                          forecast integration coming in a follow-up.
-                        </div>
+                        {kwonEta.delayH > 0.5 && (
+                          <>
+                            <div className="flex items-center gap-1.5 text-[0.7rem]">
+                              <span className="text-amber-500/60">+</span>
+                              <span className="text-[var(--color-text-tertiary)]">Delay</span>
+                              <span className="ml-auto font-mono font-semibold text-amber-300">
+                                {formatDelayHours(kwonEta.delayH)}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-1.5 text-[0.7rem]">
+                              <span className="text-amber-500/60">=</span>
+                              <span className="text-[var(--color-text-tertiary)]">Adjusted total</span>
+                              <span className="ml-auto font-mono font-semibold text-[var(--color-text-primary)]">
+                                {formatDurationH(kwonEta.data.adjustedEtaH)}
+                              </span>
+                            </div>
+                          </>
+                        )}
+                        {kwonEta.delayH <= 0.5 && (
+                          <div className="flex items-center gap-1.5 text-[0.7rem] text-[var(--color-text-tertiary)]">
+                            <span className="text-amber-500/60">≈</span>
+                            Calm conditions — no meaningful weather delay
+                          </div>
+                        )}
+                        {kwonEta.data.climatologyHours > 0 && kwonEta.data.forecastHours > 0 && (
+                          <div className="text-[0.55rem] text-[var(--color-text-tertiary)] italic leading-tight pt-0.5">
+                            First {Math.round(kwonEta.data.forecastHours)}h from NOAA GFS forecast; remainder from regional climatology.
+                          </div>
+                        )}
+                        {kwonEta.data.climatologyHours === 0 && kwonEta.data.forecastHours > 0 && (
+                          <div className="text-[0.55rem] text-[var(--color-text-tertiary)] italic leading-tight pt-0.5">
+                            Entire voyage within NOAA GFS forecast window.
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    {kwonEta.error !== null && (
+                      <div className="mt-3 pt-3 border-t border-red-500/30 text-[0.6rem] text-red-400">
+                        Weather-adjusted ETA failed: {kwonEta.error}
                       </div>
                     )}
 
