@@ -17,6 +17,15 @@
 [phases.setup]
 nixPkgs = ["nodejs_22"]
 
+# Use `npm install` rather than `npm ci`. Nixpacks' default install
+# command is `npm ci`, but on Railway's sandboxed builder that call
+# has been observed to exit with status 1 and the npm-usage help dump
+# — likely a cache-mount / lockfile-version interaction. `npm install`
+# is more forgiving (reconciles the lockfile instead of erroring out)
+# and produces the same node_modules for a frozen lockfile anyway.
+[phases.install]
+cmds = ["npm install --no-audit --no-fund"]
+
 [phases.build]
 cmds = ["echo \"Skipping Next.js build — this is the AIS worker service.\""]
 
