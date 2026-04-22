@@ -53,10 +53,12 @@ export async function GET(req: NextRequest) {
   const opts = parseAvoid(params);
 
   // Multi-stop mode. Entries starting with `@` are custom coord
-  // waypoints (e.g. `@45.2,-12.3`). See two paths below:
-  //   - All named ports: use precomputed paths.json (honors avoid variants).
-  //   - Any custom: use runtime Dijkstra over the full V2 land-safe graph
-  //     (land-safe, but currently ignores avoid variants — see note).
+  // waypoints (e.g. `@45.2,-12.3`). Both branches below end up in
+  // runtime Dijkstra via graph-runtime.routeThroughGraph — there is
+  // no precomputed-paths.json fast path anymore; the split just picks
+  // a slightly different entry point (getMultiStopDistance vs direct
+  // routeThroughGraph). Both honour all avoid flags (Suez, Panama,
+  // per-chain bbox like Kiel Canal).
   const portsParam = params.get("ports");
   if (portsParam) {
     const rawEntries = portsParam.split("|").map((p) => p.trim()).filter(Boolean);
