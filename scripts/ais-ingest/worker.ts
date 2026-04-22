@@ -68,12 +68,13 @@ const SUBSCRIBED_TYPES = [
 // ---------------------------------------------------------------
 
 function loadEnv() {
+  // `.env.local` exists on a developer's laptop (where the worker runs
+  // via `npm run ais:dev`). On Railway — or any other production host —
+  // env vars come from the platform's injected environment, so the file
+  // is absent and that's fine. Only complain if the required variables
+  // themselves are unset (see the two checks after this call).
   const envPath = path.resolve(".env.local");
-  if (!fs.existsSync(envPath)) {
-    throw new Error(
-      ".env.local not found — run the worker from the NEFGO repo root.",
-    );
-  }
+  if (!fs.existsSync(envPath)) return;
   const text = fs.readFileSync(envPath, "utf8");
   for (const line of text.split(/\r?\n/)) {
     const m = line.match(/^([A-Z0-9_]+)=(.*)$/);
@@ -86,9 +87,9 @@ function loadEnv() {
 loadEnv();
 
 const apiKey = process.env.AISSTREAM_API_KEY;
-if (!apiKey) throw new Error("AISSTREAM_API_KEY missing from .env.local");
+if (!apiKey) throw new Error("AISSTREAM_API_KEY is not set (check .env.local in dev or Railway Variables in prod)");
 const dbUrl = process.env.DATABASE_URL;
-if (!dbUrl) throw new Error("DATABASE_URL missing from .env.local");
+if (!dbUrl) throw new Error("DATABASE_URL is not set (check .env.local in dev or Railway Variables in prod)");
 
 // ---------------------------------------------------------------
 // Database connection
