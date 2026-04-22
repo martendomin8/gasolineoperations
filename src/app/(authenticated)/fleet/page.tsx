@@ -909,24 +909,24 @@ export default function FleetPage() {
     expectedTotalDistanceNm: plannerDistance?.totalNm,
   });
 
-  // Explicit action: load a vessel's route into the planner. Previously
-  // this fired automatically whenever a vessel marker was clicked,
-  // which meant "I want to see this vessel's details" got hijacked by
-  // "let me open the planner". Now the marker click only opens the
-  // detail panel, and the user triggers this via the "Open in Planner"
-  // button in that panel — an explicit action, not a side effect.
-  async function openPlannerForVessel(vesselId: string) {
-    const v = vessels.find((vv) => vv.id === vesselId);
+  // Marker click → open the Planner, populated with the vessel's
+  // loadport → discharge port(s). There's exactly one right-side
+  // panel (the Planner); when a vessel is selected, the panel gets
+  // an extra "Vessel details" section at the bottom with IMO, laycan,
+  // cargo, operator, and an Open Linkage button. No more separate
+  // detail-vs-planner toggle shuffle.
+  const prevSelectedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!selectedVesselId || selectedVesselId === prevSelectedRef.current) return;
+    prevSelectedRef.current = selectedVesselId;
+
+    const v = vessels.find((vv) => vv.id === selectedVesselId);
     if (!v) return;
 
-    // Collect unique ports: loadport → discharge ports.
     const ports: string[] = [];
     if (v.loadport) ports.push(v.loadport);
     if (v.dischargePort && v.dischargePort !== v.loadport) ports.push(v.dischargePort);
 
-    // Additional discharge ports from other sell deals in the same
-    // linkage, ordered by sortOrder so the planner reflects the
-    // operator's chosen sequence.
     const linkageDeals = allDeals
       .filter((d) => d.linkageId === v.id)
       .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
@@ -936,18 +936,12 @@ export default function FleetPage() {
       }
     }
 
-    // Close the detail panel and open the planner. We do both here so
-    // state is mutually exclusive by construction — the panel
-    // shuffle-bug was rooted in letting both be open at once.
-    setSelectedVesselId(null);
-
     if (ports.length === 0) {
-      setPlannerPorts([]);
       setPlannerMode(true);
       return;
     }
 
-    const resolved = await Promise.all(
+    Promise.all(
       ports.map((p) =>
         fetch(`/api/maritime/sea-distance?search=${encodeURIComponent(p)}`)
           .then((r) => r.json())
@@ -957,10 +951,11 @@ export default function FleetPage() {
           })
           .catch(() => ({ name: p, lat: 0, lon: 0 })),
       ),
-    );
-    setPlannerPorts(resolved);
-    setPlannerMode(true);
-  }
+    ).then((resolved) => {
+      setPlannerPorts(resolved);
+      setPlannerMode(true);
+    });
+  }, [selectedVesselId, vessels, allDeals]);
 
   const operatorOptions = Array.from(
     new Map(
@@ -1989,6 +1984,175 @@ export default function FleetPage() {
                 />
               )}
 
+              {/* Vessel details — filled in when a marker click put us
+                  here. Everything an operator might want after clicking
+                  a ship: IMO, status + linkage code, ETA, laycan, cargo
+                  mix, operator, and the Open Linkage button that takes
+                  them to the full voyage view. Lives inside the Planner
+                  panel so there's only one right-side panel to manage.
+                  "× vessel" button clears just the vessel (leaves the
+                  Planner open with its ports intact). */}
+              {selectedVessel && (
+                <div className="border-t border-[var(--color-border-subtle)]">
+                  <div className="flex items-center justify-between px-4 py-3 bg-[var(--color-surface-2)]">
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[0.625rem] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider mb-0.5">
+                        Vessel
+                      </div>
+                      <div className="text-sm font-bold text-[var(--color-text-primary)] truncate">
+                        {selectedVessel.vesselName}
+                      </div>
+                      {selectedVessel.vesselImo && (
+                        <span className="text-[0.625rem] font-mono text-[var(--color-text-tertiary)]">
+                          IMO {selectedVessel.vesselImo}
+                        </span>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => setSelectedVesselId(null)}
+                      title="Clear selected vessel (planner stays open)"
+                      className="p-1.5 rounded-[var(--radius-md)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-surface-3)] transition-colors cursor-pointer"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+
+                  {/* Status + Linkage code */}
+                  <div className="px-4 py-3 border-b border-[var(--color-border-subtle)]">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-mono font-bold text-[var(--color-accent-text)] tracking-wide">
+                        {selectedVessel.linkageCode}
+                      </span>
+                      <Badge
+                        variant={selectedVessel.status as any}
+                        className="text-[0.625rem]"
+                      >
+                        {STATUS_LABELS[selectedVessel.status] ?? selectedVessel.status}
+                      </Badge>
+                    </div>
+                    {selectedVessel.product && (
+                      <div className="text-xs text-[var(--color-text-tertiary)]">{selectedVessel.product}</div>
+                    )}
+                  </div>
+
+                  {/* ETA to destination */}
+                  {selectedVessel.etaHours != null && (
+                    <div className="px-4 py-3 border-b border-[var(--color-border-subtle)]">
+                      <div className="text-[0.625rem] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider mb-2">ETA to Destination</div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-mono font-bold text-[var(--color-text-primary)]">
+                          {selectedVessel.etaHours < 24
+                            ? `${selectedVessel.etaHours}h`
+                            : `${Math.floor(selectedVessel.etaHours / 24)}d ${selectedVessel.etaHours % 24}h`}
+                        </span>
+                        <span className="text-[0.625rem] text-[var(--color-text-tertiary)]">
+                          ~{Math.round(selectedVessel.etaHours * TANKER_SPEED_KN)} NM remaining
+                        </span>
+                      </div>
+                      <div className="mt-1.5 h-1.5 rounded-full bg-[var(--color-surface-3)] overflow-hidden">
+                        <div
+                          className="h-full rounded-full transition-all"
+                          style={{
+                            width: `${Math.max(5, Math.min(95, 100 - (selectedVessel.etaHours / 240) * 100))}%`,
+                            backgroundColor: STATUS_COLORS[selectedVessel.status] ?? "#6B7280",
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                  {selectedVessel.status !== "sailing" && selectedVessel.etaHours == null && (
+                    <div className="px-4 py-3 border-b border-[var(--color-border-subtle)]">
+                      <div className="text-[0.625rem] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider mb-1">ETA</div>
+                      <span className="text-xs text-[var(--color-text-tertiary)] italic">
+                        {selectedVessel.status === "loading" ? "At loadport — awaiting departure" :
+                         selectedVessel.status === "discharging" ? "At discharge port" :
+                         selectedVessel.status === "active" ? "Vessel not yet sailing" : "—"}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Laycan */}
+                  {selectedVessel.earliestLaycan && (
+                    <div className="px-4 py-3 border-b border-[var(--color-border-subtle)]">
+                      <div className="text-[0.625rem] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider mb-2">Laycan</div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-mono text-[var(--color-text-secondary)]">
+                          {new Date(selectedVessel.earliestLaycan).toLocaleDateString("en-GB", { day: "2-digit", month: "short" })}
+                          {selectedVessel.latestLaycanEnd && (
+                            <> — {new Date(selectedVessel.latestLaycanEnd).toLocaleDateString("en-GB", { day: "2-digit", month: "short" })}</>
+                          )}
+                        </span>
+                        {(() => {
+                          const days = daysUntil(selectedVessel.earliestLaycan);
+                          if (days < 0) return <span className="text-[0.625rem] text-[var(--color-text-tertiary)]">passed</span>;
+                          const isUrgent = days <= 3;
+                          return (
+                            <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                              isUrgent
+                                ? "bg-[var(--color-danger)]/15 text-[var(--color-danger)]"
+                                : "text-[var(--color-text-tertiary)]"
+                            }`}>
+                              {days === 0 ? "TODAY" : days === 1 ? "TOMORROW" : `${days}d`}
+                            </span>
+                          );
+                        })()}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Cargo */}
+                  <div className="px-4 py-3 border-b border-[var(--color-border-subtle)]">
+                    <div className="text-[0.625rem] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider mb-2">Cargo</div>
+                    <div className="space-y-1.5">
+                      {selectedVessel.buys.map((d, i) => (
+                        <div key={`buy-${i}`} className="flex items-center gap-2 text-xs">
+                          <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-info)] flex-shrink-0" />
+                          <span className="text-[var(--color-text-secondary)]">
+                            <span className="font-medium text-[var(--color-text-primary)]">{d.counterparty}</span>
+                            {" "}{formatQty(d.quantityMt)} MT {d.product}
+                          </span>
+                        </div>
+                      ))}
+                      {selectedVessel.sells.map((d, i) => (
+                        <div key={`sell-${i}`} className="flex items-center gap-2 text-xs">
+                          <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-accent)] flex-shrink-0" />
+                          <span className="text-[var(--color-text-secondary)]">
+                            <span className="font-medium text-[var(--color-text-primary)]">{d.counterparty}</span>
+                            {" "}{formatQty(d.quantityMt)} MT {d.product}
+                          </span>
+                        </div>
+                      ))}
+                      {selectedVessel.buys.length === 0 && selectedVessel.sells.length === 0 && (
+                        <div className="text-xs text-[var(--color-text-tertiary)] italic">No deals attached</div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Operator */}
+                  <div className="px-4 py-3 border-b border-[var(--color-border-subtle)]">
+                    <div className="text-[0.625rem] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider mb-1">Operator</div>
+                    <span className="text-xs text-[var(--color-text-secondary)]">
+                      {selectedVessel.assignedOperatorName ?? "Unassigned"}
+                    </span>
+                  </div>
+
+                  {/* Open Linkage action */}
+                  {!selectedVessel.id.startsWith("demo-") && (
+                    <div className="px-4 py-4">
+                      <Button
+                        variant="primary"
+                        size="md"
+                        className="w-full"
+                        onClick={() => router.push(`/linkages/${selectedVessel.id}`)}
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" />
+                        Open Linkage
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Clear all — clears both routes when compare is on */}
               {(plannerPorts.length > 0 || plannerPortsB.length > 0) && (
                 <div className="px-4 pb-4">
@@ -2011,215 +2175,11 @@ export default function FleetPage() {
           )}
         </div>
 
-        {/* Right-side detail panel */}
-        <div className={`
-          flex-shrink-0 bg-[var(--color-surface-1)] border-l border-[var(--color-border-default)]
-          transition-all duration-300 overflow-hidden
-          ${!plannerMode && selectedVessel ? "w-80" : "w-0"}
-        `}>
-          {!plannerMode && selectedVessel && (
-            <div className="w-80 h-full overflow-y-auto">
-              {/* Panel header */}
-              <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--color-border-subtle)] bg-[var(--color-surface-2)]">
-                <div className="min-w-0 flex-1">
-                  <div className="text-sm font-bold text-[var(--color-text-primary)] truncate">
-                    {selectedVessel.vesselName}
-                  </div>
-                  {selectedVessel.vesselImo && (
-                    <span className="text-[0.625rem] font-mono text-[var(--color-text-tertiary)]">
-                      IMO {selectedVessel.vesselImo}
-                    </span>
-                  )}
-                </div>
-                <button
-                  onClick={() => setSelectedVesselId(null)}
-                  className="p-1.5 rounded-[var(--radius-md)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-surface-3)] transition-colors cursor-pointer"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-
-              {/* Status + Linkage */}
-              <div className="px-4 py-3 border-b border-[var(--color-border-subtle)]">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-mono font-bold text-[var(--color-accent-text)] tracking-wide">
-                    {selectedVessel.linkageCode}
-                  </span>
-                  <Badge
-                    variant={selectedVessel.status as any}
-                    className="text-[0.625rem]"
-                  >
-                    {STATUS_LABELS[selectedVessel.status] ?? selectedVessel.status}
-                  </Badge>
-                </div>
-                {selectedVessel.product && (
-                  <div className="text-xs text-[var(--color-text-tertiary)]">{selectedVessel.product}</div>
-                )}
-              </div>
-
-              {/* Route visualization */}
-              {(selectedVessel.loadport || selectedVessel.dischargePort) && (
-                <div className="px-4 py-3 border-b border-[var(--color-border-subtle)]">
-                  <div className="text-[0.625rem] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider mb-2">Route</div>
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-1.5">
-                        <Anchor className="h-3 w-3 text-[var(--color-info)]" />
-                        <span className="text-xs font-medium text-[var(--color-text-primary)]">
-                          {selectedVessel.loadport ?? "TBD"}
-                        </span>
-                      </div>
-                    </div>
-                    <ArrowRight className="h-3.5 w-3.5 text-[var(--color-text-tertiary)] flex-shrink-0" />
-                    <div className="flex-1 text-right">
-                      <div className="flex items-center gap-1.5 justify-end">
-                        <span className="text-xs font-medium text-[var(--color-text-primary)]">
-                          {selectedVessel.dischargePort ?? "TBD"}
-                        </span>
-                        <MapPin className="h-3 w-3 text-[var(--color-accent-text)]" />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* ETA to destination */}
-              {selectedVessel.etaHours != null && (
-                <div className="px-4 py-3 border-b border-[var(--color-border-subtle)]">
-                  <div className="text-[0.625rem] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider mb-2">ETA to Destination</div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-mono font-bold text-[var(--color-text-primary)]">
-                      {selectedVessel.etaHours < 24
-                        ? `${selectedVessel.etaHours}h`
-                        : `${Math.floor(selectedVessel.etaHours / 24)}d ${selectedVessel.etaHours % 24}h`}
-                    </span>
-                    <span className="text-[0.625rem] text-[var(--color-text-tertiary)]">
-                      ~{Math.round(selectedVessel.etaHours * TANKER_SPEED_KN)} NM remaining
-                    </span>
-                  </div>
-                  <div className="mt-1.5 h-1.5 rounded-full bg-[var(--color-surface-3)] overflow-hidden">
-                    <div
-                      className="h-full rounded-full transition-all"
-                      style={{
-                        width: `${Math.max(5, Math.min(95, 100 - (selectedVessel.etaHours / 240) * 100))}%`,
-                        backgroundColor: STATUS_COLORS[selectedVessel.status] ?? "#6B7280",
-                      }}
-                    />
-                  </div>
-                </div>
-              )}
-              {selectedVessel.status !== "sailing" && selectedVessel.etaHours == null && (
-                <div className="px-4 py-3 border-b border-[var(--color-border-subtle)]">
-                  <div className="text-[0.625rem] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider mb-1">ETA</div>
-                  <span className="text-xs text-[var(--color-text-tertiary)] italic">
-                    {selectedVessel.status === "loading" ? "At loadport — awaiting departure" :
-                     selectedVessel.status === "discharging" ? "At discharge port" :
-                     selectedVessel.status === "active" ? "Vessel not yet sailing" : "—"}
-                  </span>
-                </div>
-              )}
-
-              {/* Laycan */}
-              {selectedVessel.earliestLaycan && (
-                <div className="px-4 py-3 border-b border-[var(--color-border-subtle)]">
-                  <div className="text-[0.625rem] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider mb-2">Laycan</div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-mono text-[var(--color-text-secondary)]">
-                      {new Date(selectedVessel.earliestLaycan).toLocaleDateString("en-GB", { day: "2-digit", month: "short" })}
-                      {selectedVessel.latestLaycanEnd && (
-                        <> — {new Date(selectedVessel.latestLaycanEnd).toLocaleDateString("en-GB", { day: "2-digit", month: "short" })}</>
-                      )}
-                    </span>
-                    {(() => {
-                      const days = daysUntil(selectedVessel.earliestLaycan);
-                      if (days < 0) return <span className="text-[0.625rem] text-[var(--color-text-tertiary)]">passed</span>;
-                      const isUrgent = days <= 3;
-                      return (
-                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-                          isUrgent
-                            ? "bg-[var(--color-danger)]/15 text-[var(--color-danger)]"
-                            : "text-[var(--color-text-tertiary)]"
-                        }`}>
-                          {days === 0 ? "TODAY" : days === 1 ? "TOMORROW" : `${days}d`}
-                        </span>
-                      );
-                    })()}
-                  </div>
-                </div>
-              )}
-
-              {/* Cargo */}
-              <div className="px-4 py-3 border-b border-[var(--color-border-subtle)]">
-                <div className="text-[0.625rem] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider mb-2">Cargo</div>
-                <div className="space-y-1.5">
-                  {selectedVessel.buys.map((d, i) => (
-                    <div key={`buy-${i}`} className="flex items-center gap-2 text-xs">
-                      <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-info)] flex-shrink-0" />
-                      <span className="text-[var(--color-text-secondary)]">
-                        <span className="font-medium text-[var(--color-text-primary)]">{d.counterparty}</span>
-                        {" "}{formatQty(d.quantityMt)} MT {d.product}
-                      </span>
-                    </div>
-                  ))}
-                  {selectedVessel.sells.map((d, i) => (
-                    <div key={`sell-${i}`} className="flex items-center gap-2 text-xs">
-                      <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-accent)] flex-shrink-0" />
-                      <span className="text-[var(--color-text-secondary)]">
-                        <span className="font-medium text-[var(--color-text-primary)]">{d.counterparty}</span>
-                        {" "}{formatQty(d.quantityMt)} MT {d.product}
-                      </span>
-                    </div>
-                  ))}
-                  {selectedVessel.buys.length === 0 && selectedVessel.sells.length === 0 && (
-                    <div className="text-xs text-[var(--color-text-tertiary)] italic">No deals attached</div>
-                  )}
-                </div>
-              </div>
-
-              {/* Operator */}
-              <div className="px-4 py-3 border-b border-[var(--color-border-subtle)]">
-                <div className="text-[0.625rem] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider mb-1">Operator</div>
-                <span className="text-xs text-[var(--color-text-secondary)]">
-                  {selectedVessel.assignedOperatorName ?? "Unassigned"}
-                </span>
-              </div>
-
-              {/* Action */}
-              <div className="px-4 py-4 space-y-2">
-                {selectedVessel.id.startsWith("demo-") ? (
-                  <div className="text-xs text-center text-[var(--color-text-tertiary)] italic py-1">
-                    Demo vessel — no linked cargo
-                  </div>
-                ) : (
-                  <Button
-                    variant="primary"
-                    size="md"
-                    className="w-full"
-                    onClick={() => router.push(`/linkages/${selectedVessel.id}`)}
-                  >
-                    <ExternalLink className="h-3.5 w-3.5" />
-                    Open Linkage
-                  </Button>
-                )}
-                {/* Explicit "load this vessel's route into the planner".
-                    Replaces the old side-effect where marker clicks
-                    auto-toggled Planner mode and hijacked the detail
-                    view. Still lets operators go "see this ship? now
-                    plan its voyage" in one deliberate click. */}
-                {(selectedVessel.loadport || selectedVessel.dischargePort) && (
-                  <Button
-                    variant="secondary"
-                    size="md"
-                    className="w-full"
-                    onClick={() => openPlannerForVessel(selectedVessel.id)}
-                  >
-                    Open in Planner
-                  </Button>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
+        {/* Detail-panel moved into the Planner panel above — single
+            right-side surface for both "what is this vessel?" and
+            "plan its voyage". Marker click opens the Planner; the
+            vessel-detail sections at the bottom populate from
+            selectedVessel. */}
       </div>
     </div>
   );
