@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -87,6 +87,18 @@ export function Sidebar({ userRole }: SidebarProps) {
         })}
       </nav>
 
+      {/* Live local-time clock. Operators work in their own timezone,
+          so we show local time (not UTC) here. UTC is still labelled
+          explicitly on the maritime UI surfaces (time slider, AIS
+          popups) — this is purely an ambient "what time is it?"
+          indicator. Hidden when the sidebar is collapsed; there just
+          isn't enough width. */}
+      {!collapsed && (
+        <div className="px-4 py-2 border-t border-[var(--color-border-subtle)]">
+          <SidebarClock />
+        </div>
+      )}
+
       {/* Collapse toggle */}
       <div className="px-2 py-3 border-t border-[var(--color-border-subtle)]">
         <button
@@ -103,5 +115,44 @@ export function Sidebar({ userRole }: SidebarProps) {
         </button>
       </div>
     </aside>
+  );
+}
+
+/**
+ * Local-time clock ticking every second. Renders nothing until the
+ * first client render (`mounted` gate) to avoid a server/client
+ * hydration mismatch — the server has no way to know the user's
+ * timezone, so any initial HTML would be wrong.
+ */
+function SidebarClock() {
+  const [now, setNow] = useState<Date | null>(null);
+
+  useEffect(() => {
+    setNow(new Date());
+    const id = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  if (now === null) {
+    // Reserve two lines of vertical space so the sidebar doesn't
+    // jump when the clock mounts. Matches the final rendered size.
+    return <div className="h-[34px]" aria-hidden />;
+  }
+
+  const hh = now.getHours().toString().padStart(2, "0");
+  const mm = now.getMinutes().toString().padStart(2, "0");
+  const dd = now.getDate().toString().padStart(2, "0");
+  const month = (now.getMonth() + 1).toString().padStart(2, "0");
+  const yyyy = now.getFullYear();
+
+  return (
+    <div className="flex flex-col leading-tight">
+      <span className="font-mono text-sm font-semibold text-[var(--color-text-primary)] tabular-nums">
+        {hh}:{mm}
+      </span>
+      <span className="font-mono text-[0.65rem] text-[var(--color-text-tertiary)] tabular-nums">
+        {dd}.{month}.{yyyy}
+      </span>
+    </div>
   );
 }
