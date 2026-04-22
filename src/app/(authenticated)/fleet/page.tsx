@@ -40,6 +40,9 @@ import type { WeatherType } from "@/lib/maritime/weather/types";
 import { useAisSnapshots } from "@/lib/maritime/ais/hooks/use-ais-snapshots";
 import { AisControls } from "@/lib/maritime/ais/components/ais-controls";
 import { formatAisAge } from "@/lib/maritime/ais/position-resolver";
+import { useWeatherAdjustedEta } from "@/lib/maritime/eta-adjustment/hooks/use-weather-adjusted-eta";
+import { classifyShipType } from "@/lib/maritime/eta-adjustment";
+import type { ShipParams } from "@/lib/maritime/eta-adjustment";
 
 // Dev-tools gate: enabled only when this env flag is set AND the
 // app is actually using our in-house ocean_routing provider. If a
@@ -143,6 +146,23 @@ function distanceNM(lat1: number, lng1: number, lat2: number, lng2: number): num
 const TANKER_SPEED_KN = 13; // typical MR tanker cruising speed
 
 // ── Helpers ──────────────────────────────────────────────────
+
+/** Format a signed/positive hour duration as "+Xd Yh" or "+Xh". */
+function formatDelayHours(hours: number): string {
+  if (hours < 1) return `+${Math.round(hours * 60)}m`;
+  if (hours < 24) return `+${Math.round(hours)}h`;
+  const d = Math.floor(hours / 24);
+  const h = Math.round(hours - d * 24);
+  return h === 0 ? `+${d}d` : `+${d}d ${h}h`;
+}
+
+/** Format an unsigned hour duration as "Xd Yh" (matches planner etaDisplay). */
+function formatDurationH(hours: number): string {
+  if (hours < 24) return `${Math.round(hours)}h`;
+  const d = Math.floor(hours / 24);
+  const h = Math.round(hours - d * 24);
+  return h === 0 ? `${d}d` : `${d}d ${h}h`;
+}
 
 /**
  * Format a Date as a compact "DD Mon HH:MM" for the AIS ETA display in
@@ -709,6 +729,43 @@ export default function FleetPage() {
   }
 
   const selectedVessel = vessels.find((v) => v.id === selectedVesselId) ?? null;
+
+  // ── Weather-adjusted ETA ────────────────────────────────────
+  // Concat all planner route-line segments into one polyline and
+  // feed it into the Kwon integrator. Hook returns null until the
+  // planner has at least two waypoints + a real route-line — no
+  // cost beyond the useMemo comparison when planner is empty.
+  const plannerRoutePolyline = useMemo<Array<[number, number]> | null>(() => {
+    if (plannerRouteLegs.length === 0) return null;
+    const pts: Array<[number, number]> = [];
+    for (const leg of plannerRouteLegs) {
+      for (const c of leg.coordinates) pts.push(c);
+    }
+    return pts.length >= 2 ? pts : null;
+  }, [plannerRouteLegs]);
+
+  // V1: no Q88 integration — all vessels treated as generic loaded
+  // tanker at the commanded speed. V1.5 will pull particulars from
+  // the linkage (DWT, LOA, vesselType) and pass a per-vessel
+  // ShipParams instead. Uses selectedVessel only to decide WHEN to
+  // show the section; the maths fallback is identical regardless.
+  const kwonShip: ShipParams | null = selectedVessel
+    ? {
+        type: classifyShipType(null), // V1: default "general" / "tanker" on classify
+        dwt: 45000,
+        loa: 183,
+        loadingState: "loaded",
+        serviceSpeedKn: plannerSpeed,
+      }
+    : null;
+
+  const kwonEta = useWeatherAdjustedEta({
+    route: plannerRoutePolyline,
+    startTime: new Date(),
+    ship: kwonShip,
+    commandedSpeedKn: plannerSpeed,
+    enabled: plannerMode && plannerRoutePolyline !== null,
+  });
 
   // When a vessel is selected, auto-populate planner with its ports
   const prevSelectedRef = useRef<string | null>(null);
@@ -1506,6 +1563,41 @@ export default function FleetPage() {
                             </div>
                           );
                         })}
+                      </div>
+                    )}
+
+                    {/* Weather-adjusted ETA section. Only renders when
+                        the planner has a real route polyline AND the
+                        compute produced a non-trivial delay. Amber
+                        divider + storm icon distinguishes it from the
+                        LIVE AIS block below (emerald). */}
+                    {kwonEta.data && kwonEta.delayH !== null && kwonEta.delayH > 0.5 && (
+                      <div className="mt-3 pt-3 border-t border-amber-500/30 space-y-1.5">
+                        <div className="flex items-center gap-1.5 text-[0.6rem] font-semibold uppercase tracking-wider text-amber-400">
+                          <span>⛈</span>
+                          Weather-adjusted
+                          <span className="ml-auto font-mono text-[var(--color-text-tertiary)] normal-case">
+                            climatology
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-[0.7rem]">
+                          <span className="text-amber-500/60">+</span>
+                          <span className="text-[var(--color-text-tertiary)]">Delay</span>
+                          <span className="ml-auto font-mono font-semibold text-amber-300">
+                            {formatDelayHours(kwonEta.delayH)}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-[0.7rem]">
+                          <span className="text-amber-500/60">=</span>
+                          <span className="text-[var(--color-text-tertiary)]">Adjusted total</span>
+                          <span className="ml-auto font-mono font-semibold text-[var(--color-text-primary)]">
+                            {formatDurationH(kwonEta.data.adjustedEtaH)}
+                          </span>
+                        </div>
+                        <div className="text-[0.55rem] text-[var(--color-text-tertiary)] italic leading-tight pt-0.5">
+                          Kwon&apos;s method, climatology-based. Live
+                          forecast integration coming in a follow-up.
+                        </div>
                       </div>
                     )}
 

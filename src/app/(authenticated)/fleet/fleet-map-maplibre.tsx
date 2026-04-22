@@ -1803,8 +1803,13 @@ export function FleetMapInner({
         </Popup>
       )}
 
-      {/* ── Status legend (fixed HTML overlay, not a map feature) ── */}
-      <StatusLegend />
+      {/* Status legend removed 2026-04-22 — operators learn the
+          colour-to-status mapping quickly from the markers themselves
+          (permanent labels + click-through detail panel spell the
+          status out every time). The legend was taking up top-right
+          real estate with no ongoing value. Kept `StatusLegend`
+          function below in case we want to resurrect it for a
+          new-user onboarding tour. */}
 
       {/* ── External overlay slot (weather, ais-tracks, etc.) ──
            Rendered last so the DOM order matches visual z-order
