@@ -1,0 +1,14 @@
+{
+  "$schema": "https://railway.com/railway.schema.json",
+  "build": {
+    "builder": "NIXPACKS",
+    "buildCommand": "npm ci --include=dev"
+  },
+  "deploy": {
+    "startCommand": "npm run ais:worker",
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 10,
+    "healthcheckTimeout": 0,
+    "numReplicas": 1
+  }
+}

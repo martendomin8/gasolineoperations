@@ -1,0 +1,18 @@
+# Nixpacks build config for the AIS ingest worker.
+#
+# Only thing that matters at runtime: `tsx` can transpile TypeScript on
+# the fly, so there is no build step — `npm run ais:worker` starts the
+# worker directly from the .ts source. We still need dev deps installed
+# (tsx, @types/*), hence `--include=dev` below.
+#
+# Railway picks this up automatically when the repo root has a
+# `nixpacks.toml` or a `railway.json` pointing at NIXPACKS.
+
+[phases.setup]
+nixPkgs = ["nodejs_22"]
+
+[phases.install]
+cmds = ["npm ci --include=dev"]
+
+[start]
+cmd = "npm run ais:worker"
