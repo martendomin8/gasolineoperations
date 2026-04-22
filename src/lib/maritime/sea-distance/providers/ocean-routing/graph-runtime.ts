@@ -885,17 +885,48 @@ const AVOID_BBOX_PANAMA: [number, number, number, number] = [
   7.20, 10.00, -82.50, -77.50,
 ];
 
+// Kiel Canal — German waterway from Brunsbüttel (North Sea, ~53.9°N
+// 9.1°E) to Holtenau (Baltic Sea, ~54.4°N 10.2°E). Chain-node-only
+// avoidance missed: the channel's hand-drawn waypoints are sparse
+// enough that Dijkstra could slip past them and still route a vessel
+// through the canal geography. Widening to a bbox that covers both
+// approaches + the whole channel forces every route through the
+// Skagen detour when this chain is avoided. Some routes that
+// legitimately pass outside the canal but touch its bbox get penalised
+// — acceptable, the bbox is tight (~80 km × 120 km) so only true
+// through-Kiel paths are affected.
+const AVOID_BBOX_KIEL: [number, number, number, number] = [
+  53.60, 54.60, 8.60, 10.70,
+];
+
+// Chains whose avoidance should ALSO apply a bbox in addition to
+// just the chain nodes. Keyed by chain id from channel_chains.json.
+// Add more entries here (and follow-up UI checkbox + test) if a
+// future chain needs the same "block the whole passage, not just the
+// waypoints" treatment.
+const CHAIN_AVOID_BBOXES: Record<string, [number, number, number, number]> = {
+  "kiel-canal": AVOID_BBOX_KIEL,
+};
+
 /**
  * Compute the set of graph nodes sitting inside the requested avoid
  * bboxes. Cheap: one pass over all nodes, no allocations per edge.
  */
 function buildBlockedSet(
   graph: RuntimeGraph,
-  opts: { avoidSuez?: boolean; avoidPanama?: boolean }
+  opts: {
+    avoidSuez?: boolean;
+    avoidPanama?: boolean;
+    avoidedChainIds?: string[];
+  }
 ): Set<number> | undefined {
   const boxes: Array<[number, number, number, number]> = [];
   if (opts.avoidSuez) boxes.push(AVOID_BBOX_SUEZ);
   if (opts.avoidPanama) boxes.push(AVOID_BBOX_PANAMA);
+  for (const cid of opts.avoidedChainIds ?? []) {
+    const bbox = CHAIN_AVOID_BBOXES[cid];
+    if (bbox) boxes.push(bbox);
+  }
   if (boxes.length === 0) return undefined;
   const blocked = new Set<number>();
   for (const n of graph.nodes) {
