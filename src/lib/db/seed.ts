@@ -473,12 +473,23 @@ async function seed() {
   console.log(`  Linkages: ${linkageIdByExternalRef.size > 0 ? new Set(linkageIdByExternalRef.values()).size : 0} created (3 shared pairs + rest auto-TEMP)`);
 
   for (const d of dealsData) {
+    // Every deal MUST have a linkage_id (DB-enforced by migration 0004).
+    // Each seeded deal has an externalRef and is either part of a
+    // DEMO_SHARED_LINKAGES pair or gets an auto-TEMP linkage above, so
+    // the lookup should always hit. If it doesn't, fail loud rather
+    // than insert a broken row.
+    const linkageId = d.externalRef ? linkageIdByExternalRef.get(d.externalRef) : undefined;
+    if (!linkageId) {
+      throw new Error(
+        `Seed bug: deal ${d.externalRef ?? "(no ref)"} has no matching linkage — check DEMO_SHARED_LINKAGES and auto-TEMP loop above.`,
+      );
+    }
     const [deal] = await db
       .insert(schema.deals)
       .values({
         ...d,
         tenantId: tenantId,
-        linkageId: d.externalRef ? linkageIdByExternalRef.get(d.externalRef) ?? null : null,
+        linkageId,
         createdBy: admin.id,
       })
       .returning();

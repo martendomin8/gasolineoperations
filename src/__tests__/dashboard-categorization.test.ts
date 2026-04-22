@@ -9,7 +9,7 @@
  * REQ-L9: displayName = linkageNumber ?? tempName
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 // buildLinkageCards is exported from the dashboard page
 // We test it as a pure function with mock data
 import { buildLinkageCards } from "@/app/(authenticated)/dashboard/page";
@@ -185,9 +185,16 @@ describe("buildLinkageCards — operator info", () => {
     expect(cards[0].assignedOperatorName).toBe("AT");
   });
 
-  it("orphan deals have null operator", () => {
+  it("skips deals with null linkageId (schema invariant violation)", () => {
+    // Post-migration 0004 every deal has a non-null linkage_id, so
+    // orphan deals from before the migration should be silently
+    // dropped from card-building rather than rendered as floating
+    // virtual cards that 404 on click.
+    const spy = vi.spyOn(console, "warn").mockImplementation(() => {});
     const deals = [makeDeal({ linkageId: null, linkageCode: null })];
     const cards = buildLinkageCards([], deals);
-    expect(cards[0].assignedOperatorId).toBeNull();
+    expect(cards).toHaveLength(0);
+    expect(spy).toHaveBeenCalled();
+    spy.mockRestore();
   });
 });

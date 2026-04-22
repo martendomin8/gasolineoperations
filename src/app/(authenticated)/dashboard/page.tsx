@@ -116,33 +116,30 @@ function StatusBadge({ status }: { status: string }) {
 // ────────────────────────────────────────────────────
 
 export function buildLinkageCards(linkageRows: LinkageRow[], allDeals: DealItem[]): LinkageCard[] {
-  // Group deals by linkageId, then by linkageCode as fallback
+  // Per migration 0004, every deal has a non-null linkageId. We only
+  // group by UUID FK — the legacy linkageCode string is still stored
+  // (for trader-facing display) but isn't authoritative for grouping.
+  // If you see a deal here without linkageId, it's a schema breach
+  // worth investigating, not a case to silently paper over with a
+  // virtual "orphan" or "code-*" card like the old code did.
   const dealsByLinkageId = new Map<string, DealItem[]>();
-  const dealsByLinkageCode = new Map<string, DealItem[]>();
-  const orphanDeals: DealItem[] = [];
 
   for (const d of allDeals) {
-    if (d.linkageId) {
-      const arr = dealsByLinkageId.get(d.linkageId) ?? [];
-      arr.push(d);
-      dealsByLinkageId.set(d.linkageId, arr);
-    } else if (d.linkageCode) {
-      const arr = dealsByLinkageCode.get(d.linkageCode) ?? [];
-      arr.push(d);
-      dealsByLinkageCode.set(d.linkageCode, arr);
-    } else {
-      orphanDeals.push(d);
+    if (!d.linkageId) {
+      // Shouldn't happen post-migration. Log once and skip so the
+      // dashboard stays rendered even if bad data slips in.
+      console.warn("[dashboard] deal with null linkageId — schema invariant broken", d.id);
+      continue;
     }
+    const arr = dealsByLinkageId.get(d.linkageId) ?? [];
+    arr.push(d);
+    dealsByLinkageId.set(d.linkageId, arr);
   }
 
   const cards: LinkageCard[] = [];
 
   for (const row of linkageRows) {
-    // Match deals: prefer linkageId, fallback to linkageCode
-    let deals = dealsByLinkageId.get(row.id) ?? [];
-    if (deals.length === 0 && row.linkageNumber) {
-      deals = dealsByLinkageCode.get(row.linkageNumber) ?? [];
-    }
+    const deals = dealsByLinkageId.get(row.id) ?? [];
 
     // Split regular deals from terminal ops for categorization.
     // Terminal ops have direction='buy'/'sell' but should NOT count as
@@ -194,53 +191,8 @@ export function buildLinkageCards(linkageRows: LinkageRow[], allDeals: DealItem[
     });
   }
 
-  // Orphan deals (no linkageId or linkageCode) — create virtual cards for each
-  for (const d of orphanDeals) {
-    const category = d.direction === "buy" ? "buy_only" as const : "sell_only" as const;
-    cards.push({
-      id: `orphan-${d.id}`,
-      displayName: d.externalRef || d.counterparty,
-      status: "active",
-      vessel: d.vesselName,
-      product: d.product,
-      buys: d.direction === "buy" ? [d] : [],
-      sells: d.direction === "sell" ? [d] : [],
-      earliestLaycan: d.laycanStart,
-      firstDealId: d.id,
-      category,
-      assignedOperatorId: null,
-      assignedOperatorName: null,
-    });
-  }
-
-  // Also create cards for deals grouped by linkageCode that don't have a linkage row
-  for (const [code, codeDeals] of dealsByLinkageCode) {
-    // Skip if already matched to a linkage row
-    if (cards.some((c) => c.displayName === code)) continue;
-    const buys = codeDeals.filter((d) => d.direction === "buy");
-    const sells = codeDeals.filter((d) => d.direction === "sell");
-    const vessel = codeDeals.find((d) => d.vesselName)?.vesselName ?? null;
-    const laycans = codeDeals.map((d) => d.laycanStart).filter(Boolean).sort();
-    let category: LinkageCard["category"];
-    if (buys.length > 0 && sells.length > 0) category = "purchase_sell";
-    else if (buys.length > 0) category = "buy_only";
-    else category = "sell_only";
-
-    cards.push({
-      id: `code-${code}`,
-      displayName: code,
-      status: "active",
-      vessel,
-      product: codeDeals[0]?.product ?? null,
-      buys,
-      sells,
-      earliestLaycan: laycans[0] ?? null,
-      firstDealId: codeDeals[0]?.id ?? null,
-      category,
-      assignedOperatorId: null,
-      assignedOperatorName: null,
-    });
-  }
+  // No orphan or code-only card generation — the DB-level NOT NULL
+  // invariant means every deal already has a real linkage row above.
 
   // Sort by earliest laycan (nulls last)
   cards.sort((a, b) => {
@@ -506,11 +458,10 @@ export default function DashboardPage() {
   // A linkage is a first-class "folder" that can be viewed even when empty.
   // The old path (going to /deals/[firstDealId] or /deals/new) broke empty linkages.
   function handleCardClick(card: LinkageCard) {
-    // Skip virtual orphan/code-only cards that don't have real linkage rows
-    if (card.id.startsWith("orphan-") || card.id.startsWith("code-")) {
-      if (card.firstDealId) router.push(`/deals/${card.firstDealId}`);
-      return;
-    }
+    // Every card maps to a real linkage row now (enforced by
+    // deals.linkage_id NOT NULL in migration 0004). The legacy
+    // orphan-/code- prefix fallbacks are gone — if a card exists,
+    // its id is a real linkage UUID.
     router.push(`/linkages/${card.id}`);
   }
 

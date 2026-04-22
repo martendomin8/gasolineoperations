@@ -232,7 +232,14 @@ export const deals = pgTable(
       .notNull(),
     externalRef: varchar("external_ref", { length: 100 }),
     linkageCode: varchar("linkage_code", { length: 100 }),
-    linkageId: uuid("linkage_id").references(() => linkages.id),
+    // linkageId is the FK grouping. Per CLAUDE.md: "every deal belongs
+    // to exactly one linkage" — a linkage is a folder, deals are files
+    // inside. NOT NULL makes that invariant enforceable at the DB level
+    // so we can never again end up with orphan deals that show up on
+    // the dashboard as "code-*" virtual cards that 404 when clicked.
+    linkageId: uuid("linkage_id")
+      .references(() => linkages.id)
+      .notNull(),
     dealType: varchar("deal_type", { length: 50 }).default("regular").notNull(),
     counterparty: varchar("counterparty", { length: 255 }).notNull(),
     direction: dealDirectionEnum("direction").notNull(),
