@@ -108,6 +108,14 @@ export interface FleetVessel {
    *  from the linkage. Used by the weather-adjusted-ETA hook to build
    *  per-vessel Kwon ShipParams. Null when no Q88 was uploaded. */
   vesselParticulars?: Record<string, unknown> | null;
+  /** Route polyline override: when set, replaces the default planned
+   *  loadport → discharge route on the map. Used for live-AIS
+   *  vessels whose "remaining route" is current position → discharge,
+   *  not the full original plan. First point is the vessel's current
+   *  position; subsequent points are the waypoints still ahead. When
+   *  null, the map falls back to computing the planned route from
+   *  `loadport`/`dischargePort` strings. */
+  routeOverride?: [number, number][] | null;
 }
 
 export interface PortMarker {
@@ -509,14 +517,46 @@ export function FleetMapInner({
   }, []);
 
   // ── Vessel route lines GeoJSON ────────────────────────────
+  //
+  // Two rendering paths:
+  //
+  //   1. AIS live / dead-reckoning → the caller (page.tsx) pre-computed
+  //      a `routeOverride` that starts at the current AIS position and
+  //      lists only the waypoints still ahead. Draw as an emerald
+  //      "remaining route" line — no loadport-to-current leg shown,
+  //      no stale planned geometry crowding the view.
+  //
+  //   2. Everything else → derive the planned route from the
+  //      loadport / discharge-port strings (the ocean-routing graph
+  //      returns a land-safe polyline). Status colour matches the
+  //      marker so the mental link between "this ship" and "this
+  //      line" is automatic.
   const vesselRoutesGeoJson = useMemo(() => {
     const features = vessels
-      .filter((v) => v.loadport && v.dischargePort)
       .map((v) => {
+        // Path 1 — AIS-driven override, drawn as remaining route.
+        if (v.routeOverride && v.routeOverride.length >= 2) {
+          const lonLat = toGeodesicGeoJson(v.routeOverride);
+          return {
+            type: "Feature" as const,
+            geometry: {
+              type: "LineString" as const,
+              coordinates: lonLat,
+            },
+            properties: {
+              vesselId: v.id,
+              color: "#10b981", // emerald-500 — matches the LIVE AIS ring
+              isSelected: v.id === selectedVesselId,
+              isRemaining: true,
+            },
+          };
+        }
+
+        // Path 2 — planned loadport → discharge route.
+        if (!v.loadport || !v.dischargePort) return null;
         const from = findPortCoordinates(v.loadport);
         const to = findPortCoordinates(v.dischargePort);
         if (!from || !to) return null;
-
         const fromCanon = v.loadport ? findPort(v.loadport) : null;
         const toCanon = v.dischargePort ? findPort(v.dischargePort) : null;
         let points: Array<[number, number]> | null = null;
@@ -540,6 +580,7 @@ export function FleetMapInner({
             vesselId: v.id,
             color: STATUS_COLORS[v.status] ?? "#6B7280",
             isSelected: v.id === selectedVesselId,
+            isRemaining: false,
           },
         };
       })

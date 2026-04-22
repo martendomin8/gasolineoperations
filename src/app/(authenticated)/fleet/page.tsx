@@ -152,6 +152,48 @@ const TANKER_SPEED_KN = 13; // typical MR tanker cruising speed
 
 // ── Helpers ──────────────────────────────────────────────────
 
+/**
+ * Given a planned route (loadport → ... → discharge) and the vessel's
+ * current position (AIS), return a new polyline consisting of the AIS
+ * position + every waypoint AFTER the route point nearest to it.
+ *
+ * Drawing just this trimmed line on the map communicates "here is
+ * where the vessel still has to go" without the distracting dead
+ * geometry behind it. Passing the same trimmed line to
+ * `shipPositionAtTime` also fixes a bug where scrubbing the
+ * time-slider forward on an AIS vessel would walk it back to the
+ * loadport first (because the projection was prepending AIS to the
+ * FULL route). Now the projection only sees waypoints ahead.
+ *
+ * Nearest-waypoint choice is deliberately coarse: ocean-routing
+ * polylines are densified to ~60-200 nm per segment, so the vessel's
+ * actual position is always close to ONE of the route waypoints;
+ * slicing at the nearest is visually indistinguishable from a more
+ * expensive foot-of-perpendicular projection onto segments.
+ */
+function trimRouteFromNearest(
+  plannedRoute: [number, number][],
+  currentPos: [number, number],
+): [number, number][] {
+  if (plannedRoute.length === 0) return [currentPos];
+  let nearestIdx = 0;
+  let nearestDistNm = Infinity;
+  for (let i = 0; i < plannedRoute.length; i++) {
+    const [lat, lon] = plannedRoute[i];
+    const dNm = distanceNM(lat, lon, currentPos[0], currentPos[1]);
+    if (dNm < nearestDistNm) {
+      nearestDistNm = dNm;
+      nearestIdx = i;
+    }
+  }
+  // Start the remaining route at the AIS position itself, then
+  // everything AFTER the nearest waypoint. Even if the vessel has
+  // already passed the nearest waypoint (common mid-leg), this still
+  // produces a clean "vessel → next unvisited waypoint → ... →
+  // discharge" polyline.
+  return [currentPos, ...plannedRoute.slice(nearestIdx + 1)];
+}
+
 /** Format a signed/positive hour duration as "+Xd Yh" or "+Xh". */
 function formatDelayHours(hours: number): string {
   if (hours < 1) return `+${Math.round(hours * 60)}m`;
@@ -700,18 +742,74 @@ export default function FleetPage() {
     statusCounts[v.status] = (statusCounts[v.status] ?? 0) + 1;
   }
 
-  // Time-projected vessel positions. When the TimeSlider is past the
-  // baseline, each vessel's marker walks forward along its pre-computed
-  // ocean route at DEFAULT_SPEED_KNOTS. This is what makes "see where
-  // your ship is in 6 days" work visually — same `weatherTime` that
-  // drives WeatherLayer's GPU frame blending drives this projection.
+  // Order is important below:
+  //
+  //   1. `displayVessels` starts from the mock-position vessels.
+  //   2. **AIS merge first** — override position + compute a
+  //      `routeOverride` (remaining route from current AIS to the
+  //      discharge port). AIS data is real, so it wins over the mock
+  //      baseline; the routeOverride stops the map from still drawing
+  //      the stale loadport-to-discharge plan for a vessel that's
+  //      already halfway across the Atlantic.
+  //   3. **Time projection afterwards** — whether a vessel has AIS or
+  //      not, the TimeSlider's `weatherTime` walks the marker forward
+  //      from its CURRENT position (AIS or mock) along whichever
+  //      route is active (remaining for AIS vessels, full planned
+  //      otherwise). Previously the projection ran before AIS merge,
+  //      which meant AIS markers snapped back to real position after
+  //      the slider had moved — jarring.
   let displayVessels: FleetVessel[] = vessels;
+
+  if (aisEnabled && aisVessels.length > 0) {
+    const aisByLinkageId = new Map(aisVessels.map((av) => [av.linkageId, av]));
+    displayVessels = displayVessels.map((v) => {
+      const ais = aisByLinkageId.get(v.id);
+      if (ais === undefined) return v;
+
+      // Compute the remaining-route override: for LIVE / DEAD_RECK
+      // vessels, trim the planned polyline at whichever waypoint is
+      // nearest to the current AIS position and prepend the AIS
+      // point itself. PREDICTED vessels (no AIS message yet) stick
+      // with the full planned route — we don't actually know where
+      // they are, so "remaining" is meaningless.
+      let routeOverride: [number, number][] | null = null;
+      const plannedRoute = vesselRoutesById.get(v.id);
+      const aisPos: [number, number] = [ais.position.lat, ais.position.lon];
+      if (
+        plannedRoute !== undefined &&
+        plannedRoute.length >= 2 &&
+        (ais.position.mode === "live" || ais.position.mode === "dead_reck")
+      ) {
+        routeOverride = trimRouteFromNearest(plannedRoute, aisPos);
+        // Feed the trimmed route back into vesselRoutesById so the
+        // time-slider projection below walks the right geometry.
+        vesselRoutesById.set(v.id, routeOverride);
+      }
+
+      return {
+        ...v,
+        position: { lat: ais.position.lat, lng: ais.position.lon },
+        heading: ais.position.bearingDeg ?? v.heading,
+        aisMode: ais.position.mode,
+        aisAgeMs: ais.position.ageMs,
+        aisDestination: ais.vessel.destination ?? null,
+        aisEta: ais.vessel.eta ? new Date(ais.vessel.eta) : null,
+        routeOverride,
+      };
+    });
+  }
+
+  // Time-projected vessel positions. When the TimeSlider is past the
+  // baseline, each vessel's marker walks forward along its route
+  // (either the remaining-AIS override above or the full planned
+  // route) at DEFAULT_SPEED_KNOTS. Same `weatherTime` that drives
+  // the WeatherLayer's GPU frame blending drives this projection.
   if (weatherTime !== null && weatherBaselineRef.current !== null) {
     const hoursForward =
       (weatherTime.getTime() - weatherBaselineRef.current.getTime()) /
       (60 * 60 * 1000);
     if (hoursForward > 0) {
-      displayVessels = vessels.map((v) => {
+      displayVessels = displayVessels.map((v) => {
         const route = vesselRoutesById.get(v.id);
         if (route === undefined) return v;
         const [newLat, newLon] = shipPositionAtTime(
@@ -725,36 +823,11 @@ export default function FleetPage() {
   }
 
   // Demo vessels were removed. Fleet now reflects only real linkages that
-  // have a vessel attached (linkage.vessel_name). For position we use
-  // computeMockPosition with the pre-computed ocean route + laycan dates,
-  // which places sailing vessels on their actual route (not a straight
-  // line through land) at time-based progress from laycan_end. When real
-  // AIS integration (Marine Traffic clone) lands, that becomes the source
-  // of truth and this estimate becomes a fallback for missing broadcasts.
-
-  // Merge in AIS data — one marker per linkage. When the Live AIS toggle
-  // is on and the snapshot API returned a vessel for this linkage, we
-  // OVERRIDE the mock position with the AIS-resolved one and tag the
-  // vessel with `aisMode` so the marker renders with the corresponding
-  // quality ring (green/amber/gray). AIS beats both the mock and the
-  // time-projection because it's real data — no point projecting forward
-  // from a mock baseline when we know where the vessel actually is.
-  if (aisEnabled && aisVessels.length > 0) {
-    const aisByLinkageId = new Map(aisVessels.map((av) => [av.linkageId, av]));
-    displayVessels = displayVessels.map((v) => {
-      const ais = aisByLinkageId.get(v.id);
-      if (ais === undefined) return v;
-      return {
-        ...v,
-        position: { lat: ais.position.lat, lng: ais.position.lon },
-        heading: ais.position.bearingDeg ?? v.heading,
-        aisMode: ais.position.mode,
-        aisAgeMs: ais.position.ageMs,
-        aisDestination: ais.vessel.destination ?? null,
-        aisEta: ais.vessel.eta ? new Date(ais.vessel.eta) : null,
-      };
-    });
-  }
+  // have a vessel attached (linkage.vessel_name). When AIS integration
+  // is disabled, positions come from `computeMockPosition` with the
+  // pre-computed ocean route + laycan dates — places sailing vessels on
+  // their actual route (not a straight line through land) at time-based
+  // progress from laycan_end. AIS wins whenever it's available.
 
   const selectedVessel = vessels.find((v) => v.id === selectedVesselId) ?? null;
 
