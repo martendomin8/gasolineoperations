@@ -272,6 +272,31 @@ export const deals = pgTable(
     pricingConfirmed: boolean("pricing_confirmed").default(false).notNull(),
     estimatedBlNorDate: date("estimated_bl_nor_date"),
     specialInstructions: text("special_instructions"),
+    // Commercial recap fields (trader-facing, ops keeps visible but
+    // rarely edits). Each maps to one labelled line in Lauri's recap
+    // template — Quality / Payment / Credit / Laytime / Demurrage /
+    // Q&Q Determination / Inspection / Law / GT&C. Kept as text
+    // because the values vary wildly ("as per CP", "48+6", "$12,500/day",
+    // "EN590", "BIMCO standard", etc.) and we don't want to force a
+    // structured input that rejects a valid phrase the AI extracted.
+    // Consumers:
+    //   - quality → inspection nomination email merge field
+    //   - payment → cost-sector TVM calc ("3/5 days after NOR/COD")
+    //   - credit → LC opening cost (parked here, not yet priced)
+    //   - laytime + demurrage → estimated demurrage calc
+    //   - qqDetermination → drives inspection-nomination port picker
+    //     (loadport vs disport) in the workflow engine
+    //   - inspection, law, gtc → boilerplate in clearance/nomination
+    //     templates
+    quality: text("quality"),
+    payment: text("payment"),
+    credit: text("credit"),
+    laytime: text("laytime"),
+    demurrage: text("demurrage"),
+    qqDetermination: text("qq_determination"),
+    inspection: text("inspection"),
+    law: text("law"),
+    gtc: text("gtc"),
     excelStatuses: jsonb("excel_statuses").default({}).$type<Record<string, string | null>>(),
     sortOrder: integer("sort_order").default(0).notNull(),
     version: integer("version").default(1).notNull(),

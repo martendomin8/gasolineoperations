@@ -36,6 +36,13 @@
       "when": 1776891921981,
       "tag": "0004_deals_linkage_id_not_null",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1776897071530,
+      "tag": "0005_deals_recap_fields",
+      "breakpoints": true
     }
   ]
 }
