@@ -83,6 +83,21 @@ export interface FleetVessel {
   product: string | null;
   isUrgent: boolean;
   etaHours: number | null;
+  /**
+   * Live-AIS state, when the Fleet page has live tracking enabled AND
+   * our snapshot API returned data for this linkage. When set, the
+   * marker's `position` is the AIS-resolved coordinate (LIVE/DEAD_RECK
+   * actual, or PREDICTED great-circle) and the marker renders with a
+   * status-colour-independent OUTER ring to signal the AIS quality.
+   *
+   * Null when Live AIS is off, no MMSI is configured, or the API
+   * hasn't returned data yet — marker falls back to the legacy
+   * status-coloured look with no extra ring.
+   */
+  aisMode?: "live" | "dead_reck" | "predicted" | null;
+  /** Milliseconds since last AIS fix. Used in the marker's hover tip
+   *  when aisMode is set. */
+  aisAgeMs?: number | null;
 }
 
 export interface PortMarker {
@@ -107,6 +122,39 @@ export const STATUS_COLORS: Record<string, string> = {
   discharging: "#a855f7",
   completed: "#22c55e",
 };
+
+/**
+ * AIS-quality ring styling, one entry per mode. Null → no ring drawn
+ * (legacy marker look). Dashed border for PREDICTED so "this is a
+ * guess, not real data" reads even on a zoomed-out map.
+ */
+function aisRingStyle(
+  mode: "live" | "dead_reck" | "predicted" | null,
+): { color: string; style: "solid" | "dashed" } | null {
+  if (mode === null) return null;
+  switch (mode) {
+    case "live":
+      return { color: "#22c55e", style: "solid" };   // emerald
+    case "dead_reck":
+      return { color: "#f59e0b", style: "solid" };   // amber
+    case "predicted":
+      return { color: "#94a3b8", style: "dashed" };  // slate
+  }
+}
+
+/** Tiny age formatter for the marker tooltip — "3m", "1h 20m", "2d". */
+function formatAgeShort(ageMs: number | null): string {
+  if (ageMs === null || !Number.isFinite(ageMs)) return "never";
+  const s = Math.floor(ageMs / 1000);
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m`;
+  const h = Math.floor(m / 60);
+  const rem = m % 60;
+  if (h < 24) return rem === 0 ? `${h}h` : `${h}h ${rem}m`;
+  const d = Math.floor(h / 24);
+  return `${d}d`;
+}
 
 export const STATUS_LABELS: Record<string, string> = {
   active: "Active",
@@ -1514,6 +1562,22 @@ export function FleetMapInner({
         const innerColor = isSelected ? "#FFB000" : color;
         const ringSize = isSelected ? 3 : 2;
         const roundedHeading = Math.round(v.heading / 30) * 30;
+
+        // AIS state ring — drawn OUTSIDE the existing glow ring so the
+        // status colour (buy/sell/sailing) remains the vessel's identity
+        // and AIS quality reads as a separate, orthogonal signal.
+        // `null` / undefined → no ring, legacy look.
+        const aisRing = aisRingStyle(v.aisMode ?? null);
+        const markerBoxSize = aisRing !== null ? 52 : 40;
+        const aisTitle =
+          v.aisMode === "live"
+            ? `LIVE AIS · ${formatAgeShort(v.aisAgeMs ?? null)} ago`
+            : v.aisMode === "dead_reck"
+              ? `Last known · ${formatAgeShort(v.aisAgeMs ?? null)} ago`
+              : v.aisMode === "predicted"
+                ? `Predicted position (no recent AIS)`
+                : undefined;
+
         return (
           <Marker
             key={v.id}
@@ -1527,9 +1591,10 @@ export function FleetMapInner({
           >
             <div
               className={v.isUrgent ? "fleet-pulse" : ""}
+              title={aisTitle}
               style={{
-                width: 40,
-                height: 40,
+                width: markerBoxSize,
+                height: markerBoxSize,
                 position: "relative",
                 display: "flex",
                 alignItems: "center",
@@ -1537,11 +1602,27 @@ export function FleetMapInner({
                 cursor: "pointer",
               }}
             >
+              {/* AIS state outer ring — shown only when Live AIS is
+                  enabled AND the snapshot API returned data for this
+                  linkage. Dashed for PREDICTED so "this is a guess,
+                  not real data" reads at a glance. */}
+              {aisRing !== null && (
+                <div
+                  style={{
+                    position: "absolute",
+                    inset: 0,
+                    borderRadius: "50%",
+                    border: `2px ${aisRing.style} ${aisRing.color}`,
+                    boxShadow: `0 0 10px ${aisRing.color}55`,
+                    pointerEvents: "none",
+                  }}
+                />
+              )}
               {/* Glow ring */}
               <div
                 style={{
                   position: "absolute",
-                  inset: 0,
+                  inset: aisRing !== null ? 6 : 0,
                   borderRadius: "50%",
                   background: `${glowColor}18`,
                   boxShadow: `0 0 ${v.isUrgent ? 16 : 10}px ${glowColor}40`,

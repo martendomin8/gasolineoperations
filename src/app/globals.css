@@ -269,7 +269,8 @@ th {
 /* Weather-point popup (click-on-map weather readout). Overrides
  * MapLibre's default white popup chrome so the dark card we render
  * inside reads consistently with the rest of the Fleet overlay. */
-.weather-point-popup .maplibregl-popup-content {
+.weather-point-popup .maplibregl-popup-content,
+.ais-vessel-popup .maplibregl-popup-content {
   background: rgba(15, 17, 21, 0.95) !important;
   color: #FAFAF7 !important;
   border: 1px solid #272d3a !important;
@@ -278,7 +279,8 @@ th {
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5) !important;
   backdrop-filter: blur(6px);
 }
-.weather-point-popup .maplibregl-popup-tip {
+.weather-point-popup .maplibregl-popup-tip,
+.ais-vessel-popup .maplibregl-popup-tip {
   /* The little triangle that points down at the clicked coordinate —
    * colour it to match the popup body so it reads as one shape. */
   border-top-color: rgba(15, 17, 21, 0.95) !important;

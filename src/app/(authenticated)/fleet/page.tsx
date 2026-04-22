@@ -37,6 +37,8 @@ import {
 import { WeatherPointPopup } from "@/lib/maritime/weather/components/weather-point-popup";
 import { shipPositionAtTime } from "@/lib/maritime/weather/hooks/use-ship-at-time";
 import type { WeatherType } from "@/lib/maritime/weather/types";
+import { useAisSnapshots } from "@/lib/maritime/ais/hooks/use-ais-snapshots";
+import { AisControls } from "@/lib/maritime/ais/components/ais-controls";
 
 // Dev-tools gate: enabled only when this env flag is set AND the
 // app is actually using our in-house ocean_routing provider. If a
@@ -240,6 +242,17 @@ export default function FleetPage() {
     lat: number;
     lon: number;
   } | null>(null);
+
+  // Live AIS tracking. When enabled, polls `/api/maritime/ais/snapshot`
+  // every 15 s; the hook goes idle the moment the toggle flips off so
+  // we don't burn server cycles when operators aren't looking.
+  const [aisEnabled, setAisEnabled] = useState(false);
+  const aisState = useAisSnapshots({ enabled: aisEnabled });
+  const aisVessels = aisState.data?.vessels ?? [];
+  const aisFlagCount = aisVessels.reduce(
+    (n, v) => n + v.storedFlags.length + v.liveFlags.length,
+    0,
+  );
 
   // Unified time axis. `weatherTime` is what the slider shows; the
   // WeatherLayer consumes it directly for GPU frame blending, and we
@@ -655,6 +668,28 @@ export default function FleetPage() {
   // AIS integration (Marine Traffic clone) lands, that becomes the source
   // of truth and this estimate becomes a fallback for missing broadcasts.
 
+  // Merge in AIS data — one marker per linkage. When the Live AIS toggle
+  // is on and the snapshot API returned a vessel for this linkage, we
+  // OVERRIDE the mock position with the AIS-resolved one and tag the
+  // vessel with `aisMode` so the marker renders with the corresponding
+  // quality ring (green/amber/gray). AIS beats both the mock and the
+  // time-projection because it's real data — no point projecting forward
+  // from a mock baseline when we know where the vessel actually is.
+  if (aisEnabled && aisVessels.length > 0) {
+    const aisByLinkageId = new Map(aisVessels.map((av) => [av.linkageId, av]));
+    displayVessels = displayVessels.map((v) => {
+      const ais = aisByLinkageId.get(v.id);
+      if (ais === undefined) return v;
+      return {
+        ...v,
+        position: { lat: ais.position.lat, lng: ais.position.lon },
+        heading: ais.position.bearingDeg ?? v.heading,
+        aisMode: ais.position.mode,
+        aisAgeMs: ais.position.ageMs,
+      };
+    });
+  }
+
   const selectedVessel = vessels.find((v) => v.id === selectedVesselId) ?? null;
 
   // When a vessel is selected, auto-populate planner with its ports
@@ -989,6 +1024,10 @@ export default function FleetPage() {
                     onClose={() => setWeatherPopup(null)}
                   />
                 )}
+              {/* Live AIS is wired into the existing fleet markers via
+                  the `aisMode` / position override on each FleetVessel —
+                  see the merge block above where we fold aisVessels in.
+                  One marker per linkage, AIS quality = ring colour. */}
             </FleetMapInner>
           )}
 
@@ -1009,6 +1048,16 @@ export default function FleetPage() {
                 <WeatherControls
                   visibility={weatherVisibility}
                   onChange={setWeatherVisibility}
+                />
+              </div>
+              <div className="pointer-events-auto flex-shrink-0">
+                <AisControls
+                  enabled={aisEnabled}
+                  onToggle={setAisEnabled}
+                  vesselCount={aisVessels.length}
+                  flagCount={aisFlagCount}
+                  loading={aisState.loading}
+                  error={aisState.error}
                 />
               </div>
               {anyWeatherOn && (
