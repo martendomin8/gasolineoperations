@@ -901,6 +901,12 @@ export default function FleetPage() {
     commandedSpeedKn: plannerSpeed,
     weatherProvider,
     enabled: plannerMode && plannerRoutePolyline !== null,
+    // Pin Kwon's calm + adjusted totals to the planner's authoritative
+    // distance. Without this the top of the blue box ("18d 14h" from
+    // the planner API) and the weather-adjusted block ("26d 11h from
+    // Kwon's polyline-haversine sum) can disagree by many hours,
+    // because the two calcs walk slightly different paths.
+    expectedTotalDistanceNm: plannerDistance?.totalNm,
   });
 
   // When a vessel is selected, auto-populate planner with its ports

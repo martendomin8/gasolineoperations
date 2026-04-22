@@ -40,6 +40,11 @@ export interface UseWeatherAdjustedEtaArgs {
   weatherProvider: WeatherProvider;
   /** When false (planner not open, no route yet), skip compute. */
   enabled?: boolean;
+  /** Optional authoritative total distance (nm) from the planner's
+   *  distance API. When supplied we rescale the integrator output so
+   *  `calmEtaH` / `adjustedEtaH` match the planner's reported total,
+   *  not a slightly-off polyline-haversine sum. */
+  expectedTotalDistanceNm?: number;
 }
 
 export interface UseWeatherAdjustedEtaResult {
@@ -68,6 +73,7 @@ export function useWeatherAdjustedEta({
   commandedSpeedKn,
   weatherProvider,
   enabled = true,
+  expectedTotalDistanceNm,
 }: UseWeatherAdjustedEtaArgs): UseWeatherAdjustedEtaResult {
   const [state, setState] = useState<UseWeatherAdjustedEtaResult>({
     data: null,
@@ -121,8 +127,13 @@ export function useWeatherAdjustedEta({
       s.loadingState,
       s.serviceSpeedKn,
       commandedSpeedKn,
+      // Distance normalisation target. Two voyages with identical
+      // polylines but different planner-reported totals (e.g. the
+      // planner re-routed via a channel chain) should re-run so the
+      // normalised calmEtaH reflects the new total.
+      expectedTotalDistanceNm ?? "",
     ].join("|");
-  }, [enabled, route, startTime, ship, commandedSpeedKn]);
+  }, [enabled, route, startTime, ship, commandedSpeedKn, expectedTotalDistanceNm]);
 
   // Hold the latest props in a ref so the effect body can read them
   // without adding them to the dep array (they're already factored
@@ -133,6 +144,7 @@ export function useWeatherAdjustedEta({
     ship,
     commandedSpeedKn,
     weatherProvider,
+    expectedTotalDistanceNm,
   });
   latestArgsRef.current = {
     route,
@@ -140,6 +152,7 @@ export function useWeatherAdjustedEta({
     ship,
     commandedSpeedKn,
     weatherProvider,
+    expectedTotalDistanceNm,
   };
 
   useEffect(() => {
@@ -154,6 +167,7 @@ export function useWeatherAdjustedEta({
       ship: curShip,
       commandedSpeedKn: curSpeed,
       weatherProvider: curProvider,
+      expectedTotalDistanceNm: curExpected,
     } = latestArgsRef.current;
     // Should be impossible given depsKey != "disabled", but narrow for TS.
     if (curRoute === null || curRoute.length < 2) return;
@@ -168,6 +182,7 @@ export function useWeatherAdjustedEta({
       ship: curShip ?? DEFAULT_SHIP,
       commandedSpeedKn: curSpeed,
       weather: sampler,
+      expectedTotalDistanceNm: curExpected,
     })
       .then((data) => {
         if (runIdRef.current !== myRunId) return;

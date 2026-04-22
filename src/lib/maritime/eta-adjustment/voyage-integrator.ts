@@ -51,6 +51,22 @@ export interface IntegrateVoyageArgs {
    *  later tell the UI how much of the ETA relies on forecast vs
    *  climatology. */
   weather: WeatherSampler;
+  /** Optional authoritative total distance (nm) — usually the planner
+   *  distance API's `totalNm`. When provided, we normalise the polyline
+   *  segmentation to match it: every segment's hours is scaled by
+   *  `expectedTotalDistanceNm / polylineTotalNm`, so the returned
+   *  `calmEtaH` and `adjustedEtaH` line up exactly with what the planner
+   *  shows as the route total. The per-segment speed loss RATIO is
+   *  preserved — we're just re-basing the absolute hours.
+   *
+   *  Why: the Fleet planner shows three numbers side by side (calm ETA,
+   *  weather delay, adjusted total). Before this flag they were derived
+   *  from two different distance calcs — planner API on the top line,
+   *  polyline-haversine-sum inside the integrator — and the two drifted
+   *  (duplicated waypoints from leg-concat, slightly coarser vs denser
+   *  path choices, etc.). Passing the planner's totalNm here pins all
+   *  three numbers to the same baseline. */
+  expectedTotalDistanceNm?: number;
 }
 
 /**
@@ -61,7 +77,14 @@ export interface IntegrateVoyageArgs {
 export async function integrateVoyage(
   args: IntegrateVoyageArgs,
 ): Promise<VoyageEtaResult> {
-  const { route, startTime, ship, commandedSpeedKn, weather } = args;
+  const {
+    route,
+    startTime,
+    ship,
+    commandedSpeedKn,
+    weather,
+    expectedTotalDistanceNm,
+  } = args;
 
   if (route.length < 2) {
     return {
@@ -74,25 +97,40 @@ export async function integrateVoyage(
     };
   }
 
-  const segments: VoyageSegment[] = [];
-  let tCursor = startTime;
-  let totalDistanceNm = 0;
-  let forecastHours = 0;
-  let climatologyHours = 0;
+  // First pass: compute per-segment weather, heading, effective speed,
+  // and raw polyline distance. We collect raw hours here; the actual
+  // time-cursor walk happens after we know the distance-scale factor
+  // (so each segment's hours reflect the planner distance, not the
+  // slightly-off polyline sum).
+  interface RawSeg {
+    lat: number;
+    lon: number;
+    distanceNm: number;
+    headingDeg: number;
+    effSpeed: number;
+    kwon: ReturnType<typeof calculateSpeedLoss>;
+    source: "forecast" | "climatology";
+  }
+  const raw: RawSeg[] = [];
+  let polylineTotalNm = 0;
 
+  // Use a pre-advanced time cursor for weather sampling so samples are
+  // still taken at roughly the right time along the voyage. Correct
+  // per-segment time boundaries get recomputed after scaling.
+  let tSample = startTime;
   for (let i = 0; i < route.length - 1; i++) {
     const [lat0, lon0] = route[i];
     const [lat1, lon1] = route[i + 1];
 
     const segmentDistanceNm = haversineNm(lat0, lon0, lat1, lon1);
     const segmentHeadingDeg = initialBearingDeg(lat0, lon0, lat1, lon1);
-    totalDistanceNm += segmentDistanceNm;
+    polylineTotalNm += segmentDistanceNm;
 
     // Sample weather at the START of the segment. Good enough for the
     // segment granularity we work at (60-200 nm steps, which at 12 kn
     // is 5-17 hours). Within that window we don't expect weather to
     // flip dramatically — GFS frames update every 3 h anyway.
-    const sample = await weather({ lat: lat0, lon: lon0, at: tCursor });
+    const sample = await weather({ lat: lat0, lon: lon0, at: tSample });
 
     const state: ShipState = {
       headingDeg: segmentHeadingDeg,
@@ -104,27 +142,66 @@ export async function integrateVoyage(
       weather: sample.condition,
     });
 
-    // Hours to cover this segment at effective speed. Clamp divisor
-    // so an extreme low-effective-speed outlier doesn't produce
-    // Infinity and poison the accumulator.
+    // Clamp divisor so an extreme low-effective-speed outlier doesn't
+    // produce Infinity and poison the accumulator.
     const effSpeed = Math.max(kwon.effectiveSpeedKn, 0.5);
-    const hours = segmentDistanceNm / effSpeed;
+
+    // Advance the sampling cursor by the UNSCALED hours estimate. Good
+    // enough for weather-time lookup; final tStart/tEnd below will be
+    // re-derived post-scaling.
+    tSample = new Date(
+      tSample.getTime() + (segmentDistanceNm / effSpeed) * 3_600_000,
+    );
+
+    raw.push({
+      lat: lat0,
+      lon: lon0,
+      distanceNm: segmentDistanceNm,
+      headingDeg: segmentHeadingDeg,
+      effSpeed,
+      kwon,
+      source: sample.source,
+    });
+  }
+
+  // Distance-scale factor. When the caller passes the planner's
+  // authoritative totalNm we rescale every segment's absolute distance
+  // by this ratio, so calm + adjusted numbers line up with what the
+  // planner shows elsewhere. Speed loss RATIO per segment is untouched
+  // (effSpeed / commandedSpeed is the same before and after scaling).
+  const scale =
+    expectedTotalDistanceNm !== undefined &&
+    expectedTotalDistanceNm > 0 &&
+    polylineTotalNm > 0
+      ? expectedTotalDistanceNm / polylineTotalNm
+      : 1;
+
+  const segments: VoyageSegment[] = [];
+  let tCursor = startTime;
+  let totalDistanceNm = 0;
+  let forecastHours = 0;
+  let climatologyHours = 0;
+
+  for (const r of raw) {
+    const scaledDistance = r.distanceNm * scale;
+    const hours = scaledDistance / r.effSpeed;
     const tEnd = new Date(tCursor.getTime() + hours * 3_600_000);
 
     segments.push({
       tStart: tCursor,
       tEnd,
-      lat: lat0,
-      lon: lon0,
-      distanceNm: segmentDistanceNm,
-      effectiveSpeedKn: kwon.effectiveSpeedKn,
-      kwon,
-      weatherSource: sample.source,
+      lat: r.lat,
+      lon: r.lon,
+      distanceNm: scaledDistance,
+      effectiveSpeedKn: r.effSpeed,
+      kwon: r.kwon,
+      weatherSource: r.source,
     });
 
-    if (sample.source === "forecast") forecastHours += hours;
+    if (r.source === "forecast") forecastHours += hours;
     else climatologyHours += hours;
 
+    totalDistanceNm += scaledDistance;
     tCursor = tEnd;
   }
 
