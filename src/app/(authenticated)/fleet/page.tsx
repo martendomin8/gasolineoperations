@@ -909,22 +909,24 @@ export default function FleetPage() {
     expectedTotalDistanceNm: plannerDistance?.totalNm,
   });
 
-  // When a vessel is selected, auto-populate planner with its ports
-  const prevSelectedRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (!selectedVesselId || selectedVesselId === prevSelectedRef.current) return;
-    prevSelectedRef.current = selectedVesselId;
-
-    const v = vessels.find((vv) => vv.id === selectedVesselId);
+  // Explicit action: load a vessel's route into the planner. Previously
+  // this fired automatically whenever a vessel marker was clicked,
+  // which meant "I want to see this vessel's details" got hijacked by
+  // "let me open the planner". Now the marker click only opens the
+  // detail panel, and the user triggers this via the "Open in Planner"
+  // button in that panel — an explicit action, not a side effect.
+  async function openPlannerForVessel(vesselId: string) {
+    const v = vessels.find((vv) => vv.id === vesselId);
     if (!v) return;
 
-    // Collect unique ports: loadport → discharge ports
+    // Collect unique ports: loadport → discharge ports.
     const ports: string[] = [];
     if (v.loadport) ports.push(v.loadport);
     if (v.dischargePort && v.dischargePort !== v.loadport) ports.push(v.dischargePort);
 
-    // Also look for additional discharge ports from other sell deals in the same linkage.
-    // Sorted by sortOrder so the fleet planner shows ports in the operator's chosen sequence.
+    // Additional discharge ports from other sell deals in the same
+    // linkage, ordered by sortOrder so the planner reflects the
+    // operator's chosen sequence.
     const linkageDeals = allDeals
       .filter((d) => d.linkageId === v.id)
       .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
@@ -934,14 +936,18 @@ export default function FleetPage() {
       }
     }
 
+    // Close the detail panel and open the planner. We do both here so
+    // state is mutually exclusive by construction — the panel
+    // shuffle-bug was rooted in letting both be open at once.
+    setSelectedVesselId(null);
+
     if (ports.length === 0) {
-      // No ports — open planner empty (user can add manually)
+      setPlannerPorts([]);
       setPlannerMode(true);
       return;
     }
 
-    // Resolve port names via search API and populate planner
-    Promise.all(
+    const resolved = await Promise.all(
       ports.map((p) =>
         fetch(`/api/maritime/sea-distance?search=${encodeURIComponent(p)}`)
           .then((r) => r.json())
@@ -949,13 +955,12 @@ export default function FleetPage() {
             const match = data.ports?.[0];
             return match ?? { name: p, lat: 0, lon: 0 };
           })
-          .catch(() => ({ name: p, lat: 0, lon: 0 }))
-      )
-    ).then((resolved) => {
-      setPlannerPorts(resolved);
-      setPlannerMode(true);
-    });
-  }, [selectedVesselId, vessels, allDeals]);
+          .catch(() => ({ name: p, lat: 0, lon: 0 })),
+      ),
+    );
+    setPlannerPorts(resolved);
+    setPlannerMode(true);
+  }
 
   const operatorOptions = Array.from(
     new Map(
@@ -2180,22 +2185,37 @@ export default function FleetPage() {
               </div>
 
               {/* Action */}
-              <div className="px-4 py-4">
+              <div className="px-4 py-4 space-y-2">
                 {selectedVessel.id.startsWith("demo-") ? (
-                <div className="text-xs text-center text-[var(--color-text-tertiary)] italic py-1">
-                  Demo vessel — no linked cargo
-                </div>
-              ) : (
-                <Button
-                  variant="primary"
-                  size="md"
-                  className="w-full"
-                  onClick={() => router.push(`/linkages/${selectedVessel.id}`)}
-                >
-                  <ExternalLink className="h-3.5 w-3.5" />
-                  Open Linkage
-                </Button>
-              )}
+                  <div className="text-xs text-center text-[var(--color-text-tertiary)] italic py-1">
+                    Demo vessel — no linked cargo
+                  </div>
+                ) : (
+                  <Button
+                    variant="primary"
+                    size="md"
+                    className="w-full"
+                    onClick={() => router.push(`/linkages/${selectedVessel.id}`)}
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" />
+                    Open Linkage
+                  </Button>
+                )}
+                {/* Explicit "load this vessel's route into the planner".
+                    Replaces the old side-effect where marker clicks
+                    auto-toggled Planner mode and hijacked the detail
+                    view. Still lets operators go "see this ship? now
+                    plan its voyage" in one deliberate click. */}
+                {(selectedVessel.loadport || selectedVessel.dischargePort) && (
+                  <Button
+                    variant="secondary"
+                    size="md"
+                    className="w-full"
+                    onClick={() => openPlannerForVessel(selectedVessel.id)}
+                  >
+                    Open in Planner
+                  </Button>
+                )}
               </div>
             </div>
           )}
