@@ -40,6 +40,7 @@ import argparse
 import logging
 import os
 import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -56,15 +57,24 @@ from upload_blob import delete_files, upload_file
 
 logger = logging.getLogger(__name__)
 
-# Forecast steps to publish. Matches NOAA GFS native output cadence.
+# Forecast steps to publish.
 #
-# Trimmed from the full 173-frame 16-day horizon (which takes ~60-90 min
-# per cycle and timed out the cron) to 41 frames × 3 layers. That's
-# every 3 hours for 5 days — the actionable operations window — and
-# completes in ~12-15 min per cron run with comfortable timeout margin.
-# The 120-240 h planning window and 240-384 h strategic horizon can be
-# re-added once upload parallelism is introduced in the pipeline.
-FORECAST_STEPS: tuple[int, ...] = tuple(range(0, 121, 3))  # 0, 3, 6, ..., 120
+# 129 frames at 3-hour uniform cadence from f000 through f384 — a 16-day
+# horizon that covers even long Baltic → West Africa voyages end-to-end
+# without falling back to climatology. NOAA GFS 0p25 produces the
+# 3-hour grid natively for 0-384h, so every step corresponds to a real
+# model output (no synthetic interpolation).
+#
+# Wall-time target: ~12-15 min per cycle with ThreadPoolExecutor step
+# concurrency (below) — the earlier 173-frame mixed-cadence config
+# timed out at 60 min when each (fetch + encode + upload) ran serially.
+FORECAST_STEPS: tuple[int, ...] = tuple(range(0, 385, 3))  # 0, 3, 6, ..., 384
+
+# Concurrency for per-step processing (fetch NOAA + encode + upload Blob).
+# 6 workers fits NOAA NOMADS's polite-client ceiling and Vercel Blob's
+# per-second PUT limits with headroom. Override with the env var for
+# tuning during incidents (NOAA slowdown, Blob rate limiting).
+STEP_CONCURRENCY = int(os.environ.get("WEATHER_PIPELINE_CONCURRENCY", "6"))
 
 # How many days of history the manifest (and Blob) retains. The AIS
 # replay UI walks vessel positions backwards in time and wants "what
@@ -374,22 +384,48 @@ def run_pipeline(
             logger.warning("Unknown weather type %r — skipping", wt)
             continue
         frames: list[Frame] = []
-        for step in forecast_steps:
-            total_attempts += 1
-            logger.info("--- %s f%03d ---", wt, step)
-            frame = proc(
-                cycle_dt=cycle_dt,
-                forecast_hour=step,
-                data_dir=data_dir,
-                out_dir=out_dir,
-                upload=upload,
-                local_url_prefix=local_url_prefix,
-                token=token,
-            )
-            if frame is not None:
-                frames.append(frame)
-                total_successes += 1
+        # Steps within a layer are independent (different NOAA files,
+        # different Blob paths), so we can pipeline them. Each worker
+        # runs the full fetch + encode + upload chain for one step.
+        # A single slow NOAA response no longer stalls the whole layer.
+        logger.info(
+            "--- %s: dispatching %d steps across %d workers ---",
+            wt,
+            len(forecast_steps),
+            STEP_CONCURRENCY,
+        )
+        with ThreadPoolExecutor(max_workers=STEP_CONCURRENCY) as executor:
+            future_to_step = {
+                executor.submit(
+                    proc,
+                    cycle_dt=cycle_dt,
+                    forecast_hour=step,
+                    data_dir=data_dir,
+                    out_dir=out_dir,
+                    upload=upload,
+                    local_url_prefix=local_url_prefix,
+                    token=token,
+                ): step
+                for step in forecast_steps
+            }
+            for future in as_completed(future_to_step):
+                total_attempts += 1
+                step = future_to_step[future]
+                try:
+                    frame = future.result()
+                except Exception as exc:  # noqa: BLE001
+                    # A per-step failure is logged by the processor; we
+                    # just move on. The manifest will simply not list
+                    # this forecast hour for this layer.
+                    logger.error("%s f%03d raised: %s", wt, step, exc)
+                    continue
+                if frame is not None:
+                    frames.append(frame)
+                    total_successes += 1
         if frames:
+            # as_completed yields in completion order — re-sort by
+            # forecast hour so the manifest stays deterministic.
+            frames.sort(key=lambda f: f.forecast_hour)
             run.frames[wt] = frames
             logger.info(
                 "%s: %d / %d frames succeeded",

@@ -38,12 +38,12 @@ concurrency:
 jobs:
   fetch-encode-upload:
     runs-on: ubuntu-latest
-    # First cold run fetches ~3 products × ~85 forecast steps from NOAA and
-    # uploads each as a PNG to Blob. That's consistently ~40-50 min end-to-
-    # end at NOAA's current throughput. Subsequent runs are faster once
-    # containers and caches are warm, but headroom matters when NOAA is
-    # slow — keep 60 min.
-    timeout-minutes: 60
+    # 16-day horizon = 129 forecast steps × 3 layers = 387 (fetch + encode
+    # + upload) chains per cycle, now run with ThreadPoolExecutor step
+    # concurrency (default 6 workers). Target wall-time is 12-15 min;
+    # 90 min keeps comfortable headroom for NOAA slowdowns, occasional
+    # Blob retries, and cold-runner apt + pip install (~2 min combined).
+    timeout-minutes: 90
 
     steps:
       - name: Checkout
