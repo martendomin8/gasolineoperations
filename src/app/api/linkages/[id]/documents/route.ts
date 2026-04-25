@@ -5,6 +5,7 @@ import * as schema from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import path from "path";
 import { uploadDocument } from "@/lib/storage/documents";
+import { isEmailFile, parseEmail, type AttachmentClassification } from "@/lib/ai/parse-email";
 
 // ---------------------------------------------------------------------------
 // Accepted Q88 / CP Recap formats. Real Q88s arrive as PDF or Word.
@@ -127,7 +128,69 @@ export const POST = withAuth(
         })
         .returning();
 
-      return NextResponse.json({ document: doc }, { status: 201 });
+      // -------------------------------------------------------------------
+      // Email auto-extraction
+      //
+      // If the operator dropped a .eml as a CP Recap, the attachments inside
+      // the email may include a Q88 (and/or BL/COA). We parse the email,
+      // store each attachment as its own document with the classified
+      // fileType, and return the list so the client can trigger downstream
+      // parsing (parse-q88, etc.) on the auto-imported Q88(s).
+      //
+      // .msg (Outlook) is currently opaque; we store the file but don't try
+      // to extract its parts. Adding .msg support requires a different
+      // parser library and can be done later.
+      // -------------------------------------------------------------------
+      const autoImported: Array<{
+        document: typeof doc;
+        classification: AttachmentClassification;
+      }> = [];
+
+      if (fileTypeField === "cp_recap" && isEmailFile(fileField.name)) {
+        try {
+          const parsed = await parseEmail(buf);
+
+          for (const att of parsed.attachments) {
+            // Skip attachments we can't classify into the Q88 / BL / COA /
+            // CP Recap buckets — they go into the "other" pile, which we
+            // still persist so the operator can see what arrived but don't
+            // need to parse automatically.
+            const childFileType = att.classification;
+
+            const childSafe = sanitiseFilename(att.filename);
+            const childKey = `linkages/${id}/${childSafe}`;
+            const childPath = await uploadDocument(
+              childKey,
+              att.data,
+              att.contentType || undefined
+            );
+
+            const [childDoc] = await db
+              .insert(schema.documents)
+              .values({
+                tenantId,
+                linkageId: id,
+                filename: att.filename,
+                fileType: childFileType,
+                storagePath: childPath,
+                uploadedBy: session.user.id,
+              })
+              .returning();
+
+            autoImported.push({ document: childDoc, classification: childFileType });
+          }
+        } catch (err) {
+          // Email parsing failed — log and continue. The .eml itself is
+          // already stored as the cp_recap doc; the operator can manually
+          // open it if needed.
+          console.error(`[documents] email parse failed for linkage ${id}:`, err);
+        }
+      }
+
+      return NextResponse.json(
+        { document: doc, autoImported },
+        { status: 201 }
+      );
     }
 
     // --- Legacy JSON path (filename only, no real bytes) --------------------
