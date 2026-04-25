@@ -955,11 +955,16 @@ export default function FleetPage() {
     // predicted anchor. Distance & time computation is identical in
     // all three cases — they're just lat/lon to the ocean-routing
     // graph.
+    // The Planner's `computeRoute` treats waypoint names starting with
+    // `@` as raw lat/lon anchors (see line ~608 — `p.name.startsWith("@")
+    // ? "@<lat>,<lon>" : p.name`). For our synthetic vessel-position
+    // waypoint we MUST prefix with `@` or the sea-distance lookup falls
+    // through to a port-name search, finds nothing, and returns 0 NM.
     const positionLabel = (() => {
-      if (v.aisMode === "live") return "Vessel position (live AIS)";
-      if (v.aisMode === "dead_reck") return "Vessel position (dead-reckoned)";
-      if (v.aisMode === "predicted") return "Vessel position (predicted)";
-      return "Vessel position";
+      if (v.aisMode === "live") return "@ Vessel position (live AIS)";
+      if (v.aisMode === "dead_reck") return "@ Vessel position (dead-reckoned)";
+      if (v.aisMode === "predicted") return "@ Vessel position (predicted)";
+      return "@ Vessel position";
     })();
 
     const liveWaypoint =
@@ -1589,9 +1594,20 @@ export default function FleetPage() {
                                   {idx + 1}
                                 </span>
                                 <span className="text-xs text-[var(--color-text-primary)] truncate">
-                                  {port.name.startsWith("@")
-                                    ? port.name
-                                    : port.name.split(",")[0]}
+                                  {/* "@" is the coords-anchor marker
+                                      consumed by computeRoute (see line
+                                      ~608). Hide it from the operator
+                                      when followed by a friendly label
+                                      ("@ Vessel position (...)") — that
+                                      keeps the planner readable. Pure
+                                      coords waypoints ("@51.5,1.2") are
+                                      still shown verbatim so they're
+                                      distinguishable. */}
+                                  {port.name.startsWith("@ ")
+                                    ? port.name.slice(2)
+                                    : port.name.startsWith("@")
+                                      ? port.name
+                                      : port.name.split(",")[0]}
                                 </span>
                               </div>
                               {/* Leg distance from active route */}
