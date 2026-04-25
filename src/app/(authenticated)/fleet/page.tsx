@@ -942,31 +942,40 @@ export default function FleetPage() {
 
     // Build the waypoint sequence the Planner will route through.
     //
-    // When the vessel has a live (or recently dead-reckoned) AIS fix we
-    // start from its CURRENT position rather than the loadport — that
-    // way the Planner shows "remaining time to discharge" instead of
-    // the original full-voyage time, which is the operator-relevant
-    // number once the vessel is at sea. The synthetic "Vessel
-    // position" waypoint carries lat/lon directly, no port DB lookup.
+    // The first waypoint is ALWAYS the vessel's current map position —
+    // wherever the marker is rendered, that's where the route starts.
+    // The Planner then computes "remaining NM" and "remaining time"
+    // from there to the discharge port(s), which is the operator-
+    // relevant number once any progress has been made (real AIS fix,
+    // dead-reckoned position, or mock-interpolated sailing position).
     //
-    // For PREDICTED mode (no AIS yet) or when AIS is disabled we fall
-    // back to the loadport name so the Planner draws the original
-    // contracted route.
-    const useLivePosition =
-      aisEnabled &&
-      (v.aisMode === "live" || v.aisMode === "dead_reck") &&
-      v.position?.lat != null &&
-      v.position?.lng != null;
+    // The waypoint label changes with the position source so the
+    // operator can see at a glance whether they're looking at a live
+    // AIS fix, a stale dead-reckoned guess, or the still-at-loadport
+    // predicted anchor. Distance & time computation is identical in
+    // all three cases — they're just lat/lon to the ocean-routing
+    // graph.
+    const positionLabel = (() => {
+      if (v.aisMode === "live") return "Vessel position (live AIS)";
+      if (v.aisMode === "dead_reck") return "Vessel position (dead-reckoned)";
+      if (v.aisMode === "predicted") return "Vessel position (predicted)";
+      return "Vessel position";
+    })();
 
-    const liveWaypoint = useLivePosition
-      ? {
-          name: `Vessel position (${v.aisMode})`,
-          lat: v.position.lat,
-          lon: v.position.lng,
-        }
-      : null;
+    const liveWaypoint =
+      v.position?.lat != null && v.position?.lng != null
+        ? {
+            name: positionLabel,
+            lat: v.position.lat,
+            lon: v.position.lng,
+          }
+        : null;
 
     const portNames: string[] = [];
+    // Skip the loadport whenever we have a vessel-position waypoint —
+    // we'd be routing from the vessel through its origin, which is
+    // either zero distance (vessel at loadport) or backwards (vessel
+    // already at sea).
     if (!liveWaypoint && v.loadport) portNames.push(v.loadport);
     if (v.dischargePort && v.dischargePort !== v.loadport) portNames.push(v.dischargePort);
 
@@ -1004,7 +1013,7 @@ export default function FleetPage() {
     // `allDeals` because every AIS poll mutates `vessels` and we don't
     // want to thrash the waypoint fetch on every 15 s tick.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectionKey, aisEnabled]);
+  }, [selectionKey]);
 
   const operatorOptions = Array.from(
     new Map(
