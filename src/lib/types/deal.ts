@@ -48,6 +48,17 @@ const optionalString = z.preprocess(
 
 // === Zod Schemas ===
 
+// One parcel inside a multi-grade deal. Single-parcel deals don't need to
+// pass this — the API will synthesise one row from the deal-level
+// product/quantityMt/contractedQty when omitted. Multi-parcel callers
+// (e.g. the deal parser when it detects "ISOMERATE + REFORMATE") pass an
+// array with one entry per grade.
+export const parcelInputSchema = z.object({
+  product: z.string().min(1).max(255),
+  quantityMt: z.coerce.number().positive(),
+  contractedQty: z.string().max(100).nullable().optional(),
+});
+
 export const createDealSchema = z
   .object({
     externalRef: z.string().max(100).nullable().optional(),
@@ -60,6 +71,15 @@ export const createDealSchema = z
     quantityMt: z.coerce.number().positive("Quantity must be positive"),
     contractedQty: z.string().max(100).nullable().optional(),
     nominatedQty: optionalPositiveNumber,
+    /**
+     * Per-parcel breakdown for multi-grade deals. Optional — when omitted
+     * the API treats this as a single-parcel deal and synthesises one
+     * `deal_parcels` row from product/quantityMt/contractedQty. When
+     * provided with 2+ entries the deal becomes multi-parcel and the
+     * deal-level fields act as the denormalised summary (combined product
+     * label, summed quantity, verbatim recap text).
+     */
+    parcels: z.array(parcelInputSchema).optional(),
     incoterm: z.enum(incoterms),
     loadport: z.string().min(1, "Loadport is required").max(255),
     dischargePort: z.string().max(255).nullable().optional(),
@@ -193,3 +213,4 @@ export type CreateDealInput = z.infer<typeof createDealSchema>;
 export type ImportDealInput = z.infer<typeof importDealSchema>;
 export type UpdateDealInput = z.infer<typeof updateDealSchema>;
 export type DealFilter = z.infer<typeof dealFilterSchema>;
+export type ParcelInput = z.infer<typeof parcelInputSchema>;

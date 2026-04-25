@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { withAuth } from "@/lib/middleware/with-auth";
 import { withTenantDb } from "@/lib/db";
-import { deals, linkages, linkageSteps, auditLogs, users, workflowInstances, workflowSteps, type Deal } from "@/lib/db/schema";
+import { deals, dealParcels, linkages, linkageSteps, auditLogs, users, workflowInstances, workflowSteps, type Deal } from "@/lib/db/schema";
 import { matchTemplate, instantiateWorkflow } from "@/lib/workflow-engine";
 import { createDealSchema, dealFilterSchema } from "@/lib/types/deal";
 import { eq, and, ilike, or, desc, asc, sql, like } from "drizzle-orm";
@@ -121,6 +121,7 @@ export const GET = withAuth(async (req, _ctx, session) => {
           assignedOperatorId: sql<string | null>`coalesce(${linkages.assignedOperatorId}, ${deals.assignedOperatorId})`,
           secondaryOperatorId: sql<string | null>`coalesce(${linkages.secondaryOperatorId}, ${deals.secondaryOperatorId})`,
           loadedQuantityMt: deals.loadedQuantityMt,
+          parcelCount: deals.parcelCount,
           version: deals.version,
           excelStatuses: deals.excelStatuses,
           operatorName: sql<string | null>`coalesce(${linkagePrimaryOp.name}, ${primaryOp.name})`,
@@ -147,6 +148,47 @@ export const GET = withAuth(async (req, _ctx, session) => {
     // Enrich with workflow step statuses for Excel view
     const dealIds = rawItems.map((d) => d.id);
     const stepStatusMap = new Map<string, Record<string, string | null>>();
+
+    // Multi-parcel deals get their per-grade breakdown attached so the
+    // linkage view can render "ISOMERATE 2.5kt + REFORMATE 2.5kt" on the
+    // deal card. Single-parcel deals (parcel_count = 1) skip this — their
+    // single grade is already in `product` / `quantityMt` and adding a
+    // parcels array of length 1 would just bloat the dashboard payload.
+    const multiParcelDealIds = rawItems
+      .filter((d) => (d.parcelCount ?? 1) > 1)
+      .map((d) => d.id);
+    const parcelsByDeal = new Map<
+      string,
+      Array<{ parcelNo: number; product: string; quantityMt: string; contractedQty: string | null }>
+    >();
+    if (multiParcelDealIds.length > 0) {
+      const parcelRows = await db
+        .select({
+          dealId: dealParcels.dealId,
+          parcelNo: dealParcels.parcelNo,
+          product: dealParcels.product,
+          quantityMt: dealParcels.quantityMt,
+          contractedQty: dealParcels.contractedQty,
+        })
+        .from(dealParcels)
+        .where(
+          and(
+            eq(dealParcels.tenantId, session.user.tenantId),
+            // Drizzle's inArray over a small set is fine here.
+            sql`${dealParcels.dealId} = ANY(${multiParcelDealIds}::uuid[])`
+          )
+        )
+        .orderBy(asc(dealParcels.dealId), asc(dealParcels.parcelNo));
+      for (const row of parcelRows) {
+        if (!parcelsByDeal.has(row.dealId)) parcelsByDeal.set(row.dealId, []);
+        parcelsByDeal.get(row.dealId)!.push({
+          parcelNo: row.parcelNo,
+          product: row.product,
+          quantityMt: row.quantityMt,
+          contractedQty: row.contractedQty,
+        });
+      }
+    }
     // voyOrders / disOrders are per-voyage (linkage-level), not per-deal. All
     // deals belonging to the same linkage share the same voy/dis status, read
     // from linkage_steps. Built once per request and applied after the
@@ -258,6 +300,7 @@ export const GET = withAuth(async (req, _ctx, session) => {
       // vessel workflow stay in sync.
       return {
         ...d,
+        parcels: parcelsByDeal.get(d.id),
         docInstructions: stepStatuses.docInstructions ?? excelOverrides.docInstructions ?? null,
         voyOrders: linkageVoyDis?.voyOrders ?? stepStatuses.voyOrders ?? excelOverrides.voyOrders ?? null,
         disOrders: linkageVoyDis?.disOrders ?? stepStatuses.disOrders ?? excelOverrides.disOrders ?? null,
@@ -423,6 +466,22 @@ export const POST = withAuth(
         linkageCode = tempName;
       }
 
+      // Build the parcel list before inserting the deal: every deal must
+      // carry at least one row in `deal_parcels`, even single-parcel ones,
+      // so consumers (linkage view, BL tracking, AI Q&A) can iterate
+      // parcels[] without a length-zero special case. If the caller passed
+      // `parcels` with 2+ entries we honour it (multi-parcel deal); if
+      // they passed an array with 1 entry or omitted it entirely we
+      // synthesise a single parcel from the deal-level summary fields.
+      const parcelInputs = (validated.parcels && validated.parcels.length > 0)
+        ? validated.parcels
+        : [{
+            product: validated.product,
+            quantityMt: validated.quantityMt,
+            contractedQty: validated.contractedQty ?? null,
+          }];
+      const parcelCount = parcelInputs.length;
+
       const [deal] = await db
         .insert(deals)
         .values({
@@ -454,10 +513,25 @@ export const POST = withAuth(
           pricingEstimatedDate: validated.pricingEstimatedDate ?? null,
           specialInstructions: validated.specialInstructions ?? null,
           sourceRawText: validated.sourceRawText ?? null,
+          parcelCount,
           tenantId: session.user.tenantId,
           createdBy: session.user.id,
         })
         .returning();
+
+      // Persist parcel rows. parcel_no is 1-based so BL number alignment
+      // matches the trader's recap order. ON DELETE CASCADE on deal_parcels
+      // takes care of cleanup if the deal is later deleted.
+      await db.insert(dealParcels).values(
+        parcelInputs.map((p, i) => ({
+          tenantId: session.user.tenantId,
+          dealId: deal.id,
+          parcelNo: i + 1,
+          product: p.product,
+          quantityMt: String(p.quantityMt),
+          contractedQty: p.contractedQty ?? null,
+        }))
+      );
 
       // Propagate vessel info up to the linkage. When the deal has vessel info and
       // the linkage's corresponding vessel field is still empty, write it so all

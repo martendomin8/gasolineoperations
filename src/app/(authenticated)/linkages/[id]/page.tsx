@@ -103,6 +103,13 @@ interface LinkageData {
   updatedAt: string;
 }
 
+interface DealParcelSummary {
+  parcelNo: number;
+  product: string;
+  quantityMt: string;
+  contractedQty: string | null;
+}
+
 interface DealSummary {
   id: string;
   counterparty: string;
@@ -120,6 +127,14 @@ interface DealSummary {
   dealType: string;
   vesselName: string | null;
   sortOrder: number;
+  /** 1 for single-parcel (the common case), 2+ for multi-grade deals. */
+  parcelCount?: number;
+  /**
+   * Per-parcel detail. Server only attaches this when parcelCount > 1 to
+   * keep the dashboard payload small for the dominant single-parcel case.
+   * Single-parcel deals' grade lives in `product` / `quantityMt` directly.
+   */
+  parcels?: DealParcelSummary[];
 }
 
 interface WorkflowStep {
@@ -1718,6 +1733,7 @@ function DealCard({ deal, steps, onDeleted, canDelete }: { deal: DealSummary; st
 
   const isTerminal = deal.dealType === "terminal_operation";
   const borderColor = isTerminal ? "border-l-teal-500/60" : deal.direction === "buy" ? "border-l-blue-500/60" : "border-l-amber-500/60";
+  const isMultiParcel = (deal.parcelCount ?? 1) > 1 && (deal.parcels?.length ?? 0) > 1;
 
   return (
     <>
@@ -1727,6 +1743,13 @@ function DealCard({ deal, steps, onDeleted, canDelete }: { deal: DealSummary; st
             <span className="text-sm font-semibold text-[var(--color-text-primary)] truncate">{deal.counterparty}</span>
             <Badge variant={deal.direction === "buy" ? "info" : "accent"} className="text-[0.6rem]">{deal.direction}</Badge>
             <span className="text-xs text-[var(--color-text-tertiary)]">{deal.incoterm}</span>
+            {isMultiParcel && (
+              <span title="Multi-parcel deal — breakdown below">
+                <Badge variant="muted" className="text-[0.6rem]">
+                  {deal.parcels!.length} parcels
+                </Badge>
+              </span>
+            )}
           </Link>
           <div className="flex items-center gap-1.5">
             <Badge variant="muted" className="text-[0.6rem]">{deal.status}</Badge>
@@ -1738,11 +1761,38 @@ function DealCard({ deal, steps, onDeleted, canDelete }: { deal: DealSummary; st
           </div>
         </div>
         <div className="px-4 pb-3 grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-[var(--color-text-secondary)]">
-          <div><span className="text-[var(--color-text-tertiary)]">Qty:</span> {Number(deal.quantityMt).toLocaleString()} MT</div>
+          <div>
+            <span className="text-[var(--color-text-tertiary)]">Qty:</span>{" "}
+            {Number(deal.quantityMt).toLocaleString()} MT
+            {isMultiParcel && (
+              <span className="text-[0.65rem] text-[var(--color-text-tertiary)]"> total</span>
+            )}
+          </div>
           <div><span className="text-[var(--color-text-tertiary)]">Loadport:</span> {deal.loadport}</div>
           {deal.dischargePort && <div><span className="text-[var(--color-text-tertiary)]">Discharge:</span> {deal.dischargePort}</div>}
           <div><span className="text-[var(--color-text-tertiary)]">Laycan:</span> {deal.laycanStart} — {deal.laycanEnd}</div>
         </div>
+        {isMultiParcel && (
+          <div className="px-4 pb-3 border-t border-[var(--color-border-subtle)] pt-2 space-y-0.5">
+            <div className="text-[0.6rem] uppercase tracking-wide text-[var(--color-text-tertiary)] mb-1">
+              Parcels
+            </div>
+            {deal.parcels!.map((p) => (
+              <div key={p.parcelNo} className="flex items-baseline gap-2 text-xs">
+                <span className="text-[var(--color-text-tertiary)] tabular-nums w-5">#{p.parcelNo}</span>
+                <span className="font-medium text-[var(--color-text-primary)] truncate">{p.product}</span>
+                <span className="text-[var(--color-text-secondary)] tabular-nums">
+                  {Number(p.quantityMt).toLocaleString()} MT
+                </span>
+                {p.contractedQty && (
+                  <span className="text-[0.65rem] text-[var(--color-text-tertiary)] truncate">
+                    ({p.contractedQty})
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
         {/* Workflow steps */}
         {steps.length > 0 && (() => {
           const doneCount = steps.filter((s) => s.status === "sent" || s.status === "done" || s.status === "received").length;

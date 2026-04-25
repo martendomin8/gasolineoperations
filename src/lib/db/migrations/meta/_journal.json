@@ -43,6 +43,13 @@
       "when": 1776897071530,
       "tag": "0005_deals_recap_fields",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1777142608209,
+      "tag": "0006_petite_glorian",
+      "breakpoints": true
     }
   ]
 }

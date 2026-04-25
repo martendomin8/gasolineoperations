@@ -300,6 +300,15 @@ export const deals = pgTable(
     excelStatuses: jsonb("excel_statuses").default({}).$type<Record<string, string | null>>(),
     sortOrder: integer("sort_order").default(0).notNull(),
     version: integer("version").default(1).notNull(),
+    // Multi-parcel marker. Single-parcel deals (the common case) keep
+    // parcel_count = 1 and the canonical product/quantity_mt/contracted_qty
+    // columns above act as the sole grade. Multi-parcel deals (e.g. an
+    // Equinor purchase of 2.5kt ISOMERATE + 2.5kt REFORMATE in one
+    // transaction) carry parcel_count >= 2 and the full per-parcel detail
+    // lives in `deal_parcels`. The deal-level columns hold a denormalised
+    // summary (combined product string, summed quantity) so dashboards and
+    // legacy consumers don't need to JOIN deal_parcels for every read.
+    parcelCount: integer("parcel_count").default(1).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
@@ -312,6 +321,63 @@ export const deals = pgTable(
       table.laycanStart
     ),
     index("deals_tenant_linkage_idx").on(table.tenantId, table.linkageCode),
+  ]
+);
+
+// --- Deal Parcels ---
+// One row per cargo grade inside a deal. Most deals are single-parcel and
+// have exactly one row here that mirrors the deal-level product/quantity.
+// Multi-parcel deals (e.g. ISOMERATE + REFORMATE bought from one seller in
+// one transaction) carry 2+ rows. Per-parcel BL figures and pricing-finalize
+// dates live here because BL is issued per grade by the loadport, even when
+// the rest of the contract is shared at deal level.
+export const dealParcels = pgTable(
+  "deal_parcels",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .references(() => tenants.id, { onDelete: "cascade" })
+      .notNull(),
+    dealId: uuid("deal_id")
+      .references(() => deals.id, { onDelete: "cascade" })
+      .notNull(),
+    // 1-based ordinal within the deal — preserves the order the trader
+    // listed the parcels in the recap (matters for BL number alignment).
+    parcelNo: integer("parcel_no").notNull(),
+    // Per-parcel grade (e.g. "ISOMERATE", "REFORMATE", "EBOB", "RBOB").
+    product: varchar("product", { length: 255 }).notNull(),
+    // Numeric middle/nominal quantity in MT, mirrors deals.quantity_mt for
+    // single-parcel deals. Used for arithmetic; contracted_qty holds the
+    // verbatim string with tolerance.
+    quantityMt: decimal("quantity_mt", { precision: 12, scale: 3 }).notNull(),
+    // Verbatim contracted quantity text including tolerance, e.g.
+    // "2,5kt +/-5% SO" — preserved exactly so the operator's view matches
+    // what the trader wrote.
+    contractedQty: varchar("contracted_qty", { length: 100 }),
+    // Declared exact quantity once the operator nominates it (per CLAUDE.md
+    // "contracted vs nominated qty" rule).
+    nominatedQty: decimal("nominated_qty", { precision: 12, scale: 3 }),
+    // Loaded quantity after BL issuance — exact figure on the Bill of Lading
+    // for THIS grade.
+    loadedQty: decimal("loaded_qty", { precision: 12, scale: 3 }),
+    // BL identifier for this parcel (numeric in most operator workflows but
+    // can be alphanumeric for some terminals — kept as varchar).
+    blFigure: varchar("bl_figure", { length: 100 }),
+    blDate: date("bl_date"),
+    // Pricing window finalisation date for THIS parcel — for BL-pricing
+    // deals, each parcel's pricing window is anchored on its own BL date,
+    // which can differ between parcels loaded at different times even on
+    // the same vessel.
+    pricingFinalizedDate: date("pricing_finalized_date"),
+    notes: text("notes"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    // Each (deal, parcel_no) pair is unique — prevents duplicate parcel #1.
+    uniqueIndex("deal_parcels_deal_parcel_no_idx").on(table.dealId, table.parcelNo),
+    // Tenant-scoped lookup is the dominant query pattern.
+    index("deal_parcels_tenant_deal_idx").on(table.tenantId, table.dealId),
   ]
 );
 
@@ -666,6 +732,7 @@ export const dealsRelations = relations(deals, ({ one, many }) => ({
   secondaryOperator: one(users, { fields: [deals.secondaryOperatorId], references: [users.id], relationName: "secondaryOperator" }),
   creator: one(users, { fields: [deals.createdBy], references: [users.id], relationName: "creator" }),
   legs: many(dealLegs),
+  parcels: many(dealParcels),
   auditLogs: many(auditLogs),
   changeLogs: many(dealChangeLogs),
   documents: many(documents),
@@ -673,6 +740,11 @@ export const dealsRelations = relations(deals, ({ one, many }) => ({
 
 export const dealLegsRelations = relations(dealLegs, ({ one }) => ({
   deal: one(deals, { fields: [dealLegs.dealId], references: [deals.id] }),
+}));
+
+export const dealParcelsRelations = relations(dealParcels, ({ one }) => ({
+  deal: one(deals, { fields: [dealParcels.dealId], references: [deals.id] }),
+  tenant: one(tenants, { fields: [dealParcels.tenantId], references: [tenants.id] }),
 }));
 
 export const auditLogsRelations = relations(auditLogs, ({ one }) => ({

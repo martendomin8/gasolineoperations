@@ -5,18 +5,57 @@ import { checkPortAmbiguity } from "@/lib/maritime/sea-distance";
 // TYPES
 // ============================================================
 
-export interface ParsedDealFields {
-  counterparty: string | null;
-  direction: "buy" | "sell" | null;
+/**
+ * One cargo grade inside a deal. A single-parcel deal has exactly one
+ * ParsedParcel; a multi-parcel deal (e.g. an Equinor purchase combining
+ * 2.5kt ISOMERATE + 2.5kt REFORMATE in one transaction) has 2+. Per
+ * CLAUDE.md, ONE deal = ONE direction + ONE counterparty, so all parcels
+ * inside a deal share the seller, the incoterm, the laycan, and the
+ * pricing window — only the product and quantity differ between parcels.
+ */
+export interface ParsedParcel {
   product: string | null;
   quantity_mt: number | null;
   /**
-   * Full contracted quantity with tolerance text EXACTLY as written in the recap,
-   * e.g. "18000 MT +/-10%", "37kt +/- 5%". This preserves the operator's view of
-   * the original contractual number. `quantity_mt` stays the numeric middle value
-   * for calculations.
+   * Full contracted quantity with tolerance text EXACTLY as written in the
+   * recap for THIS parcel, e.g. "2,5kt +/-5% SO". Preserves the trader's
+   * view; `quantity_mt` stays the numeric middle for arithmetic.
    */
   contracted_qty: string | null;
+}
+
+export interface ParsedDealFields {
+  counterparty: string | null;
+  direction: "buy" | "sell" | null;
+  /**
+   * Primary-parcel / summary product label. For single-parcel deals this
+   * is the grade (e.g. "Reformate"). For multi-parcel deals it is the
+   * combined string the trader wrote (e.g. "ISOMERATE + REFORMATE") so
+   * dashboards and the dedup index keep something readable without having
+   * to JOIN the parcels array. Authoritative per-parcel detail lives in
+   * `parcels`.
+   */
+  product: string | null;
+  /**
+   * Primary-parcel / summary quantity. Single-parcel: the parcel's qty.
+   * Multi-parcel: the SUM of all parcels (so demurrage calc / capacity
+   * checks have a meaningful single number to look at).
+   */
+  quantity_mt: number | null;
+  /**
+   * Primary-parcel / summary contracted quantity verbatim. Single-parcel:
+   * the parcel's exact text. Multi-parcel: the recap's combined wording
+   * (e.g. "2,5kt +/-5% SO + 2,5kt +/-5% SO") so the operator sees what
+   * was negotiated.
+   */
+  contracted_qty: string | null;
+  /**
+   * Authoritative per-parcel breakdown. Always populated — even
+   * single-parcel deals get one entry mirroring the summary fields above.
+   * Length >= 2 indicates a multi-parcel deal that the upload route must
+   * fan out into multiple `deal_parcels` rows.
+   */
+  parcels: ParsedParcel[];
   incoterm: "FOB" | "CIF" | "CFR" | "DAP" | null;
   loadport: string | null;
   discharge_port: string | null;
@@ -52,8 +91,19 @@ Be precise and conservative with confidence scores:
 - 0.0-0.49: Guessed or not mentioned — set field to null instead
 
 For dates, always output YYYY-MM-DD format. If only a month/year is given (e.g. "April 5/7"), use the current year.
-For quantities: extract TWO values. (1) quantity_mt = the numeric middle/nominal quantity in metric tonnes (e.g. for "18000 MT +/-10%" → 18000; for "37kt +/-5%" → 37000). Convert from BBLs if needed (1 MT ≈ 7.5 BBLs for gasoline). (2) contracted_qty = the full text EXACTLY as written in the recap, including units and tolerance, e.g. "18000 MT +/-10%", "37kt +/- 5%", "25,000 MT +/-10% in buyer's option". Preserve the original spacing and casing. If there is no tolerance stated, contracted_qty can be just the plain quantity string (e.g. "30,000 MT").
-For direction: "buy" means we are purchasing, "sell" means we are selling.
+
+MULTI-PARCEL DEALS — important. A single deal recap may cover multiple cargo grades bought or sold together in one transaction (one counterparty, one incoterm, one laycan, one pricing window — but two or more product/qty pairs). Typical recap shapes:
+  - Product: "ISOMERATE + REFORMATE"  Quantity: "2,5kt +/-5% SO + 2,5kt +/-5% SO"
+  - Product: "RON95 + RON98 gasoline" Quantity: "30kt + 15kt +/-10%"
+  - "Lot A: 5,000 MT EBOB / Lot B: 3,000 MT Naphtha"
+When you see this, return a parcels array with one entry per grade — each entry has its own product, quantity_mt, contracted_qty. The shared fields (counterparty, incoterm, ports, laycan, pricing) stay at deal level. Always include the parcels array, even for single-parcel deals — in that case parcels has exactly ONE entry mirroring the deal-level product/quantity_mt/contracted_qty.
+
+For the top-level product / quantity_mt / contracted_qty fields (which exist alongside parcels):
+  - Single-parcel deals: top-level mirrors the one parcel.
+  - Multi-parcel deals: top-level product = the combined trader text ("ISOMERATE + REFORMATE"), quantity_mt = SUM of all parcels (e.g. 2500 + 2500 = 5000), contracted_qty = the verbatim combined recap line ("2,5kt +/-5% SO + 2,5kt +/-5% SO").
+
+For quantities: extract TWO values. (1) quantity_mt = the numeric middle/nominal quantity in metric tonnes (e.g. for "18000 MT +/-10%" → 18000; for "37kt +/-5%" → 37000). Convert from BBLs if needed (1 MT ≈ 7.5 BBLs for gasoline). (2) contracted_qty = the full text EXACTLY as written in the recap, including units and tolerance, e.g. "18000 MT +/-10%", "37kt +/- 5%", "25,000 MT +/-10% in buyer's option". Preserve the original spacing and casing. If there is no tolerance stated, contracted_qty can be just the plain quantity string (e.g. "30,000 MT"). The same convention applies inside each parcels[] entry.
+For direction: "buy" means we are purchasing, "sell" means we are selling. The same direction applies to every parcel inside the deal — multi-parcel does not mean multi-direction.
 For ports: ALWAYS output the full canonical port name (e.g. "Rotterdam", "Amsterdam", "Lavera", "Barcelona", "Augusta", "Thessaloniki", "Thames"). NEVER output an abbreviation. If the recap uses an abbreviation (e.g. "AMS", "Rdam", "Lvr") you must expand it. A wrong or ambiguous port name is an expensive shipping mistake.
 
 EXCEPTION: "ARA" is a legitimate multi-port region (Amsterdam-Rotterdam-Antwerp), NOT an abbreviation to expand. It is used deliberately when the exact load/discharge port is not yet fixed and any of the three ARA ports is an option (e.g. "bss ARA" = "basis ARA, buyer's option"). Preserve "ARA" exactly as written — do NOT replace it with one of the three specific ports. Other legitimate multi-port regions to preserve: "USGC" (US Gulf Coast), "WAF" (West Africa), "MED" (Mediterranean), "NWE" (North West Europe).
@@ -74,9 +124,22 @@ const EXTRACTION_TOOL: Anthropic.Tool = {
     properties: {
       counterparty: { type: "string", description: "Company name of the trading counterparty" },
       direction: { type: "string", enum: ["buy", "sell"], description: "Trade direction from our perspective" },
-      product: { type: "string", description: "Product grade (e.g. EBOB, RBOB, Eurobob Oxy, Light Naphtha, Reformate)" },
-      quantity_mt: { type: "number", description: "Numeric middle/nominal quantity in metric tonnes (e.g. 18000 for '18000 MT +/-10%', 37000 for '37kt +/-5%')" },
-      contracted_qty: { type: "string", description: "Full contracted quantity with tolerance, EXACTLY as written in the recap including units and tolerance notation. Examples: '18000 MT +/-10%', '37kt +/- 5%', '25,000 MT +/-10% in buyer's option'. If no tolerance is stated, the plain quantity string is fine." },
+      product: { type: "string", description: "Primary-parcel / summary product label. Single-parcel deal: the grade name (e.g. 'EBOB', 'Reformate'). Multi-parcel deal: the combined recap text (e.g. 'ISOMERATE + REFORMATE')." },
+      quantity_mt: { type: "number", description: "Primary-parcel / summary quantity in metric tonnes. Single-parcel: that parcel's qty (e.g. 18000 for '18000 MT +/-10%'). Multi-parcel: SUM across parcels (e.g. 2500 + 2500 = 5000)." },
+      contracted_qty: { type: "string", description: "Primary-parcel / summary contracted quantity verbatim. Single-parcel: the parcel's exact text (e.g. '37kt +/- 5%'). Multi-parcel: the recap's combined wording (e.g. '2,5kt +/-5% SO + 2,5kt +/-5% SO')." },
+      parcels: {
+        type: "array",
+        description: "Per-parcel breakdown. Always include this array. Single-parcel deals: one entry mirroring the top-level product/quantity_mt/contracted_qty. Multi-parcel deals: one entry per cargo grade, in the order the trader listed them in the recap.",
+        items: {
+          type: "object",
+          properties: {
+            product: { type: "string", description: "This parcel's grade (e.g. 'ISOMERATE', 'REFORMATE', 'EBOB')." },
+            quantity_mt: { type: "number", description: "This parcel's nominal middle quantity in MT." },
+            contracted_qty: { type: "string", description: "This parcel's contracted quantity verbatim, including tolerance text (e.g. '2,5kt +/-5% SO')." },
+          },
+          required: ["product", "quantity_mt"],
+        },
+      },
       incoterm: { type: "string", enum: ["FOB", "CIF", "CFR", "DAP"], description: "Incoterm" },
       loadport: { type: "string", description: "Loading port or terminal city — where the cargo is LOADED onto the vessel. Use the FULL port name (e.g. 'Rotterdam', 'Amsterdam', 'Lavera', 'Barcelona'). NEVER use abbreviations — port names must be unambiguous because getting a port wrong can be an expensive shipping mistake. If the recap uses an abbreviation, expand it to the full canonical name. IMPORTANT: A port mentioned inline after CIF/CFR/DAP is the DISCHARGE port, not the loadport — do not put 'Amsterdam' here if the recap only says 'sold CIF Amsterdam'." },
       discharge_port: { type: "string", description: "Discharge port or terminal city — where the cargo is DELIVERED / discharged. Use the FULL port name, NEVER an abbreviation. Expand any abbreviations in the recap to the full canonical name. A port mentioned inline after CIF/CFR/DAP (e.g. 'CIF Amsterdam', 'DAP Houston', 'CFR Lagos') belongs HERE." },
@@ -154,12 +217,35 @@ export async function parseDealFromText(rawText: string): Promise<ParsedDealResu
   const input = toolUse.input as Record<string, unknown>;
   const confidenceScores = (input.confidence_scores ?? {}) as Record<string, number>;
 
+  // Parse parcels first so we can fall back to single-parcel from top-level
+  // values if the model returned only the legacy shape (older Claude calls
+  // before the prompt was updated).
+  const rawParcels = Array.isArray(input.parcels) ? (input.parcels as Array<Record<string, unknown>>) : [];
+  const parcels: ParsedParcel[] = rawParcels.map((p) => ({
+    product: typeof p.product === "string" ? p.product : null,
+    quantity_mt: typeof p.quantity_mt === "number" ? p.quantity_mt : null,
+    contracted_qty: typeof p.contracted_qty === "string" ? p.contracted_qty : null,
+  }));
+
+  // If the model didn't fill parcels (older payload, or single-parcel deal
+  // where it just answered with top-level fields), synthesise a single
+  // entry mirroring the top-level. This guarantees consumers can iterate
+  // parcels[] without a length-zero special case.
+  if (parcels.length === 0) {
+    parcels.push({
+      product: (input.product as string) ?? null,
+      quantity_mt: (input.quantity_mt as number) ?? null,
+      contracted_qty: (input.contracted_qty as string) ?? null,
+    });
+  }
+
   const fields: ParsedDealFields = {
     counterparty: (input.counterparty as string) ?? null,
     direction: (input.direction as "buy" | "sell") ?? null,
     product: (input.product as string) ?? null,
     quantity_mt: (input.quantity_mt as number) ?? null,
     contracted_qty: (input.contracted_qty as string) ?? null,
+    parcels,
     incoterm: (input.incoterm as ParsedDealFields["incoterm"]) ?? null,
     loadport: (input.loadport as string) ?? null,
     discharge_port: (input.discharge_port as string) ?? null,
@@ -369,10 +455,12 @@ export function parseDealDemo(rawText: string): ParsedDealResult {
   scores.incoterm = incoterm ? 0.95 : 0;
 
   // ── Product ──────────────────────────────────────────────────
+  // `let` (not const) — multi-parcel detection below may rewrite this to
+  // a combined "X + Y" summary string after extracting per-parcel detail.
   const productMatch = rawText.match(
     /\b(EBOB|RBOB|Eurobob(?:\s+Oxy)?|Reformate|Light\s+Naphtha|Naphtha|Isomerate|Alkylate|Gasoline|UNL\s*95|UNL\s*98|RON\s*95|RON\s*98)\b/i
   );
-  const product = productMatch ? productMatch[1] : null;
+  let product: string | null = productMatch ? productMatch[1] : null;
   scores.product = product ? 0.88 : 0;
 
   // ── Quantity ─────────────────────────────────────────────────
@@ -380,9 +468,10 @@ export function parseDealDemo(rawText: string): ParsedDealResult {
   let contracted_qty: string | null = null;
   // "30,000 MT" / "30kt" / "30 KT" / "28,500 metric tonnes"
   const qtyMT  = rawText.match(/(\d[\d,]+)\s*(?:mt|mts|metric\s*ton(?:ne)?s?)\b/i);
-  const qtyKT  = rawText.match(/(\d+(?:\.\d+)?)\s*kt\b/i);
+  // For "kt" we accept comma-as-decimal too (European convention) — recap may say "2,5kt".
+  const qtyKT  = rawText.match(/(\d+(?:[.,]\d+)?)\s*kt\b/i);
   if (qtyMT)      { quantity_mt = parseFloat(qtyMT[1].replace(/,/g, "")); scores.quantity_mt = 0.9; }
-  else if (qtyKT) { quantity_mt = parseFloat(qtyKT[1]) * 1000;            scores.quantity_mt = 0.85; }
+  else if (qtyKT) { quantity_mt = parseFloat(qtyKT[1].replace(",", ".")) * 1000; scores.quantity_mt = 0.85; }
   else             { scores.quantity_mt = 0; }
 
   // Contracted qty with tolerance — capture the full text including tolerance,
@@ -600,8 +689,68 @@ export function parseDealDemo(rawText: string): ParsedDealResult {
   const special_instructions = specialMatch ? specialMatch[1].trim() : null;
   scores.special_instructions = special_instructions ? 0.75 : 0;
 
+  // ── Multi-parcel detection ───────────────────────────────────
+  // Look for "Product: X + Y" together with "Quantity: Akt + Bkt" (or
+  // "A MT + B MT" / "A,5kt + B,5kt"). Both lines must be present and have
+  // matching count of "+" separators for a confident multi-parcel parse;
+  // otherwise fall back to single-parcel.
+  let parcels: ParsedParcel[] = [];
+  const productLine = rawText.match(/^Product\s*:\s*(.+)$/im);
+  const quantityLine = rawText.match(/^Quantity\s*:\s*(.+)$/im);
+
+  if (productLine && quantityLine && productLine[1].includes("+") && quantityLine[1].includes("+")) {
+    // Split and trim. Quantity items may carry tolerance text (e.g.
+    // "2,5kt +/-5% SO") which itself contains "+/-" — collapse those to
+    // sentinels first so we only split on the parcel-separator "+".
+    const SENTINEL = "<TOL>";
+    const protectTolerance = (s: string) =>
+      s.replace(/\+\/-/g, SENTINEL).replace(/±/g, SENTINEL);
+    const restoreTolerance = (s: string) => s.replace(new RegExp(SENTINEL, "g"), "+/-");
+
+    const productParts = protectTolerance(productLine[1]).split("+").map(restoreTolerance).map((s) => s.trim());
+    const qtyParts = protectTolerance(quantityLine[1]).split("+").map(restoreTolerance).map((s) => s.trim());
+
+    if (productParts.length === qtyParts.length && productParts.length >= 2) {
+      parcels = productParts.map((prod, i) => {
+        const qStr = qtyParts[i];
+        // Extract numeric qty from this parcel's qty fragment
+        const mMt = qStr.match(/(\d[\d,]*(?:\.\d+)?)\s*(?:mt|mts|metric\s*ton(?:ne)?s?)\b/i);
+        const mKt = qStr.match(/(\d+(?:[.,]\d+)?)\s*kt\b/i);
+        const qNum = mMt
+          ? parseFloat(mMt[1].replace(/,/g, ""))
+          : mKt
+          ? parseFloat(mKt[1].replace(",", ".")) * 1000
+          : null;
+        return {
+          product: prod || null,
+          quantity_mt: qNum,
+          contracted_qty: qStr || null,
+        };
+      });
+    }
+  }
+
+  // Single-parcel fallback: synthesise one parcel mirroring the top-level
+  // values so consumers can iterate parcels[] uniformly.
+  if (parcels.length === 0) {
+    parcels = [{ product, quantity_mt, contracted_qty }];
+  } else {
+    // Multi-parcel: rewrite top-level summary fields per the convention
+    // (combined product label, summed quantity, verbatim combined
+    // contracted_qty line) so dashboards still get a single readable
+    // number/string while parcels[] holds authoritative detail.
+    product = parcels.map((p) => p.product ?? "").filter(Boolean).join(" + ");
+    quantity_mt = parcels.reduce((s, p) => s + (p.quantity_mt ?? 0), 0) || null;
+    contracted_qty = quantityLine ? quantityLine[1].trim() : contracted_qty;
+    scores.product = 0.85;
+    scores.quantity_mt = 0.85;
+    scores.contracted_qty = 0.85;
+  }
+
   const fields: ParsedDealFields = {
-    counterparty, direction, product, quantity_mt, contracted_qty, incoterm,
+    counterparty, direction, product, quantity_mt, contracted_qty,
+    parcels,
+    incoterm,
     loadport, discharge_port, laycan_start, laycan_end,
     vessel_name, vessel_imo, pricing_formula,
     pricing_period_type, pricing_period_value,
