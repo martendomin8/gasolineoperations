@@ -1,0 +1,91 @@
+# AI-CREATED FIXTURE ADDENDUM NO. 2 — generated 2026-04-24
+#
+# Parent fixture: C:\Users\Arne\NEFGO\DATA\CP RECAPS\Histria Coral - 32kt\recap.txt
+# Parent vessel : HISTRIA CORAL
+#                 (paired Q88: DATA/Q88/04 - MR 45-55kt/HistriaCoral_Q88.pdf)
+# Prior addendum: ./recap_addendum.txt — Addendum No. 1 (TA range), 17 May 2026
+#
+# PURPOSE:
+#   Demonstrates two parser-test dimensions at once:
+#
+#   (1) ADDENDUM CHAINING — a single CP can accumulate more than one
+#       addendum. Addendum No. 1 already added a Trans-Atlantic
+#       discharge range. Addendum No. 2 here is dated three days
+#       later and adds a separate, unrelated change. The cumulative
+#       contract from 22 May 2026 onwards is `CP + Add 1 + Add 2`.
+#
+#   (2) OPEN-ENDED SUBJECT — the change introduced here is an
+#       INTERIM PORT CLAUSE, which is not represented anywhere else
+#       in the corpus. The parser must recognise it as a generic
+#       "add new clause" pattern (per the three-pattern rule in
+#       domain_cp_recap_rules.md) without needing a hard-coded list
+#       of known clause types.
+#
+# Pattern: single OLD -> NEW amendment, "add new clause" shape (OLD
+# uses the "[No equivalent...]" sentinel). Concise, dated after Add 1.
+#
+# ---- ADDENDUM BEGINS BELOW ----
+
+
+ADDENDUM NO. 2 TO CP DATED 14TH MAY, 2026
+==========================================
+REF : HISTRIA CORAL / NEFGO - CP 14.05.2026
+      (this addendum is supplemental to Addendum No. 1 dated 17 May 2026)
+
+BETWEEN: NORTHSEA MARITIME SOLUTIONS PTE LTD ("OWNERS")
+AND:    NEFGO ("CHARTERERS")
+
+DATED:  20TH MAY, 2026
+
+
+IT IS HEREBY MUTUALLY AGREED THAT THE CHARTER PARTY DATED 14TH MAY, 2026
+(AS ALREADY AMENDED BY ADDENDUM NO. 1 DATED 17TH MAY, 2026) SHALL BE FURTHER
+AMENDED AS FOLLOWS:
+
+
+--------------------------------------------------------------------------------
+AMENDMENT 1: INTERIM PORT CLAUSE
+--------------------------------------------------------------------------------
+
+OLD:
+    [No equivalent clause in original CP — interim port calls not contemplated.]
+
+NEW:
+    INTERIM PORT CLAUSE (NEW CLAUSE 23)
+    Charterers may instruct the vessel to call at one (1) interim port
+    en route from the loadport to the final discharge port, for the
+    purpose of partial discharge, surveyor attendance or sample
+    collection. The interim port shall be one of:
+        AALBORG, DENMARK
+        GOTHENBURG, SWEDEN
+        STAVANGER, NORWAY
+
+    Charterers shall pay an additional lump-sum freight of USD 65,000
+    for the interim diversion, settled together with the main freight
+    invoice. Twelve (12) hours additional laytime is granted per
+    interim port call, in addition to the laytime stated in the main
+    CP. Time spent at the interim port outside the granted twelve
+    hours counts on demurrage at the contractual rate.
+
+    Charterers shall give Owners written notice of the interim port
+    call no later than seventy-two hours before the vessel's arrival
+    at the interim port.
+
+
+--------------------------------------------------------------------------------
+
+ALL OTHER TERMS AND CONDITIONS OF THE ORIGINAL CHARTER PARTY DATED 14TH MAY,
+2026, AS PREVIOUSLY AMENDED BY ADDENDUM NO. 1 DATED 17TH MAY, 2026, REMAIN
+UNCHANGED AND IN FULL FORCE AND EFFECT.
+
+
+SIGNED FOR OWNERS:     [SIGNATURE PLACEHOLDER]
+                       NORTHSEA MARITIME SOLUTIONS PTE LTD
+                       DATE: 20TH MAY, 2026
+
+SIGNED FOR CHARTERERS: [SIGNATURE PLACEHOLDER]
+                       NEFGO
+                       DATE: 20TH MAY, 2026
+
+
+# ---- END OF ADDENDUM NO. 2 ----

@@ -1,0 +1,79 @@
+# AI-CREATED FIXTURE ADDENDUM — generated 2026-04-24
+#
+# Parent fixture: C:\Users\Arne\NEFGO\DATA\CP RECAPS\Bow Faith - 35kt - Chemical\recap.txt
+# Parent vessel : BOW FAITH (paired Q88: DATA/Q88/06 - Chemical Tankers/20-38kt/BowFaith_Q88.pdf)
+#
+# PURPOSE:
+#   Demonstrates a QUANTITY-TOLERANCE-WIDENING addendum — a subject
+#   not represented elsewhere in the corpus. Pattern: replace clause
+#   (the existing methanol +/-5% becomes +/-10%, while the other
+#   three grades retain +/-5%). Realistic real-world scenario:
+#   loadport short-loaded one grade and Charterers chose to widen
+#   tolerance for that grade rather than re-fix.
+#
+# ---- ADDENDUM BEGINS BELOW ----
+
+
+ADDENDUM NO. 1 TO CP DATED 13TH MAY, 2026
+==========================================
+REF : BOW FAITH / NEFGO - CP 13.05.2026
+
+BETWEEN: NORTHSEA MARITIME SOLUTIONS PTE LTD ("OWNERS")
+AND:    NEFGO ("CHARTERERS")
+
+DATED:  16TH MAY, 2026
+
+
+IT IS HEREBY MUTUALLY AGREED THAT THE CHARTER PARTY DATED 13TH MAY, 2026 SHALL
+BE AMENDED AS FOLLOWS:
+
+
+--------------------------------------------------------------------------------
+AMENDMENT 1: QUANTITY TOLERANCE — METHANOL GRADE WIDENED
+--------------------------------------------------------------------------------
+
+OLD:
+    [In CARGO BLOCK]
+    GRADE A: METHANOL                    12,000 MT  +/-5 PCT
+
+    [In CLAUSE 8: QUANTITY DETERMINATION & TOLERANCE]
+    Each grade's loaded quantity is established by the loadport shore meter
+    for that grade under independent inspector witness, with a tolerance of
+    plus or minus five percent. The shore-meter figure, as confirmed by the
+    inspector for each grade, is binding.
+
+NEW:
+    [In CARGO BLOCK]
+    GRADE A: METHANOL                    12,000 MT  +/-10 PCT
+    GRADE B: MTBE                        10,000 MT  +/-5 PCT
+    GRADE C: TOLUENE (NITRATION GRADE)    8,000 MT  +/-5 PCT
+    GRADE D: ETBE                         5,000 MT  +/-5 PCT
+
+    [In CLAUSE 8: QUANTITY DETERMINATION & TOLERANCE]
+    Each grade's loaded quantity is established by the loadport shore meter
+    for that grade under independent inspector witness. The tolerance on
+    contracted quantity is plus or minus FIVE percent for Grade B (MTBE),
+    Grade C (Toluene) and Grade D (ETBE), and plus or minus TEN percent
+    for Grade A (Methanol). The widened tolerance on the methanol grade
+    accommodates the short-loading conditions reported by the loadport
+    terminal on 15 May 2026 due to upstream tank-stock limitations. The
+    shore-meter figure, as confirmed by the inspector for each grade, is
+    binding.
+
+
+--------------------------------------------------------------------------------
+
+ALL OTHER TERMS AND CONDITIONS OF THE ORIGINAL CHARTER PARTY DATED 13TH MAY,
+2026 REMAIN UNCHANGED AND IN FULL FORCE AND EFFECT.
+
+
+SIGNED FOR OWNERS:     [SIGNATURE PLACEHOLDER]
+                       NORTHSEA MARITIME SOLUTIONS PTE LTD
+                       DATE: 16TH MAY, 2026
+
+SIGNED FOR CHARTERERS: [SIGNATURE PLACEHOLDER]
+                       NEFGO
+                       DATE: 16TH MAY, 2026
+
+
+# ---- END OF ADDENDUM ----

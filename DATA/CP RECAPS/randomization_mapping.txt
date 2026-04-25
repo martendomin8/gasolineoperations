@@ -1,0 +1,189 @@
+# DATA RANDOMIZATION MAPPING FOR CP RECAP FIXTURES
+# Generated: 2026-04-23
+# Purpose: Anonymize sensitive business information while maintaining structural integrity
+#
+# MAPPING RULES:
+# - Each real entity maps to a unique random substitute consistently across all folders
+# - Structural elements (ports, dates, rates) are offset/randomized but maintain realism
+# - All four folders use the same mapping to ensure consistency in linked deals
+
+# ============================================================================
+# COMPANY NAMES & ENTITIES
+# ============================================================================
+
+# Primary Operators
+TRAFIGURA MARITIME LOGISTICS PTE LTD → NORTHSEA MARITIME SOLUTIONS PTE LTD
+TRAFIGURA MARITIME LOGISTICS → NORTHSEA MARITIME SOLUTIONS
+TRAFIGURA → NORTHSEA
+
+# Charterer (NEFGO replacement applied 2026-04-23)
+CLEARLAKE SHIPPING PTE LTD → NEFGO
+CLEARLAKE SHIPPING PTE. LTD. → NEFGO
+CLEARLAKE SHIPPING → NEFGO
+CLEARLAKE → NEFGO
+# Note: Intermediate "OCEANVIEW TRADERS" placeholder was used then replaced with "NEFGO"
+
+# Registered Owners
+GREAT THASOS LIMITED → BLUEHORIZON CORP LIMITED
+GREAT THASOS → BLUEHORIZON CORP
+
+# Technical Operator
+SYNERGY MARITIME PRIVATE LIMITED → MARITIME TECH SERVICES PVT LTD
+SYNERGY MARITIME → MARITIME TECH SERVICES
+SYNERGYMARINEGROUP.COM → maritimetechservices.com
+SYNERGYSHIP.COM → maritimetechservices.com
+TANKERS@SYNERGYSHIP.COM → operations@maritimetechservices.com
+
+# Brokers
+ALBIS SHIPPING & TRANSPORT → NORDICS SHIPPING & LOGISTICS
+THOMAS HOLLE → THOMAS WAGNER
+CHRISTOPHER HASS → CHRISTIAN MUELLER
+THOMAS.HOLLE@ALBIS-SHIPPING.COM → thomas.wagner@nordicsshipping.com
+CHRISTOPHER.HASS@ALBIS-SHIPPING.COM → christian.mueller@nordicsshipping.com
+OPS@ALBIS-SHIPPING.COM → operations@nordicsshipping.com
+ALBIS@ALBIS-SHIPPING.COM → info@nordicsshipping.com
+ALBIS-SHIPPING.COM → nordicsshipping.com
+PALMAILLE 71 → HAFENSTRASSE 142
+22767 HAMBURG → 28209 BREMEN
+HAMBURG → BREMEN
+
+# Second Broker (Folder 4)
+LONDON SHIPBROKERS LTD → EUROPEAN MARITIME BROKERS LTD
+
+# Banks
+DEUTSCHE BANK AG → INTERNATIONAL BANK & TRUST
+DEUTGB2L → INTBANKTRUST
+DEUTUS33XXX → INTBANKTRUST
+
+# Owner contact generic
+TANKERS@NAVIOS.COM → operations@bluehorizon.com
+NAVIOS.COM → bluehorizon.com
+
+# ============================================================================
+# VESSEL NAMES
+# ============================================================================
+
+NAVE EQUINOX → OCEAN MERIDIAN
+THUN GENIUS → ATLANTIC PHOENIX
+[VESSEL NAME] → GLOBAL CARRIER (for template placeholders in Folders 3-4)
+
+# ============================================================================
+# ADDRESSES & LOCATIONS - PHYSICAL OFFICES
+# ============================================================================
+
+# Singapore addresses
+12 MARINA BOULEVARD 35-02 MBFC TOWER 3 → 8 RAFFLES PLACE 35-01 OUB CENTRE
+SINGAPORE 018982 → SINGAPORE 048621
+
+10 COLLYER QUAY #29-00 OCEAN FINANCIAL CENTRE → 60 CECIL STREET #01-01 PEOPLE'S PARK CENTRE
+SINGAPORE 049315 → SINGAPORE 059436
+
+# Marshall Islands
+TRUST COMPANY COMPLEX, AJELTAKE ROAD, AJELTAKE ISLAND → CORPORATE TRUST BUILDING, LONGAR STREET
+MAJURO, MH-96960, MARSHALL ISLANDS → MAJURO, MH-96960, MARSHALL ISLANDS
+
+# India
+4TH FLOOR, AKDR TOWER, 3/381, RAJIV GANDHI SALAI (OMR) → 5TH FLOOR, TECH PLAZA, 45/B MOUNT ROAD
+METTUKUPPAM, CHENNAI 600 097 INDIA → TEYNAMPET, CHENNAI 600 018 INDIA
+
+# Broker addresses
+PALMAILLE 71 → HAFENSTRASSE 142
+22767 HAMBURG → 28209 BREMEN
+GERMANY → GERMANY
+
+# ============================================================================
+# CONTACT DETAILS
+# ============================================================================
+
+# Phone numbers (offset format)
++302104595000 → +492814205000
++302104172070 → +492814205100
++91-44-4321 5555 → +91-80-4125 5555
++91-44-4321 5500 → +91-80-4125 5500
++49 80 90 60 211 → +49 40 38 40 211
++49 80 90 60 226 → +49 40 38 40 226
++49 172 4023047 → +49 172 5134158
++49 172 4534621 → +49 172 6245732
+
+# IMO numbers (offset)
+5745081 → 5847293
+
+# Company IMO
+COMPANY IMO#: 5745081 → COMPANY IMO#: 5847293
+
+# ============================================================================
+# PORTS & LOADING/DISCHARGE LOCATIONS
+# ============================================================================
+
+UST-LUGA → PRIMORSK
+ARA → ROTTERDAM ZONE
+ROTTERDAM → ROTTERDAM
+AMSTERDAM → ANTWERP
+ANTWERP → AMSTERDAM
+LAVERA → MARSEILLE
+MEDITERRANEAN → NORTH SEA
+ARCTICREGION → BALTIC REGION
+
+# ============================================================================
+# DATES - Apply 45-day offset to all dates
+# ============================================================================
+
+23RD MARCH, 2022 → 7TH MAY, 2022
+23.03.2022 → 07.05.2022
+03/23/2022 → 05/07/2022
+2022-03-23 → 2022-05-07
+
+27TH OCTOBER, 2021 → 11TH DECEMBER, 2021
+27.10.2021 → 11.12.2021
+10/27/2021 → 12/11/2021
+2021-10-27 → 2021-12-11
+
+10TH AUGUST, 2021 → 24TH SEPTEMBER, 2021
+10.08.2021 → 24.09.2021
+08/10/2021 → 09/24/2021
+2021-08-10 → 2021-09-24
+
+25TH MARCH 2022 → 8TH MAY 2022
+25TH MARCH, 2022 → 8TH MAY, 2022
+
+# ============================================================================
+# FINANCIAL TERMS - Apply ±5% variance
+# ============================================================================
+
+WS 290 → WS 285
+WS 280 → WS 275
+WS 270 → WS 265
+
+USD 28,500 PDPR → USD 29,900 PDPR
+USD 28500 PDPR → USD 29900 PDPR
+
+GB45DEUT40508123366604 → GB51INTB40508124387715
+
+# ============================================================================
+# MISCELLANEOUS IDENTIFIERS
+# ============================================================================
+
+15-MAY-2022 → 29-JUN-2022
+17-MAY-2022 → 1-JUL-2022
+15 MARCH 2022 → 29 APRIL 2022
+17 MARCH 2022 → 1 MAY 2022
+
+# ============================================================================
+# EMAIL DOMAINS (Generic replacements for new substituted companies)
+# ============================================================================
+
+@navios.com → @bluehorizon.com
+@synergyship.com → @maritimetechservices.com
+@albis-shipping.com → @nordicsshipping.com
+
+# ============================================================================
+# NOTES
+# ============================================================================
+
+# - All names are generated to sound realistic and industry-appropriate
+# - Phone numbers use realistic country codes (+49 = Germany, +91 = India, etc.)
+# - Addresses are real-looking but different from originals
+# - Dates are offset forward by 30-45 days to maintain temporal integrity
+# - Financial rates adjusted ±5% to stay within market-realistic ranges
+# - Port names are real international ports to maintain geographic authenticity
+# - All substitutions maintain the same length/format as originals where possible for easier implementation

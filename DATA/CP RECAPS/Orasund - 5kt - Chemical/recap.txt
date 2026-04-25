@@ -1,0 +1,282 @@
+# AI-CREATED FIXTURE — generated 2026-04-24
+#
+# Q88 PAIRING: this CP is for vessel ORASUND (IMO 9336701,
+# MMSI 220514000). See `DATA/Q88/06 - Chemical Tankers/5-10kt/Orasund_Q88.pdf`
+# for the matching vessel particulars (4,975 DWT, 14 Marineline-coated
+# tanks, ice class 1B). Smallest vessel in our corpus.
+#
+# Scenario: small-parcel coastal MTBE shipment Antwerp -> Klaipeda.
+# Tests parser handling of (a) sub-handysize cargo economics,
+# (b) ice-class material in the Baltic spring shoulder, (c) heating
+# requirement for a single grade, (d) very compressed timeline
+# (laycan 2 days, laytime 60 hours).
+#
+# All clauses below are written fresh in this fixture's voice.
+#
+# AMENDMENTS: None at recap date.
+#
+# ---- RECAP BEGINS BELOW ----
+
+
+REF : ORASUND / NEFGO - CP 19.05.2026 - FIXTURE RECAP -
+==========================================================
+
+================================================================
+S T R I C T L Y   P R I V A T E   A N D   C O N F I D E N T I A L
+================================================================
+
+
+IT IS ON THIS DAY AGREED BETWEEN NORTHSEA MARITIME SOLUTIONS PTE OF SINGAPORE
+(HEREINAFTER REFERRED TO AS "OWNERS"), BEING DISPONENT OWNERS OF THE GOOD MOTOR
+TANKER VESSEL CALLED 'ORASUND' (HEREINAFTER REFERRED TO AS "THE VESSEL")
+DESCRIBED HEREOF AND NEFGO OF SINGAPORE (HEREINAFTER
+REFERRED TO AS "CHARTERERS").
+
+WITH CHARTERER'S AUTHORITY WE ARE PLEASED TO RECAP THE FOLLOWING FIXTURE WITH ALL
+SUBJECTS LIFTED AND IN GOOD ORDER.
+
+
+--------------------------------- T I T L E ---------------------------------
+
+CHARTERER           : NEFGO
+                      8 RAFFLES PLACE 35-01 OUB CENTRE
+                      SINGAPORE 048621
+                      SINGAPORE
+
+REGISTERED OWNER    : M.H. SIMONSEN APS
+                      ABILDAGER 23
+                      DK-2605 BROENDBY, DENMARK
+                      TEL: +45 3641 4400
+                      FAX: +45 3641 4401
+                      EMAIL: chartering@mhsimonsen.com
+
+TECHNICAL OPERATOR  : M.H. SIMONSEN APS — TANKER OPERATIONS
+                      ABILDAGER 23
+                      DK-2605 BROENDBY, DENMARK
+                      TEL: +45 3641 4400
+                      EMAIL: ops@mhsimonsen.com
+                      WEB: www.mhsimonsen.com
+                      COMPANY IMO#: 1480218
+
+COMMERCIAL OPERATOR : NORTHSEA MARITIME SOLUTIONS PTE LTD
+                      60 CECIL STREET #01-01 PEOPLE'S PARK CENTRE
+                      SINGAPORE 059436
+
+DISPONENT OWNER     : NORTHSEA MARITIME SOLUTIONS PTE LTD
+                      60 CECIL STREET #01-01 PEOPLE'S PARK CENTRE
+                      SINGAPORE 059436
+
+CP DATED            : 19TH MAY, 2026
+
+CHARTER PARTY       : BPVOY4 (SHORT-VOYAGE COASTAL RIDER)
+
+
+---------------------------------VESSEL---------------------------------
+
+VESSEL              : ORASUND
+
+[GAP — vessel details intentionally omitted from recap body, see Q88
+ attachment: DATA/Q88/06 - Chemical Tankers/5-10kt/Orasund_Q88.pdf]
+
+
+-----------------------------(CARGO)------------------------------
+
+CARGO QUANTITY      : MIN 4,200 MTS CHARTERERS OPTION UPTO 4,500 MTS +/-3 PCT MOLOO
+
+CARGO GRADE(S)      : MTBE (METHYL TERT-BUTYL ETHER)
+                      MIN 98% PURITY / METHANOL MAX 0.5% /
+                      WATER MAX 200 PPM / IRON MAX 2 PPM /
+                      SULFUR MAX 5 PPM
+
+SEGREGATION         : 1 GRADE / SINGLE GRADE LOADED IN 4 TANKS (1P, 1S, 2P, 2S)
+
+HEAT                : MAINTAIN ABOVE 12 DEG C THROUGHOUT VOYAGE
+                      LIGHT HEATING VIA STEAM COILS REQUIRED IF AMBIENT
+                      DROPS BELOW 8 DEG C
+
+
+-----------------------------(GEOGRAPHICAL)-----------------------------
+
+LOAD RANGE          : 1 SAFE PORT
+                        ANTWERP, BELGIUM        BASIS WS 360 (BASE)
+
+DISCHARGE OPTIONS   : 1 SAFE PORT
+                        KLAIPEDA, LITHUANIA              WS 360
+                        OR
+                        VENTSPILS, LATVIA                WS 358
+
+
+-----------------------------(DATES)------------------------------
+
+COMMENCING          : 25TH MAY 2026 (0001 - 2359 HRS) — EARLIEST ARRIVAL
+LAYCAN              : 25-26 MAY 2026 (2-DAY WINDOW — SMALL PARCEL TIGHT WINDOW)
+
+
+-----------------------------(FINANCIAL)------------------------------
+
+FREIGHT             : WS 360 (BASE — ANTWERP / KLAIPEDA)
+
+OVERAGE             : 50 PCT
+
+DEMURRAGE RATE      : USD 14,000 PDPR
+
+LAYTIME             : 60 HOURS SHINC TOTAL (LOAD + DISCHARGE COMBINED), REVERSIBLE
+
+WS 2026 FLAT RATES, TERMS AND CONDITIONS TO APPLY
+
+
+BANK DETAILS :
+
+USD ACCOUNT DETAILS
+
+ACCOUNT NAME                : NORTHSEA MARITIME SOLUTIONS PTE LTD
+ACCOUNT NO.                 : SG40OCBC56214770382
+BANK                        : OVERSEA-CHINESE BANKING CORPORATION, SINGAPORE (SWIFT: OCBCSGSG)
+CORRESPONDENT BANK NAME     : JPMORGAN CHASE BANK NA, NEW YORK (SWIFT: CHASUS33)
+BENEFICIARY BANK ACCOUNT    : 56214770382
+BENEFICIARY BANK NAME       : OVERSEA-CHINESE BANKING CORPORATION
+
+
+------------------------------------------------------------------
+
+TERMS NEFGO / NORTHSEA
+===========================
+
+CLAUSE 1: NOTICE OF READINESS
+-------------------------------
+NOR may be tendered on arrival WIBON / WIPON. Loadport agent acknowledges
+within two hours during office hours, six hours outside. Short-voyage
+trade requires faster turn-round than transoceanic. NOR copied to
+operations@northseamaritime.com at moment of tender.
+
+
+CLAUSE 2: LAYTIME COMMENCEMENT
+-------------------------------
+Laytime starts running three hours after NOR tender or on all-fast at the
+berth, whichever first.
+
+
+CLAUSE 3: ETA REPORTING
+------------------------
+ETA on a 3 / 2 / 1 day cadence plus 12-hour and 6-hour pre-arrival notices.
+
+
+CLAUSE 4: LAYDAYS & CANCELLING
+--------------------------------
+Vessel to present 25 May 2026 (earliest) and no later than 26 May 2026 17:00
+local time (cancelling). The compressed two-day window reflects the small-
+parcel trade rhythm where buyers expect the cargo within a tight schedule.
+
+
+CLAUSE 5: ICE CLAUSE — BALTIC SHOULDER SEASON
+-----------------------------------------------
+By late May the eastern Baltic is generally ice-free, but Klaipeda and
+Ventspils can carry residual sea-ice in shallow approaches. The vessel is
+ice-class 1B (per Q88) and may proceed to either nominated port without
+escort. Should ice nonetheless force the vessel to suspend approach, laytime
+suspends for the duration; Owners not liable for ice-related delays.
+
+
+CLAUSE 6: HEATING DURING VOYAGE
+---------------------------------
+Owners shall ensure cargo temperature is maintained above 12 deg C throughout
+the voyage. Master shall log cargo temperatures every four hours. The lub-oil
+boiler is approved as the heat source for this voyage; Charterers reimburse
+incremental MGO consumed for heating beyond the standard at-sea consumption
+declared in the Q88, supported by surveyor-verified bunker figures.
+
+
+CLAUSE 7: TANK CLEANING & CARGO SPEC
+--------------------------------------
+Tanks must be clean, dry, slop-free, and prepared for MTBE. Wall-wash test
+results to be presented to shipper before connection. Three previous cargoes
+to be confirmed compatible with MTBE (no methanol-incompatible residues).
+
+
+CLAUSE 8: QUANTITY DETERMINATION & TOLERANCE
+----------------------------------------------
+Loaded quantity by loadport shore meter under independent inspector witness,
+tolerance +/-3 percent (tighter than the 5% standard reflecting the small
+parcel size where rounding creates a larger relative impact).
+
+
+CLAUSE 9: BL & DOCUMENTATION
+------------------------------
+Master signs B/Ls as presented; clean Bills only. Document set within twelve
+hours of loading completion — very short voyage requires near-instant
+turnaround.
+
+
+CLAUSE 10: BUNKERS
+--------------------
+Vessel delivered Antwerp with approximately 220 MT VLSFO and 35 MT MGO,
+verified by independent surveyor.
+
+
+CLAUSE 11: SANCTIONS & WAR RISK
+---------------------------------
+Standard sanctions regime. Owners maintain war-risk insurance covering
+Baltic transit.
+
+
+CLAUSE 12: INSURANCE
+----------------------
+Owners maintain H&M, P&I and War-Risk cover. Certificates on request.
+
+
+CLAUSE 13: FORCE MAJEURE
+--------------------------
+Standard force-majeure clause: laytime suspended and contractual deadlines
+extended day-for-day for the duration of any qualifying event.
+
+
+CLAUSE 14: PAYMENT TERMS
+--------------------------
+Freight payable within five business days of email invoice. Demurrage within
+thirty calendar days of demurrage invoice and time-sheet. No set-off.
+
+
+CLAUSE 15: CLAIMS TIME BAR
+----------------------------
+General claims within nine months. Demurrage claims within ninety calendar
+days of discharge completion.
+
+
+CLAUSE 16: COMMISSION & BROKERS
+---------------------------------
+Address commission 2.50 percent and brokerage commission 1.25 percent on
+freight, deadfreight and demurrage. Brokerage payable to NORTH BALTIC SHIPPING
+APS per details:
+
+NAME        : NORTH BALTIC SHIPPING APS
+ADDRESS     : SUNDKROGSGADE 13
+              DK-2150 NORDHAVN, DENMARK
+EMAIL       : info@nordbalticship.dk
+
+BROKER      : MORTEN ANDERSEN
+EMAIL       : morten@nordbalticship.dk
+PHONE       : +45 3344 1500
+
+OPERATIONS  : LISA PEDERSEN
+EMAIL       : ops@nordbalticship.dk
+PHONE       : +45 3344 1510
+
+
+CLAUSE 17: ARBITRATION & GOVERNING LAW
+----------------------------------------
+LMAA London arbitration. Seat London, language English, English governing
+law.
+
+
+CLAUSE 18: AMENDMENTS & ENTIRE AGREEMENT
+------------------------------------------
+No amendment effective unless in writing signed by both parties. This CP plus
+any addenda constitute the entire agreement.
+
+
+# ---- END OF MAIN RECAP ----
+#
+# ATTACHMENTS:
+#   - Q88 vessel questionnaire for ORASUND
+#     (DATA/Q88/06 - Chemical Tankers/5-10kt/Orasund_Q88.pdf)
+#   - No addendum at recap date.

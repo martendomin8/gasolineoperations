@@ -1,0 +1,361 @@
+# AI-COMPLETED FIXTURE — populated 2026-04-24 from a placeholder template
+#
+# Original status: this folder was a transcription scaffold for IMG_5378-
+# 5394 with [VESSEL NAME] / [QUANTITY] / etc. placeholders, never filled
+# with concrete content. It is now populated as an LR1 naphtha export
+# voyage so the parser corpus exercises larger-than-MR cargo sizes.
+#
+# Q88 PAIRING: this CP recap is for vessel HAFNIA ASIA (IMO 9467809,
+# MMSI 248949000). See `DATA/Q88/05 - LR 55-115kt/HafniaAsia_Q88.pdf`
+# for the matching vessel particulars. Hafnia Asia at 74,490 DWT
+# comfortably handles the 73,000-76,500 MT naphtha cargo declared
+# below.
+#
+# All clauses below are written fresh in this fixture's own voice
+# (per the "Clause wording — always fresh" rule in
+# domain_cp_recap_rules.md). No copy-paste from real recaps or earlier
+# fixtures in the corpus.
+#
+# AMENDMENTS:
+#   A separate addendum (laycan extension, dated 18 May 2026) sits in
+#   the sibling `addendum/recap_addendum.txt`. It was agreed three days
+#   after this CP and forms part of the contract from that date forward.
+#   The CP body below does NOT reference it (per the no-forward-reference
+#   rule in domain_cp_recap_rules.md).
+#
+# ---- RECAP BEGINS BELOW ----
+
+
+REF : HAFNIA ASIA / NEFGO - CP 15.05.2026 - FIXTURE RECAP -
+=============================================================
+
+================================================================
+S T R I C T L Y   P R I V A T E   A N D   C O N F I D E N T I A L
+================================================================
+
+
+IT IS ON THIS DAY AGREED BETWEEN NORTHSEA MARITIME SOLUTIONS PTE OF SINGAPORE
+(HEREINAFTER REFERRED TO AS "OWNERS"), BEING DISPONENT OWNERS OF THE GOOD MOTOR
+TANKER VESSEL CALLED 'HAFNIA ASIA' (HEREINAFTER REFERRED TO AS "THE VESSEL")
+DESCRIBED HEREOF AND NEFGO OF SINGAPORE (HEREINAFTER
+REFERRED TO AS "CHARTERERS").
+
+WITH CHARTERER'S AUTHORITY WE ARE PLEASED TO RECAP THE FOLLOWING FIXTURE WITH ALL
+SUBJECTS LIFTED AND IN GOOD ORDER.
+
+
+--------------------------------- T I T L E ---------------------------------
+
+CHARTERER           : NEFGO
+                      8 RAFFLES PLACE 35-01 OUB CENTRE
+                      SINGAPORE 048621
+                      SINGAPORE
+
+REGISTERED OWNER    : HAFNIA AMERICA SHIPHOLDING LIMITED
+                      138 MARKET STREET, #12-01 CAPITAGREEN
+                      SINGAPORE 048946
+                      TEL: +65 6325 3050
+                      FAX: +65 6325 3060
+                      EMAIL: chartering@hafniabw.com
+
+TECHNICAL OPERATOR  : HAFNIA SHIP MANAGEMENT PTE LTD
+                      138 MARKET STREET, #12-01 CAPITAGREEN
+                      SINGAPORE 048946
+                      TEL: +65 6325 3050
+                      FAX: +65 6325 3060
+                      EMAIL: ops@hafniabw.com
+                      WEB: www.hafniabw.com
+                      COMPANY IMO#: 5783462
+
+COMMERCIAL OPERATOR : NORTHSEA MARITIME SOLUTIONS PTE LTD
+                      60 CECIL STREET #01-01 PEOPLE'S PARK CENTRE
+                      SINGAPORE 059436
+
+DISPONENT OWNER     : NORTHSEA MARITIME SOLUTIONS PTE LTD
+                      60 CECIL STREET #01-01 PEOPLE'S PARK CENTRE
+                      SINGAPORE 059436
+
+CP DATED            : 15TH MAY, 2026
+
+CHARTER PARTY       : BPVOY4
+
+
+---------------------------------VESSEL---------------------------------
+
+VESSEL              : HAFNIA ASIA
+
+[GAP — vessel details (IMO, MMSI, DWT, LOA, beam, draft, speed,
+ consumption, last 3 cargoes, P&I, H&M etc.) are intentionally omitted
+ from the recap body. They live in the Q88 attachment.
+ See: DATA/Q88/05 - LR 55-115kt/HafniaAsia_Q88.pdf]
+
+
+-----------------------------(CARGO)------------------------------
+
+CARGO QUANTITY      : MIN 73,000 MTS CHARTERERS OPTION UPTO 76,500 MTS +/-5 PCT MOLOO
+
+CARGO GRADE(S)      : NAPHTHA (FULL-RANGE OPEN-SPEC EXPORT GRADE)
+                      RVP MAX 12 PSI / FBP MAX 200 DEG C /
+                      SULFUR MAX 50 PPM / NO LEAD / NO MTBE /
+                      TYPICAL MED EXPORT NAPHTHA SPEC
+
+SEGREGATION         : 1 GRADE / SINGLE GRADE LOADED IN ALL TANKS
+
+HEAT                : N/A (NO HEATING REQUIRED FOR NAPHTHA)
+
+
+-----------------------------(GEOGRAPHICAL)-----------------------------
+
+LOAD RANGE          : 1-2 SAFE PORT(S) IN CHARTERERS OPTION
+                        LAVERA, FRANCE          BASIS WS 145 (BASE)
+                        MILAZZO, ITALY          BASIS WS 148
+
+DISCHARGE OPTIONS   : 1-2 SAFE PORT(S) IN CHARTERERS OPTION FROM THE FOLLOWING
+                      USA EAST COAST / GULF COAST RANGE, EACH WITH FREIGHT RATE
+                      INDICATED:
+
+                      USA EAST COAST
+                        NEW YORK                     WS 138
+                        PHILADELPHIA                 WS 138
+                        BOSTON                       WS 142
+                        BALTIMORE                    WS 138
+                        CHARLESTON                   WS 145
+
+                      USA GULF COAST
+                        HOUSTON                      WS 152
+                        CORPUS CHRISTI               WS 154
+                        NEW ORLEANS                  WS 156
+                        PASCAGOULA                   WS 158
+
+
+-----------------------------(DATES)------------------------------
+
+COMMENCING          : 25TH MAY 2026 (0001 - 2359 HRS) — EARLIEST ARRIVAL
+LAYCAN              : 25-27 MAY 2026 (3-DAY WINDOW)
+
+
+-----------------------------(FINANCIAL)------------------------------
+
+FREIGHT             : WS 145 (BASE — LAVERA / NEW YORK)
+
+OVERAGE             : 50 PCT
+
+DEMURRAGE RATE      : USD 38,000 PDPR
+
+LAYTIME             : 96 HOURS SHINC TOTAL (LOAD + DISCHARGE COMBINED), REVERSIBLE
+
+WS 2026 FLAT RATES, TERMS AND CONDITIONS TO APPLY
+
+
+BANK DETAILS :
+
+USD ACCOUNT DETAILS
+
+ACCOUNT NAME                : NORTHSEA MARITIME SOLUTIONS PTE LTD
+ACCOUNT NO.                 : SG40OCBC56214770382
+BANK                        : OVERSEA-CHINESE BANKING CORPORATION, SINGAPORE (SWIFT: OCBCSGSG)
+CORRESPONDENT BANK NAME     : JPMORGAN CHASE BANK NA, NEW YORK (SWIFT: CHASUS33)
+BENEFICIARY BANK ACCOUNT    : 56214770382
+BENEFICIARY BANK NAME       : OVERSEA-CHINESE BANKING CORPORATION
+
+
+------------------------------------------------------------------
+
+TERMS NEFGO / NORTHSEA
+===========================
+
+CLAUSE 1: NOTICE OF READINESS
+-------------------------------
+Notice of Readiness may be tendered upon the vessel's arrival at the loadport
+whether in berth or not, whether in port or not, whether customs cleared or not
+(WIBON / WIPON / WCCON). The loadport agent or shippers shall acknowledge NOR
+within twenty-four hours of tender. The Master shall copy each NOR by email to
+operations@northseamaritime.com at the moment of tender.
+
+
+CLAUSE 2: LAYTIME COMMENCEMENT
+-------------------------------
+Laytime starts running six hours after NOR has been tendered, or upon the vessel
+being all fast at the loading berth, whichever event occurs first. The same rule
+applies at each discharge port.
+
+
+CLAUSE 3: ETA REPORTING
+------------------------
+The Master and Owners shall send ETA notices to Charterers and to the loadport
+and discharge port agents on the following cadence: 14 days, 10 days, 7 days,
+5 days, 72 hours, 48 hours and 24 hours prior to expected arrival. Final NOR
+is tendered on arrival. The 14-day notice reflects the longer ocean passage
+typical of TA voyages.
+
+
+CLAUSE 4: LAYDAYS & CANCELLING
+--------------------------------
+The vessel shall present at the loadport on or before 25 May 2026 (earliest
+arrival) and not later than 27 May 2026 17:00 local time (cancelling).
+Charterers may extend the cancelling date once by up to seventy-two hours by
+written notice served not later than seventy-two hours before the original
+cancelling date.
+
+
+CLAUSE 5: DISCHARGE PORT DECLARATION
+--------------------------------------
+Charterers shall declare discharge port(s) by written notice no later than
+seven days prior to the vessel's arrival at the first discharge port. Once
+declared, the nomination is binding. Multi-port discharge (up to two ports) is
+permitted; in that case Charterers nominate both ports together at the seven-
+day deadline.
+
+
+CLAUSE 6: MULTI-PORT FREIGHT CALCULATION
+------------------------------------------
+Where more than one discharge port is used, freight is calculated on a pro-rata
+basis: the cargo quantity discharged at each port is multiplied by that port's
+WS rate from the table above, and the sum is the total freight payable. The
+WS 2026 flat rate per port governs the conversion.
+
+
+CLAUSE 7: TANK CLEANING & CARGO SPEC
+--------------------------------------
+Vessel's tanks must be clean, dry, slop-free and in all respects suitable for
+the carriage of full-range naphtha to Charterers' standard tank-acceptance
+inspection. CAP-2 cleaning standard applies. The independent cargo inspector
+attends loading on Charterers' behalf, and a tank-acceptance certificate must
+be issued before loading commences. A failure to meet the tank standard
+suspends laytime until the deficiency is remedied at Owners' time and cost.
+
+
+CLAUSE 8: QUANTITY DETERMINATION & TOLERANCE
+----------------------------------------------
+Loaded quantity is established by the loadport shore meter under independent
+inspector witness. The tolerance on the contracted quantity is plus or minus
+five percent. The shore-meter figure, as confirmed by the inspector, is binding
+on both parties for invoicing and Bill of Lading purposes.
+
+
+CLAUSE 9: BL & DOCUMENTATION
+------------------------------
+The Master shall sign Bills of Lading as presented by the shippers, without
+prejudice to the vessel or to Owners. Clean Bills only — no "apparent good
+order" or other qualifying endorsements. Shippers shall furnish the full
+document set (commercial invoice, certificate of origin, certificate of
+quality, certificate of quantity, ullage report) within forty-eight hours of
+completion of loading.
+
+
+CLAUSE 10: BUNKERS
+--------------------
+The vessel is delivered at the loadport with approximately 1,800 MT VLSFO and
+240 MT MGO on board, both verified by independent surveyor. Bunker quality is
+not warranted. Remaining bunkers at the final discharge port are reconciled
+at the prevailing market price on the day of completion of discharge.
+
+
+CLAUSE 11: SANCTIONS & WAR RISK
+---------------------------------
+The vessel, voyage, cargo, parties, payment chain and ultimate destination must
+at all times be in full compliance with OFAC, EU, UN and UK sanctions. Owners
+maintain war-risk insurance for the duration of the voyage. Any additional
+war-risk premium imposed by underwriters as a consequence of Charterers'
+specific orders is reimbursed by Charterers within five business days of
+production of the underwriter's invoice.
+
+
+CLAUSE 12: INSURANCE
+----------------------
+Owners undertake to maintain valid Hull & Machinery cover, Protection &
+Indemnity cover and War-Risk cover throughout the voyage. Certificates of
+insurance shall be furnished to Charterers on request and in any case no
+later than first NOR tender.
+
+
+CLAUSE 13: FORCE MAJEURE
+--------------------------
+Neither party is in breach where performance of any obligation under this
+charter is prevented, restricted or delayed by an event beyond its reasonable
+control — including, without limitation, Act of God, war, industrial action,
+riot, civil disturbance, governmental measures, quarantine, pandemic, or port
+closure imposed by authorities. Laytime is suspended for the duration of any
+such event, and the cancelling date and any subsequent contractual deadline
+extend day-for-day.
+
+
+CLAUSE 14: PAYMENT TERMS
+--------------------------
+Freight is payable within five business days of presentation of Owners' email
+invoice with supporting documents attached. Demurrage is payable within thirty
+calendar days of receipt of the demurrage invoice and time-sheet. Both are
+payable without condition, set-off or counterclaim.
+
+
+CLAUSE 15: CLAIMS TIME BAR
+----------------------------
+General claims under this charter must be notified in writing to the other
+party within nine months of the event giving rise to them. Demurrage claims
+must be presented within ninety calendar days of completion of discharge,
+fully supported with NOR copies, statements of fact (signed by both parties)
+and surveyor's reports. Claims not so notified are time-barred and forever
+waived.
+
+
+CLAUSE 16: COMMISSION
+-----------------------
+An address commission of 2.50 percent is deductible from freight, deadfreight
+and demurrage. A brokerage commission of 1.25 percent, calculated on the same
+three items, is payable to PROVIDENCE TANKER BROKERS PTE LTD per the brokers'
+details below.
+
+
+CLAUSE 17: BROKERS DETAILS
+----------------------------
+NAME        : PROVIDENCE TANKER BROKERS PTE LTD
+ADDRESS     : 80 ROBINSON ROAD, #14-02
+              SINGAPORE 068898
+EMAIL       : info@providencetbk.com.sg
+
+BROKER      : SARAH KIM
+DIRECT      : +65 6533 1820
+MOBILE      : +65 9182 4501
+EMAIL       : sarah.kim@providencetbk.com.sg
+
+OPERATIONS  : DAVID NG
+DIRECT      : +65 6533 1825
+MOBILE      : +65 9201 8377
+EMAIL       : ops@providencetbk.com.sg
+
+All operational correspondence shall be addressed to ops@providencetbk.com.sg
+with sarah.kim@ in copy. Claims correspondence shall be addressed to
+info@providencetbk.com.sg copying ops@. The broker accepts no liability for
+delays or losses arising from messages routed to any other address.
+
+
+CLAUSE 18: ARBITRATION & GOVERNING LAW
+----------------------------------------
+Any dispute arising out of or in connection with this charter is referred to
+arbitration in London under the rules of the London Maritime Arbitrators
+Association (LMAA). Each party appoints one arbitrator and the two so appointed
+select an umpire. Seat of arbitration: London. Language of proceedings:
+English. Costs follow the event. The charter is governed by the laws of England.
+
+
+CLAUSE 19: AMENDMENTS
+-----------------------
+No amendment or modification of this charter has effect unless put in writing
+and signed by duly authorised representatives of both Owners and Charterers.
+
+
+CLAUSE 20: ENTIRE AGREEMENT
+-----------------------------
+This charter party, together with any addenda subsequently signed by both
+parties, constitutes the entire agreement between the parties regarding this
+voyage. All prior negotiations, drafts, side letters and oral understandings
+are superseded.
+
+
+# ---- END OF MAIN RECAP ----
+#
+# ATTACHMENTS:
+#   - Q88 vessel questionnaire for HAFNIA ASIA
+#     (DATA/Q88/05 - LR 55-115kt/HafniaAsia_Q88.pdf)
+#   - Addendum No. 1 (laycan extension), dated 18 May 2026,
+#     in this folder's `addendum/recap_addendum.txt`.

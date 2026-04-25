@@ -1,0 +1,74 @@
+# AI-COMPLETED FIXTURE ADDENDUM — populated 2026-04-24
+#
+# Parent fixture: C:\Users\Arne\NEFGO\DATA\CP RECAPS\Hafnia Asia - 75kt\recap.txt
+# Parent vessel : HAFNIA ASIA (paired Q88: DATA/Q88/05 - LR 55-115kt/HafniaAsia_Q88.pdf)
+#
+# PURPOSE:
+#   Demonstrates a LAYCAN-EXTENSION addendum — distinct from the
+#   port-range extension shown in folder 5. The original CP fixed
+#   cancelling at 27 May; this addendum, agreed three days after CP
+#   date, extends cancelling by three further days on account of
+#   terminal congestion at Lavera.
+#
+#   Pattern: single OLD -> NEW amendment, concise, dated after the CP.
+#   Conforms to the addendum recipe in domain_cp_recap_rules.md.
+#
+# ---- ADDENDUM BEGINS BELOW ----
+
+
+ADDENDUM NO. 1 TO CP DATED 15TH MAY, 2026
+==========================================
+REF : HAFNIA ASIA / NEFGO - CP 15.05.2026
+
+BETWEEN: NORTHSEA MARITIME SOLUTIONS PTE LTD ("OWNERS")
+AND:    NEFGO ("CHARTERERS")
+
+DATED:  18TH MAY, 2026
+
+
+IT IS HEREBY MUTUALLY AGREED THAT THE CHARTER PARTY DATED 15TH MAY, 2026 SHALL
+BE AMENDED AS FOLLOWS:
+
+
+--------------------------------------------------------------------------------
+AMENDMENT 1: LAYCAN EXTENSION
+--------------------------------------------------------------------------------
+
+OLD:
+    LAYCAN              : 25-27 MAY 2026 (3-DAY WINDOW)
+
+    CLAUSE 4: LAYDAYS & CANCELLING
+    The vessel shall present at the loadport on or before 25 May 2026
+    (earliest arrival) and not later than 27 May 2026 17:00 local time
+    (cancelling). Charterers may extend the cancelling date once by up
+    to seventy-two hours by written notice served not later than
+    seventy-two hours before the original cancelling date.
+
+NEW:
+    LAYCAN              : 25-30 MAY 2026 (6-DAY WINDOW — EXTENDED)
+
+    CLAUSE 4: LAYDAYS & CANCELLING
+    The vessel shall present at the loadport on or before 25 May 2026
+    (earliest arrival) and not later than 30 May 2026 17:00 local time
+    (cancelling). The three-day extension is granted on account of
+    terminal congestion at Lavera reported by Owners on 17 May 2026.
+    No further extension of the cancelling date is permitted under
+    this charter.
+
+
+--------------------------------------------------------------------------------
+
+ALL OTHER TERMS AND CONDITIONS OF THE ORIGINAL CHARTER PARTY DATED 15TH MAY,
+2026 REMAIN UNCHANGED AND IN FULL FORCE AND EFFECT.
+
+
+SIGNED FOR OWNERS:     [SIGNATURE PLACEHOLDER]
+                       NORTHSEA MARITIME SOLUTIONS PTE LTD
+                       DATE: 18TH MAY, 2026
+
+SIGNED FOR CHARTERERS: [SIGNATURE PLACEHOLDER]
+                       NEFGO
+                       DATE: 18TH MAY, 2026
+
+
+# ---- END OF ADDENDUM ----

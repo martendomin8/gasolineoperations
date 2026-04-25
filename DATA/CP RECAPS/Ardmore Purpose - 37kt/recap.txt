@@ -1,0 +1,208 @@
+# TRANSCRIPTION NOTES (added by Claude, not part of recap)
+# Source: IMG_5334.jpg - IMG_5338.jpg (5 photos)
+# Date transcribed: 2026-04-23
+#
+# GAPS DETECTED:
+#   [GAP 1] Between IMG_5335 and IMG_5336: VESSEL detail block missing
+#           (IMO, DWT, flag, built, class, speed, consumption, etc.).
+#           IMG_5335 ends with "VESSEL : ARDMORE PURPOSE" header line.
+#           IMG_5336 opens already at "(CARGO)" section.
+#           >>> These are the fields most relevant to CP parser — please re-photograph.
+#   [GAP 2] After IMG_5338: recap may continue with additional rider clauses.
+#           Last visible line ends mid-sentence.
+#
+# RIGHT-EDGE TRUNCATION:
+#   A few lines had the right margin cut off in the original screenshots.
+#   Those markers have been dropped where the surrounding prose was fully
+#   rephrased (see REPHRASE PASS below).
+#
+# REPHRASE PASS (2026-04-24):
+#   Rider-clause prose (TURKISH STRAIT CLAUSE, COMMISSION, and the BROKERS
+#   DETAILS messaging protocol) has been rewritten in our own sentence
+#   structure to avoid copy-paste of real-recap wording. Business meaning
+#   preserved; numbers, names, addresses, and industry shorthand (WS flat
+#   rates, SHINC, MOLOO, etc.) are untouched.
+#
+# ---- RECAP BEGINS BELOW ----
+
+
+REF : ARDMORE PURPOSE / NEFGO - CP 23.05.2026 - FIXTURE RECAP -
+================================================================
+
+================================================================
+S T R I C T L Y   P R I V A T E   A N D   C O N F I D E N T I A L
+================================================================
+
+
+IT IS ON THIS DAY AGREED BETWEEN NORTHSEA MARITIME SOLUTIONS PTE OF SINGAPORE
+(HEREINAFTER REFERRED TO AS "OWNERS"), BEING [DISPONENT OWNERS] OF THE GOOD MOTOR
+TANKER VESSEL CALLED 'ARDMORE PURPOSE' (HEREINAFTER REFERRED TO AS "THE VESSEL")
+DESCRIBED HEREOF AND NEFGO OF SINGAPORE (HEREINAFTER
+REFERRED TO AS "CHARTERERS").
+
+WITH CHARTERER'S AUTHORITY WE ARE PLEASED TO RECAP THE FOLLOWING FIXTURE WITH ALL
+SUBJECTS LIFTED AND IN GOOD ORDER.
+
+
+--------------------------------- T I T L E ---------------------------------
+
+CHARTERER           : NEFGO
+                      8 RAFFLES PLACE 35-01 OUB CENTRE
+                      SINGAPORE 048621
+                      SINGAPORE
+
+REGISTERED OWNER    : BLUEHORIZON CORP LIMITED
+                      CORPORATE TRUST BUILDING, LONGAR STREET,
+                      MAJURO, MH-96960, MARSHALL ISLANDS
+                      MARSHALL ISLANDS
+                      TEL: +492814205000
+                      FAX: +492814205100
+                      TELEX: NA
+                      EMAIL: operations@bluehorizon.com
+
+TECHNICAL OPERATOR  : MARITIME TECH SERVICES PVT LTD
+                      5TH FLOOR, TECH PLAZA, 45/B MOUNT ROAD,
+                      TEYNAMPET, CHENNAI 600 018 INDIA
+                      INDIA
+                      TEL: +91-80-4125 5555
+                      FAX: +91-80-4125 5500
+                      TELEX: NA
+                      EMAIL: operations@maritimetechservices.com
+                      WEB: www.maritimetechservices.com
+                      COMPANY IMO#: 5847293
+
+COMMERCIAL OPERATOR : NORTHSEA MARITIME SOLUTIONS PTE LTD
+                      60 CECIL STREET #01-01 PEOPLE'S PARK CENTRE
+                      SINGAPORE 059436
+
+DISPONENT OWNER     : NORTHSEA MARITIME SOLUTIONS PTE LTD
+                      60 CECIL STREET #01-01 PEOPLE'S PARK CENTRE
+                      SINGAPORE 059436
+
+CP DATED            : 23RD MAY, 2026
+
+CHARTER PARTY       : BPVOY4
+
+
+---------------------------------VESSEL---------------------------------
+
+VESSEL              : ARDMORE PURPOSE
+
+[GAP 1 — vessel details block missing from photos.
+ Expected fields in a BPVOY4 vessel block (per BP VOY4 Q88-driven layout):
+   IMO, Flag, Built year, Class, DWT (summer / at draft),
+   LOA, Beam, Draft, SBT/CBT, COW, IGS, Heated tanks?,
+   SPEED (laden / ballast), CONSUMPTION (at sea / in port),
+   Pumps, Last 3 cargoes, P&I club, H&M insurance.
+ Please re-photograph this section.]
+
+
+-----------------------------(CARGO)------------------------------
+
+CARGO QUANTITY      : MIN 37000 MTS CHARTERERS OPTION UPTO FULL CARGO. NDFCAPMQS.
+
+CARGO GRADE(S)      : CPP UNLEADED UNDYED UNDARKER 2.5 NPA EXCL CHEMS / CASINGHEAD /
+                      LUBES / SOLVENTS ITN UMS
+
+SEGREGATION         : 1-3 GRADES WVNS
+
+HEAT                : N/A
+
+
+-----------------------------(GEOGRAPHICAL)-----------------------------
+
+LOAD RANGE          : 1-2 PORT(S) PRIMORSK
+
+DISCHARGE           : 1-3 PORT(S) ROTTERDAM ZONE
+
+
+-----------------------------(DATES)------------------------------
+
+COMMENCING          : 25TH MAY 2026 (0001 - 2359 HRS)
+
+
+-----------------------------(FINANCIAL)------------------------------
+
+FREIGHT             : WS 285
+
+OVERAGE             : 50 PCT
+
+DEMURRAGE RATE      : USD 29,900 PDPR
+
+IF VESSEL DISCHARGES ROTTERDAM, ANTWERP FLAT RATES TO APPLY AND NO FXD
+DIFFERENTIAL
+
+LAYTIME             : 84 HOURS SHINC
+
+WS 2022 FLAT RATES, TERMS AND CONDITIONS TO APPLY
+
+
+BANK DETAILS :
+
+USD ACCOUNT DETAILS
+
+ACCOUNT NAME                : NORTHSEA MARITIME SOLUTIONS PTE LTD
+ACCOUNT NO.                 : GB51INTB40508124387715
+BANK                        : INTERNATIONAL BANK & TRUST, LONDON (SWIFT: INTBANKTRUST)
+CORRESPONDENT BANK NAME     : INTERNATIONAL BANK & TRUST, NEW YORK INTBANKTRUST
+BENEFICIARY BANK ACCOUNT    : 60284517
+BENEFICIARY BANK NAME       : INTERNATIONAL BANK & TRUST, LONDON INTBANKTRUST
+
+
+------------------------------------------------------------------
+
+TERMS NEFGO / NORTHSEA
+===========================
+
+TURKISH STRAIT CLAUSE
+---------------------
+WHENEVER THE VESSEL SPENDS MORE THAN FORTY-EIGHT HOURS WAITING TO TRANSIT THE
+TURKISH STRAITS (EITHER NORTHBOUND OR SOUTHBOUND), THE EXCESS HOURS SHALL BE
+INVOICED TO CHARTERERS AT THE AGREED DEMURRAGE RATE, PRORATED DAILY. OWNERS
+WILL RAISE THE CLAIM BY EMAIL AT THE SAME TIME AS THE FREIGHT INVOICE AND
+ATTACH THE RELEVANT SUPPORTING DOCUMENTS. A PRINTED ORIGINAL WILL FOLLOW IF
+CHARTERERS ASK FOR ONE, BUT PAYMENT IS DUE AGAINST THE EMAIL COPY.
+
+
+(COMMISSION)
+------------
+AN ADDRESS COMMISSION OF 2.50 PERCENT IS DEDUCTIBLE FROM FREIGHT, DEADFREIGHT
+AND DEMURRAGE. IN ADDITION, A BROKERAGE COMMISSION OF 1.25 PERCENT, CALCULATED
+ON THE SAME THREE AMOUNTS, IS PAYABLE TO ALBIS SHIPPING & TRANSPORT.
+
+
+(BROKERS DETAILS)
+-----------------
+NAME        : NORDICS SHIPPING & LOGISTICS
+ADDRESS     : HAFENSTRASSE 142
+              28209 BREMEN
+              GERMANY
+EMAIL       : info@nordicsshipping.com
+
+BROKER      : THOMAS WAGNER
+DIRECT      : +49 40 38 40 211
+MOBILE      : +49 172 5134158
+EMAIL       : thomas.wagner@nordicsshipping.com
+
+OPERATIONS  : CHRISTIAN MUELLER
+DIRECT      : +49 40 38 40 226
+MOBILE      : +49 172 6245732
+EMAILS      : operations@nordicsshipping.com
+
+PLEASE ADDRESS ALL OPERATIONAL CORRESPONDENCE TO operations@nordicsshipping.com
+AND ALL CLAIMS CORRESPONDENCE TO info@nordicsshipping.com, COPYING THE
+OPERATIONS ADDRESS. THE BROKER CANNOT UNDERTAKE TO ACTION MESSAGES SENT TO ANY
+OTHER ADDRESS, AND ACCEPTS NO LIABILITY FOR DELAYS OR OTHER CONSEQUENCES
+ARISING FROM MIS-ROUTED MAIL.
+
+[GAP 2 — recap text cut off after this sentence. Possible continuation with
+ rider clauses (ice clause, war risk, sanctions, ETA reporting protocol,
+ cleaning clause, heating clause etc.) was NOT photographed.]
+
+
+# ---- END OF TRANSCRIPTION ----
+#
+# ATTACHMENTS (noted in email footer, not transcribed):
+#   - High Sd Yihe_Q88 (Oil)_17Mar2[?].docx  (~332 KB)
+#   - Nave Equinox_Q88 (Oil-Chemica[?].docx  (~355 KB)
+#   - Trafigura-Clearlake Terms (004[?].docx (~56 KB)

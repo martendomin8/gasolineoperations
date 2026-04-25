@@ -1,0 +1,71 @@
+# AI-COMPLETED FIXTURE ADDENDUM — populated 2026-04-24
+#
+# Parent fixture: C:\Users\Arne\NEFGO\DATA\CP RECAPS\Bro Distributor - 14kt\recap.txt
+# Parent vessel : BRO DISTRIBUTOR (paired Q88: DATA/Q88/02 - 10-20kt/BroDistributor_Q88.pdf)
+#
+# PURPOSE:
+#   Demonstrates a NEW-CLAUSE-ADDITION addendum — distinct from the
+#   port-range extension in folder 5 and from the laycan extension in
+#   folder 3. The original CP did not specify a vessel speed; this
+#   addendum, agreed three days after CP date, adds a full-speed
+#   clause for the laden leg with bunker reimbursement mechanics.
+#
+#   Pattern: single OLD -> NEW amendment, concise, dated after the CP,
+#   introducing a clause that did not exist before. The OLD field
+#   states "[no equivalent in original CP]" — a legitimate variant of
+#   the OLD -> NEW format when the addendum ADDS rather than replaces
+#   text.
+#
+# ---- ADDENDUM BEGINS BELOW ----
+
+
+ADDENDUM NO. 1 TO CP DATED 16TH MAY, 2026
+==========================================
+REF : BRO DISTRIBUTOR / NEFGO - CP 16.05.2026
+
+BETWEEN: NORTHSEA MARITIME SOLUTIONS PTE LTD ("OWNERS")
+AND:    NEFGO ("CHARTERERS")
+
+DATED:  19TH MAY, 2026
+
+
+IT IS HEREBY MUTUALLY AGREED THAT THE CHARTER PARTY DATED 16TH MAY, 2026 SHALL
+BE AMENDED AS FOLLOWS:
+
+
+--------------------------------------------------------------------------------
+AMENDMENT 1: FULL-SPEED CLAUSE — LADEN LEG
+--------------------------------------------------------------------------------
+
+OLD:
+    [No equivalent clause in original CP — vessel speed not specified.]
+
+NEW:
+    FULL-SPEED CLAUSE (NEW CLAUSE 21)
+    On the laden leg from Hamburg to the discharge port the vessel
+    shall maintain her full service speed of approximately 13.5 knots,
+    weather, sea state and safe navigation permitting. Charterers
+    shall reimburse Owners any bunkers consumed in excess of the
+    standard at-sea laden consumption stated in the Q88, supported by
+    surveyor-verified before/after bunker figures and the Master's
+    logbook entries. The reimbursement is calculated at the prevailing
+    market price on the day of completion of discharge and settled
+    together with freight.
+
+
+--------------------------------------------------------------------------------
+
+ALL OTHER TERMS AND CONDITIONS OF THE ORIGINAL CHARTER PARTY DATED 16TH MAY,
+2026 REMAIN UNCHANGED AND IN FULL FORCE AND EFFECT.
+
+
+SIGNED FOR OWNERS:     [SIGNATURE PLACEHOLDER]
+                       NORTHSEA MARITIME SOLUTIONS PTE LTD
+                       DATE: 19TH MAY, 2026
+
+SIGNED FOR CHARTERERS: [SIGNATURE PLACEHOLDER]
+                       NEFGO
+                       DATE: 19TH MAY, 2026
+
+
+# ---- END OF ADDENDUM ----

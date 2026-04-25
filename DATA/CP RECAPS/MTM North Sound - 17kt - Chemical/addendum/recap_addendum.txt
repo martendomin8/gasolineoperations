@@ -1,0 +1,89 @@
+# AI-CREATED FIXTURE ADDENDUM — generated 2026-04-24
+#
+# Parent fixture: C:\Users\Arne\NEFGO\DATA\CP RECAPS\MTM North Sound - 17kt - Chemical\recap.txt
+# Parent vessel : MTM NORTH SOUND
+#                 (paired Q88: DATA/Q88/06 - Chemical Tankers/10-20kt/MTMNorthSound_Q88.pdf)
+#
+# PURPOSE:
+#   Demonstrates a HEATING-CLAUSE-MODIFICATION addendum — a subject
+#   not represented elsewhere in the corpus. Pattern: replace clause
+#   (existing benzene min temperature 8 DEG C is replaced with a
+#   stricter 12 DEG C requirement plus hourly logging). Realistic
+#   real-world scenario: receiver at Houston updates their on-shore
+#   tank-acceptance specification mid-fixture.
+#
+# ---- ADDENDUM BEGINS BELOW ----
+
+
+ADDENDUM NO. 1 TO CP DATED 18TH MAY, 2026
+==========================================
+REF : MTM NORTH SOUND / NEFGO - CP 18.05.2026
+
+BETWEEN: NORTHSEA MARITIME SOLUTIONS PTE LTD ("OWNERS")
+AND:    NEFGO ("CHARTERERS")
+
+DATED:  21ST MAY, 2026
+
+
+IT IS HEREBY MUTUALLY AGREED THAT THE CHARTER PARTY DATED 18TH MAY, 2026 SHALL
+BE AMENDED AS FOLLOWS:
+
+
+--------------------------------------------------------------------------------
+AMENDMENT 1: HEATING CLAUSE — BENZENE MINIMUM TEMPERATURE RAISED
+--------------------------------------------------------------------------------
+
+OLD:
+    [In CARGO BLOCK]
+    HEAT: BENZENE  — MAINTAIN ABOVE 8 DEG C (BENZENE FREEZES AT
+                     ~5.5 DEG C). LIGHT HEATING REQUIRED IF
+                     AMBIENT BELOW 6 DEG C.
+
+    [In CLAUSE 7: HEATING DURING VOYAGE — BENZENE GRADE]
+    Owners shall maintain benzene cargo temperature above 8 deg C
+    throughout the voyage. Heating logs (4-hourly) to be kept and
+    produced to inspector on request. Failure to maintain
+    temperature for the benzene parcel is at Owners' risk; on-arrival
+    benzene found below the 8 deg C floor entitles Charterers to
+    deduct quality-recovery costs from freight.
+
+NEW:
+    [In CARGO BLOCK]
+    HEAT: BENZENE  — MAINTAIN ABOVE 12 DEG C THROUGHOUT VOYAGE.
+                     ACTIVE HEATING VIA STEAM COILS REQUIRED IF
+                     AMBIENT BELOW 10 DEG C. CONTINUOUS HOURLY
+                     TEMPERATURE LOGGING REQUIRED.
+
+    [In CLAUSE 7: HEATING DURING VOYAGE — BENZENE GRADE]
+    Owners shall maintain benzene cargo temperature above 12 deg C
+    throughout the voyage. Heating logs shall be kept HOURLY (not
+    4-hourly as originally provided) and produced to the receiver-
+    side inspector at Houston on arrival in PDF report form, with
+    cargo-tank serial readings cross-referenced to engine-room
+    steam-flow logs. Failure to maintain temperature for the benzene
+    parcel is at Owners' risk; on-arrival benzene found below the
+    12 deg C floor entitles Charterers to deduct quality-recovery
+    costs from freight.
+
+    The heightened minimum temperature and tighter logging cadence
+    reflect the receiver's revised on-shore tank-acceptance
+    specification communicated to Charterers on 20 May 2026 by the
+    Houston discharge terminal.
+
+
+--------------------------------------------------------------------------------
+
+ALL OTHER TERMS AND CONDITIONS OF THE ORIGINAL CHARTER PARTY DATED 18TH MAY,
+2026 REMAIN UNCHANGED AND IN FULL FORCE AND EFFECT.
+
+
+SIGNED FOR OWNERS:     [SIGNATURE PLACEHOLDER]
+                       NORTHSEA MARITIME SOLUTIONS PTE LTD
+                       DATE: 21ST MAY, 2026
+
+SIGNED FOR CHARTERERS: [SIGNATURE PLACEHOLDER]
+                       NEFGO
+                       DATE: 21ST MAY, 2026
+
+
+# ---- END OF ADDENDUM ----

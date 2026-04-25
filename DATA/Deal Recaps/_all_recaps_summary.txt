@@ -1,0 +1,1061 @@
+==================================================================
+ DEAL RECAPS SUMMARY — 48 files after FCA/DES removal + DAT->DAP
+==================================================================
+
+----------------------------------------------------------------
+FILE: 01_amendment_NEFGO_MOTOR_OIL_HELLAS.eml
+----------------------------------------------------------------
+Hi,
+
+Further to the recap issued earlier, please note the following amendment(s) a=
+s per revised commercial terms:
+
+Pricing               : BL-2 -> BL-2
+Payment               : BL+5 -> BL+5
+Price                 : ICIS Jet CIF NWE -$2.60/MT -> Platts Mogas 95 CIF NWE=
+ +$20.47/MT
+
+All other terms remain unchanged as per the original recap.
+
+----------------------------------------------------------------
+FILE: 01_recap_NEFGO_GLENCORE_OIL.eml
+----------------------------------------------------------------
+- - - DEAL RECAP - - -
+
+Seller            : NEFGO
+Buyer             : GLENCORE OIL
+Product           : Alkylate
+Quantity          : 100kt +/-7.5% SO Seller
+Quality           : Alkylate, RON min 96, MON min 93, RVP max 6.5psi
+Delivery          : DAP Genova, delivery by sellers vessel TBN
+Laycan            : 7-12 Nov 2025
+Price             : Platts HSFO FOB Rott +$12.33/MT, pricing NOR+5
+Payment           : 30 days from B/L (start date +1)
+Credit            : Standby LC at sight
+Laytime           : 48+6
+Q&Q Determination : Independent inspector at loadport
+Inspection        : by mutually appointed surveyor, fees equally shared
+Law               : English Law
+GT&C              : BIMCO standard
+Other             : As per last similar deal between parties
+
+- - - END OF RECAP - - -
+
+----------------------------------------------------------------
+FILE: 01_recap_NEFGO_MOTOR_OIL_HELLAS.eml
+----------------------------------------------------------------
+- - - DEAL RECAP - - -
+
+Seller                : NEFGO
+Buyer                 : MOTOR OIL HELLAS
+Product               : Naphtha
+Price                 : ICIS Jet CIF NWE -$2.60/MT
+Delivery              : CIF ARA Barcelona
+Laycan                : 6-9 Aug 2025
+Quality               : EN228 + summer spec
+Quantity              : 5kt +/-7.5% SO
+Pricing               : BL-2
+Payment               : BL+5
+Laytime               : 36+6
+Demurrage             : USD 18,500/day
+Credit                : Net 30 days from BL
+Q&Q Determination     : Joint survey
+Inspection            : Intertek joint
+Law                   : New York Law
+GT&C                  : Trafigura 2019
+
+- - - END OF RECAP - - -
+
+----------------------------------------------------------------
+FILE: 02_recap_HARTREE_PARTNERS_NEFGO.eml
+----------------------------------------------------------------
+- - - DEAL RECAP - - -
+
+Seller                : HARTREE PARTNERS
+Buyer                 : NEFGO
+Product               : ULSD 10ppm
+Price                 : ICIS Jet CIF NWE +$17.85/MT
+Delivery              : CIF Med Rotterdam
+Laycan                : 16-19 Nov 2024
+Quality               : EN590
+Quantity              : 30kt +/-7.5% BO
+Pricing               : BL+3
+Payment               : TBC
+Laytime               : 48+6
+Demurrage             : As per ASBATANKVOY
+Credit                : Subject to credit approval
+Q&Q Determination     : Joint survey
+Inspection            : TBC
+Law                   : Norwegian Law
+GT&C                  : BP 2015
+
+- - - END OF RECAP - - -
+
+----------------------------------------------------------------
+FILE: 03_recap_CEPSA_TRADING_NEFGO.eml
+----------------------------------------------------------------
+- - - DEAL RECAP - - -
+
+Seller            : CEPSA TRADING
+Buyer             : NEFGO
+Product           : VLSFO 0.5%S
+Quantity          : 72,000 MT +/-7.5%
+Quality           : VLSFO, sulphur max 0.5%, MARPOL Annex VI compliant
+Delivery          : CIF one safe berth one safe port Tallinn, delivery by sel=
+lers vessel TBN to be nominated 3 days prior
+Laycan            : 12-14 Nov 2024
+Price             : Platts Mogas 95 CIF NWE -21.73
+Payment           : 2&5
+Nomination        : Standard nomination, 7 days prior
+Laytime           : 72hrs total
+Demurrage         : USD 12,500/day
+Inspection        : Buyer appoints
+GT&C              : Vitol GTCs
+Other             : SGS sampling at loadport, retained samples at seller's of=
+fice
+
+- - - END OF RECAP - - -
+
+----------------------------------------------------------------
+FILE: 03_recap_NEFGO_ESSO_PETROLEUM.eml
+----------------------------------------------------------------
+- - - DEAL RECAP - - -
+
+Seller                : NEFGO
+Buyer                 : ESSO PETROLEUM
+Product               : ULSD 10ppm
+Price                 : Platts ULSD CIF NWE -$14.22/MT
+Delivery              : FOB Augusta Fujairah
+Laycan                : 9-13 Nov 2024
+Quality               : ISO 8217 RMG380
+Quantity              : 30kt +/-7.5% BO
+Pricing               : TBC
+Payment               : LC at sight
+Laytime               : 48+6
+Demurrage             : as per CP
+Credit                : Subject to credit approval
+Q&Q Determination     : Loadport + dischport check
+Inspection            : TBC
+Law                   : Dutch Law
+GT&C                  : TBC
+
+- - - END OF RECAP - - -
+
+----------------------------------------------------------------
+FILE: 04_amendment_NEFGO_HELL_ENERGY.eml
+----------------------------------------------------------------
+Dear all,
+
+Further to the recap issued earlier, please note the following amendment(s) a=
+s per counterparty request:
+
+Demurrage             : USD 22,000/day -> as per CP
+
+All other terms remain unchanged as per the original recap.
+
+----------------------------------------------------------------
+FILE: 04_recap_NEFGO_CEPSA_TRADING.eml
+----------------------------------------------------------------
+- - - DEAL RECAP - - -
+
+Seller            : NEFGO
+Buyer             : CEPSA TRADING
+Product           : Premium Unleaded 98
+Quantity          : 15,000 MT +/-10% in sellers option
+Quality           : As per standard spec for Premium Unleaded 98, loadport an=
+alysis binding
+Delivery          : DAP Klaipeda, delivery by sellers vessel "TBN" to be acce=
+ptable to buyer
+Laycan            : loading 10-13 Dec 2025 in Ventspils
+Price             : Platts ULSD CIF NWE +$4.31/MT, pricing NOR+3
+Payment           : NOR+5
+Credit            : Open credit approved
+Nomination        : Prompt nomination waiver
+Laytime           : 24+6
+Demurrage         : USD 12,500/day
+Q&Q Determination : Loadport
+Law               : New York Law, SMA arbitration
+GT&C              : EFET 2016
+Other             : All other terms per mutual agreement
+
+- - - END OF RECAP - - -
+
+----------------------------------------------------------------
+FILE: 04_recap_NEFGO_HELL_ENERGY.eml
+----------------------------------------------------------------
+- - - DEAL RECAP - - -
+
+Seller                : NEFGO
+Buyer                 : HELL ENERGY
+Product               : VLSFO 0.5%S
+Price                 : ICIS Jet CIF NWE -$1.03/MT
+Delivery              : FOB Rotterdam Lisbon
+Laycan                : 3-8 Nov 2025
+Quality               : TBC
+Quantity              : 5kt +/-10% BO Seller
+Pricing               : BL+3
+Payment               : 30 days credit
+Laytime               : 48+12
+Demurrage             : USD 22,000/day
+Credit                : TBC
+Q&Q Determination     : Ship figures
+Inspection            : TBC
+Law                   : Singapore Law
+GT&C                  : ExxonMobil 2021
+
+- - - END OF RECAP - - -
+
+----------------------------------------------------------------
+FILE: 05_amendment_SOCAR_TRADING_NEFGO.eml
+----------------------------------------------------------------
+Hi team,
+
+Further to the recap issued earlier, please note the following amendment(s) f=
+ollowing mutual agreement:
+
+Demurrage             : USD 12,500/day -> USD 22,000/day
+Inspection            : Intertek joint -> Buyer appoints
+
+All other terms remain unchanged as per the original recap.
+
+----------------------------------------------------------------
+FILE: 05_recap_NEFGO_MOTOR_OIL_HELLAS.eml
+----------------------------------------------------------------
+- - - DEAL RECAP - - -
+
+Seller            : NEFGO
+Buyer             : MOTOR OIL HELLAS
+Product           : Naphtha
+Quantity          : 45,000 MT +/-10%
+Quality           : Open spec naphtha, paraffinic, T2 status
+Delivery          : DAP Ventspils, 1 SB 1 SP
+Laycan            : loading 5-7 Aug 2025 in Klaipeda
+Price             : Platts VLSFO Singapore -$9.52/MT, pricing NOR+3
+Payment           : CAD
+Credit            : Per signed credit agreement
+Nomination        : Nomination waived by mutual agreement
+Laytime           : 36+6hrs SHINC
+Demurrage         : As per ASBATANKVOY
+Q&Q Determination : Q and Q at load, 50/50
+Inspection        : Intertek joint
+Law               : Norwegian Law
+Other             : As per previous deal or mutual agreement
+
+- - - END OF RECAP - - -
+
+----------------------------------------------------------------
+FILE: 05_recap_SOCAR_TRADING_NEFGO.eml
+----------------------------------------------------------------
+- - - DEAL RECAP - - -
+
+Seller                : SOCAR TRADING
+Buyer                 : NEFGO
+Product               : Jet A-1
+Price                 : Platts ULSD CIF NWE -$4.25/MT
+Delivery              : FOB Augusta Singapore
+Laycan                : 19-24 Jun 2024
+Quality               : TBC
+Quantity              : 30kt +/-5% SO Seller
+Pricing               : Avg 3 days around BL
+Payment               : BL+5
+Laytime               : TBC
+Demurrage             : USD 12,500/day
+Credit                : Subject to credit approval
+Q&Q Determination     : Loadport + dischport check
+Inspection            : Intertek joint
+Law                   : Dutch Law
+GT&C                  : Vitol GTCs
+
+- - - END OF RECAP - - -
+
+----------------------------------------------------------------
+FILE: 06_amendment_NEFGO_HELL_ENERGY.eml
+----------------------------------------------------------------
+Dear all,
+
+Further to the recap issued earlier, please note the following amendment(s) f=
+urther to operational update:
+
+Payment : 3&5 -> 3&5
+
+All other terms remain unchanged as per the original recap.
+
+----------------------------------------------------------------
+FILE: 06_amendment_NEFGO_VITOL.eml
+----------------------------------------------------------------
+Dear colleagues,
+
+Further to the recap issued earlier, please note the following amendment(s) f=
+ollowing mutual agreement:
+
+Payment               : LC at sight -> 45 days credit
+
+All other terms remain unchanged as per the original recap.
+
+----------------------------------------------------------------
+FILE: 06_recap_NEFGO_VITOL.eml
+----------------------------------------------------------------
+- - - DEAL RECAP - - -
+
+Seller                : NEFGO
+Buyer                 : VITOL
+Product               : Naphtha
+Price                 : Platts ULSD CIF NWE -$11.38/MT
+Delivery              : CIF Med Singapore
+Laycan                : 6-10 Jan 2025
+Quality               : EN228
+Quantity              : 5kt +/-10% SO
+Pricing               : BL date
+Payment               : LC at sight
+Laytime               : TBC
+Demurrage             : USD 22,000/day
+Credit                : Net 30 days from BL
+Q&Q Determination     : Flow meter at loadport
+Inspection            : Jointly agreed inspector
+Law                   : Singapore Law
+GT&C                  : BIMCO standard
+
+- - - END OF RECAP - - -
+
+----------------------------------------------------------------
+FILE: 07_recap_EQUINOR_ENERGY_NEFGO.eml
+----------------------------------------------------------------
+- - - DEAL RECAP - - -
+
+Seller            : EQUINOR ENERGY
+Buyer             : NEFGO
+Product           : HSFO 180cst
+Quantity          : 15kt +/-5% SO
+Delivery          : CIF Rotterdam, 1 SB 1 SP
+Laycan            : loading 3-8 Nov 2024 in Fujairah
+Price             : Platts VLSFO Singapore +$7.46/MT, pricing 5 quotes after =
+B/L
+Payment           : Telegraphic transfer 5 days after B/L
+Credit            : As per standard between counterparts
+Laytime           : 36+12
+Law               : English law, LCIA arbitration
+Other             : Seller option to nominate alternative loadport within ran=
+ge
+
+- - - END OF RECAP - - -
+
+----------------------------------------------------------------
+FILE: 07_recap_ESSO_PETROLEUM_NEFGO.eml
+----------------------------------------------------------------
+- - - DEAL RECAP - - -
+
+Seller                : ESSO PETROLEUM
+Buyer                 : NEFGO
+Product               : Fuel Oil 1%S
+Price                 : Platts Mogas 95 CIF NWE +$24.30/MT
+Delivery              : CIF Hamburg
+Laycan                : 22-26 May 2025
+Quality               : BV spec
+Quantity              : 5kt +/-5% SO
+Pricing               : TBC
+Payment               : TBC
+Laytime               : 36+6
+Demurrage             : As per ASBATANKVOY
+Credit                : Net 30 days from BL
+Q&Q Determination     : TBC
+Inspection            : TBC
+Law                   : TBC
+GT&C                  : Mercuria GTCs v4
+
+- - - END OF RECAP - - -
+
+----------------------------------------------------------------
+FILE: 08_recap_NEFGO_EKOL_ENERGY.eml
+----------------------------------------------------------------
+- - - DEAL RECAP - - -
+
+Seller            : NEFGO
+Buyer             : EKOL ENERGY
+Product           : Gasoil 0.1%S
+Quantity          : 15,000 MT +/-7.5% MOLOO
+Quality           : Gasoil max 0.1%S, as per ISO 8217 DMA
+Delivery          : CIF Gdansk, 1 SB 1 SP
+Laycan            : 21-25 Dec 2025
+Price             : Platts HSFO FOB Rott +$18.90/MT, pricing BL date
+Payment           : 27 days from (start date = 2) B/L
+Credit            : As per standard between counterparts
+Nomination        : Nomination 3 days prior to laycan commencement
+Laytime           : 36hrs SHINC
+Demurrage         : Per fixture
+Q&Q Determination : Shore tank measurement
+Inspection        : Buyer appoints
+Law               : English Law
+GT&C              : BP GT&Cs 2015 as amended
+
+- - - END OF RECAP - - -
+
+----------------------------------------------------------------
+FILE: 08_recap_NEFGO_PETROINEOS.eml
+----------------------------------------------------------------
+- - - DEAL RECAP - - -
+
+Seller                : NEFGO
+Buyer                 : PETROINEOS
+Product               : Gasoil 0.1%S
+Price                 : ICIS Jet CIF NWE -$13.53/MT
+Delivery              : CIF Singapore Riga
+Laycan                : 23-28 Jan 2024
+Quality               : MARPOL 0.5%
+Quantity              : 10kt +/-10% BO Seller
+Pricing               : BL-2
+Payment               : CAD
+Laytime               : 24hrs SHINC
+Demurrage             : TBC
+Credit                : Per master agreement
+Q&Q Determination     : TBC
+Inspection            : TBC
+Law                   : TBC
+GT&C                  : BP 2015
+
+- - - END OF RECAP - - -
+
+----------------------------------------------------------------
+FILE: 09_recap_MABANAFT_NEFGO.eml
+----------------------------------------------------------------
+- - - DEAL RECAP - - -
+
+Seller                : MABANAFT
+Buyer                 : NEFGO
+Product               : Fuel Oil 1%S
+Price                 : Platts HSFO FOB Rott -$18.05/MT
+Delivery              : CIF Med Trieste
+Laycan                : 9-11 Mar 2024
+Quality               : EN590
+Quantity              : 15kt +/-5% SO
+Pricing               : TBC
+Payment               : Prepayment
+Laytime               : 36+12
+Demurrage             : as per CP
+Credit                : TBC
+Q&Q Determination     : Ship figures
+Inspection            : Buyer appoints
+Law                   : Singapore Law
+GT&C                  : EFET 2016
+
+- - - END OF RECAP - - -
+
+----------------------------------------------------------------
+FILE: 09_recap_NEFGO_MABANAFT.eml
+----------------------------------------------------------------
+- - - DEAL RECAP - - -
+
+Seller            : NEFGO
+Buyer             : MABANAFT
+Product           : Jet A-1
+Quantity          : 30,000 MT +/-5% in buyers option
+Quality           : Jet A-1 AFQRJOS spec, freeze point max -47C
+Delivery          : CIF New York, delivery by sellers vessel Sellers vessel T=
+BN
+Laycan            : 13-18 May 2025
+Price             : US$497.73/MT delivered
+Payment           : 45 days credit
+Credit            : Net 30 days from BL
+Nomination        : Nomination waived by mutual agreement
+Laytime           : 72hrs total
+Demurrage         : USD 12,500/day
+Q&Q Determination : Shore tank measurement
+Inspection        : by mutually appointed surveyor at loadport for quality an=
+d quantity
+Law               : Dutch Law
+GT&C              : ExxonMobil 2021
+Other             : As per last similar deal between parties
+
+- - - END OF RECAP - - -
+
+----------------------------------------------------------------
+FILE: 10_recap_NEFGO_PETROINEOS.eml
+----------------------------------------------------------------
+- - - DEAL RECAP - - -
+
+Seller                : NEFGO
+Buyer                 : PETROINEOS
+Product               : Premium Unleaded 98
+Price                 : ICIS Jet CIF NWE -$0.65/MT
+Delivery              : CIF ARA Antwerp
+Laycan                : 15-18 Mar 2025
+Quality               : As per API
+Quantity              : 50kt +/-7.5% SO
+Pricing               : TBC
+Payment               : TBC
+Laytime               : TBC
+Demurrage             : USD 18,500/day
+Credit                : TBC
+Q&Q Determination     : Dischport
+Inspection            : Jointly agreed inspector
+Law                   : New York Law
+GT&C                  : Vitol GTCs
+
+- - - END OF RECAP - - -
+
+----------------------------------------------------------------
+FILE: 10_recap_NEFGO_SHELL.eml
+----------------------------------------------------------------
+- - - DEAL RECAP - - -
+
+Seller            : NEFGO
+Buyer             : SHELL
+Product           : Alkylate
+Quantity          : 7kt +/-5% MOLOO
+Quality           : Alkylate, RVP max 7psi, octane min 93 R+M/2
+Delivery          : FOB Lisbon range
+Laycan            : loading 8-13 Mar 2025 in Lisbon
+Price             : Platts Mogas 95 CIF NWE -18.44
+Payment           : CAD
+Laytime           : 48+6
+Inspection        : 50/50
+GT&C              : Total 2018
+
+- - - END OF RECAP - - -
+
+----------------------------------------------------------------
+FILE: 11_amendment_NEFGO_SABIC_PETROCHEMICALS.eml
+----------------------------------------------------------------
+
+----------------------------------------------------------------
+FILE: 11_recap_NEFGO_SABIC_PETROCHEMICALS.eml
+----------------------------------------------------------------
+- - - DEAL RECAP - - -
+
+Seller            : NEFGO
+Buyer             : SABIC PETROCHEMICALS
+Product           : Alkylate
+Quantity          : 36,500 MT +/-5% MOLOO
+Quality           : Alkylate, RON min 96, MON min 93, RVP max 6.5psi
+Delivery          : DAP Amsterdam ARA
+Laycan            : 12-16 Sep 2025
+Price             : Platts Mogas 95 CIF NWE +$3.00/MT, pricing 5 quotes after=
+ B/L
+Payment           : LC at sight
+Credit            : As per standard between counterparts
+Nomination        : ASTM nomination procedure
+Laytime           : 36+12
+Q&Q Determination : Q and Q at load, 50/50
+Inspection        : Bureau Veritas
+Law               : English Law
+GT&C              : Mercuria GTCs v4
+
+- - - END OF RECAP - - -
+
+----------------------------------------------------------------
+FILE: 11_recap_PHIBRO_ENERGY_NEFGO.eml
+----------------------------------------------------------------
+- - - DEAL RECAP - - -
+
+Seller                : PHIBRO ENERGY
+Buyer                 : NEFGO
+Product               : Premium Unleaded 98
+Price                 : Argus ULSD FOB Med +$22.74/MT
+Delivery              : CIF Riga
+Laycan                : 16-20 Dec 2024
+Quality               : TBC
+Quantity              : 75kt +/-5% BO
+Pricing               : NOR+7
+Payment               : BL+5
+Laytime               : TBC
+Demurrage             : USD 18,500/day
+Credit                : LC required
+Q&Q Determination     : TBC
+Inspection            : Seller appoints
+Law                   : Singapore Law
+GT&C                  : Total 2018
+
+- - - END OF RECAP - - -
+
+----------------------------------------------------------------
+FILE: 12_recap_PHIBRO_ENERGY_NEFGO.eml
+----------------------------------------------------------------
+- - - DEAL RECAP - - -
+
+Seller                : PHIBRO ENERGY
+Buyer                 : NEFGO
+Product               : Regular Unleaded 95
+Price                 : Platts HSFO FOB Rott -$22.67/MT
+Delivery              : CIF ARA Amsterdam
+Laycan                : 18-22 Jun 2024
+Quality               : MARPOL 0.5%
+Quantity              : 20kt +/-5% SO Seller
+Pricing               : TBC
+Payment               : 45 days credit
+Laytime               : 36+12
+Demurrage             : As per ASBATANKVOY
+Credit                : TBC
+Q&Q Determination     : Independent inspector at loadport
+Inspection            : SGS 50/50
+Law                   : Norwegian Law
+GT&C                  : Mercuria GTCs v4
+
+- - - END OF RECAP - - -
+
+----------------------------------------------------------------
+FILE: 13_recap_EKOL_ENERGY_NEFGO.eml
+----------------------------------------------------------------
+- - - DEAL RECAP - - -
+
+Seller            : EKOL ENERGY
+Buyer             : NEFGO
+Product           : LVN
+Quantity          : 12kt +/-5% MOLCHOPT
+Quality           : Kalundborg LVN, density max 680 kg/m3, as per actuals
+Delivery          : DAP one safe port Gdansk
+Laycan            : 25-28 Mar 2025
+Price             : Platts Fuel Oil 1% FOB NWE Cargoes +17.65
+Payment           : 3&5
+Nomination        : Nomination waived by mutual agreement
+Laytime           : 48+6
+Demurrage         : Per fixture
+Inspection        : by mutually appointed surveyor at loadport for quality an=
+d quantity
+Law               : Swiss Law
+GT&C              : Vitol GTCs
+
+- - - END OF RECAP - - -
+
+----------------------------------------------------------------
+FILE: 14_recap_NEFGO_MOTOR_OIL_HELLAS.eml
+----------------------------------------------------------------
+- - - DEAL RECAP - - -
+
+Seller                : NEFGO
+Buyer                 : MOTOR OIL HELLAS
+Product               : VLSFO 0.5%S
+Price                 : Platts Mogas 95 CIF NWE +$14.02/MT
+Delivery              : CIF Singapore
+Laycan                : 21-25 Sep 2024
+Quality               : ISO 8217 RMG380
+Quantity              : 10kt +/-10% SO
+Pricing               : TBC
+Payment               : LC at sight
+Laytime               : 36+12
+Demurrage             : Per fixture
+Credit                : Open credit approved
+Q&Q Determination     : Ship figures
+Inspection            : Buyer appoints
+Law                   : Dutch Law
+GT&C                  : Shell 2020
+
+- - - END OF RECAP - - -
+
+----------------------------------------------------------------
+FILE: 14_recap_NEFGO_SABIC_PETROCHEMICALS.eml
+----------------------------------------------------------------
+- - - DEAL RECAP - - -
+
+Seller            : NEFGO
+Buyer             : SABIC PETROCHEMICALS
+Product           : ETBE
+Quantity          : 40,000 MT +/-10% in buyers option
+Delivery          : FOB one safe berth one safe port Houston
+Laycan            : loading 8-13 Mar 2024 in New York
+Price             : Platts Gasoil CIF NWE -19.74
+Payment           : 5&5
+Credit            : LC required
+Nomination        : Prompt nomination waiver
+Demurrage         : USD 18,500/day
+Q&Q Determination : Q and Q at load, 50/50
+Inspection        : by mutually appointed surveyor, fees equally shared
+Law               : Singapore Law
+GT&C              : BP GT&Cs 2015 as amended
+
+- - - END OF RECAP - - -
+
+----------------------------------------------------------------
+FILE: 15_amendment_NEFGO_TOTAL_ENERGIES_TRADING.eml
+----------------------------------------------------------------
+Hi,
+
+Further to the recap issued earlier, please note the following amendment(s) f=
+ollowing port authority confirmation:
+
+Laytime    : 36+12 -> 48+6
+Inspection : independent inspector, costs 50/50 -> Intertek joint
+
+All other terms remain unchanged as per the original recap.
+
+----------------------------------------------------------------
+FILE: 15_recap_NEFGO_TOTAL_ENERGIES_TRADING.eml
+----------------------------------------------------------------
+- - - DEAL RECAP - - -
+
+Seller            : NEFGO
+Buyer             : TOTAL ENERGIES TRADING
+Product           : Premium Unleaded 98
+Quantity          : 100kt +/-7.5% in sellers option
+Quality           : EN228 Premium, RON min 98, MON min 88
+Delivery          : DAP Gdansk ARA
+Laycan            : 2-7 Dec 2025
+Price             : Platts VLSFO Singapore +7.05
+Payment           : NOR+5
+Credit            : Subject to credit approval
+Laytime           : 36+12
+Inspection        : independent inspector, costs 50/50
+Law               : New York Law
+GT&C              : BP 2015
+
+- - - END OF RECAP - - -
+
+----------------------------------------------------------------
+FILE: 15_recap_TOTAL_ENERGIES_TRADING_NEFGO.eml
+----------------------------------------------------------------
+- - - DEAL RECAP - - -
+
+Seller                : TOTAL ENERGIES TRADING
+Buyer                 : NEFGO
+Product               : Regular Unleaded 95
+Price                 : Platts Naphtha CIF NWE -$14.20/MT
+Delivery              : CIF ARA Riga
+Laycan                : 10-13 Jan 2024
+Quality               : ISO 8217 DMA
+Quantity              : 15kt +/-7.5% BO Seller
+Pricing               : BL date
+Payment               : BL+5
+Laytime               : TBC
+Demurrage             : USD 22,000/day
+Credit                : TBC
+Q&Q Determination     : TBC
+Inspection            : 50/50
+Law                   : New York Law
+GT&C                  : BIMCO standard
+
+- - - END OF RECAP - - -
+
+----------------------------------------------------------------
+FILE: 16_amendment_NEFGO_PRAX.eml
+----------------------------------------------------------------
+
+----------------------------------------------------------------
+FILE: 16_recap_NEFGO_PRAX.eml
+----------------------------------------------------------------
+- - - DEAL RECAP - - -
+
+Seller            : NEFGO
+Buyer             : PRAX
+Product           : ETBE
+Quantity          : 33,000 MT +/-5% in sellers option
+Delivery          : DAP Ventspils ARA, delivery by sellers vessel TBN - subje=
+ct buyer approval
+Laycan            : 13-17 Apr 2025
+Price             : Platts Naphtha CIF NWE cargoes Mean +7.65
+Payment           : 30 days credit
+Credit            : Standby LC at sight
+Nomination        : Prompt nomination waiver
+Laytime           : 48+12
+Demurrage         : As per ASBATANKVOY
+Inspection        : Buyer appoints
+Law               : English law, LCIA arbitration
+GT&C              : Vitol GTCs
+
+- - - END OF RECAP - - -
+
+----------------------------------------------------------------
+FILE: 17_recap_NEFGO_HELL_ENERGY.eml
+----------------------------------------------------------------
+- - - DEAL RECAP - - -
+
+Seller            : NEFGO
+Buyer             : HELL ENERGY
+Product           : Reformate
+Quantity          : 35kt +/-10% BO Buyer
+Quality           : Reformate, RON min 98, MON min 88, benzene max 2%
+Delivery          : DAP one safe berth one safe port Ventspils
+Laycan            : 13-15 Sep 2025
+Price             : Platts Gasoil CIF NWE +$20.95/MT, pricing 3 quotes before=
+ and after B/L
+Payment           : CAD
+Credit            : Per master agreement
+Nomination        : Prompt nomination waiver
+Laytime           : 72hrs total
+Q&Q Determination : Q and Q at load, seller figures final
+Inspection        : Intertek joint
+Law               : English law, LCIA arbitration
+GT&C              : ExxonMobil 2021
+
+- - - END OF RECAP - - -
+
+----------------------------------------------------------------
+FILE: 18_recap_NEFGO_SOCAR_TRADING.eml
+----------------------------------------------------------------
+- - - DEAL RECAP - - -
+
+Seller            : NEFGO
+Buyer             : SOCAR TRADING
+Product           : HSFO 180cst
+Quantity          : 45,000 MT +/-7.5% in buyers option
+Quality           : HSFO 180cst max, as per actuals at loadport
+Delivery          : CIF Rotterdam
+Laycan            : loading 1-4 Oct 2024 in Trieste
+Price             : US$588.53/MT delivered
+Payment           : BL+5
+Credit            : LC required
+Laytime           : 72hrs total
+Demurrage         : USD 12,500/day
+Q&Q Determination : Ship figures
+Inspection        : Jointly agreed inspector
+GT&C              : ExxonMobil 2021
+Other             : As per previous deal or mutual agreement
+
+- - - END OF RECAP - - -
+
+----------------------------------------------------------------
+FILE: 18_recap_SOCAR_TRADING_NEFGO.eml
+----------------------------------------------------------------
+- - - DEAL RECAP - - -
+
+Seller                : SOCAR TRADING
+Buyer                 : NEFGO
+Product               : HSFO 180cst
+Price                 : Platts VLSFO Singapore -$18.20/MT
+Delivery              : FOB Augusta Tallinn
+Laycan                : 19-23 May 2025
+Quality               : BV spec
+Quantity              : 30kt +/-7.5% SO
+Pricing               : 5 days around NOR
+Payment               : NOR+5
+Laytime               : TBC
+Demurrage             : As per ASBATANKVOY
+Credit                : LC required
+Q&Q Determination     : Dischport
+Inspection            : SGS 50/50
+Law                   : Norwegian Law
+GT&C                  : ExxonMobil 2021
+
+- - - END OF RECAP - - -
+
+----------------------------------------------------------------
+FILE: 19_recap_NEFGO_MERCURIA.eml
+----------------------------------------------------------------
+- - - DEAL RECAP - - -
+
+Seller            : NEFGO
+Buyer             : MERCURIA
+Product           : ETBE
+Quantity          : 33,000 MT +/-5% MOLOO
+Quality           : ETBE, density 735-745 kg/m3, water max 0.1%
+Delivery          : DAP Le Havre
+Laycan            : 19-24 Jan 2025
+Price             : Argus ULSD FOB Med +22.72
+Payment           : LC at sight
+Laytime           : 36+6
+Demurrage         : as per CP
+Q&Q Determination : Shore tank measurement
+Inspection        : SGS 50/50
+Law               : Norwegian Law
+GT&C              : ExxonMobil 2021
+
+- - - END OF RECAP - - -
+
+----------------------------------------------------------------
+FILE: 19_recap_NEFGO_ORLEN_TRADING.eml
+----------------------------------------------------------------
+- - - DEAL RECAP - - -
+
+Seller                : NEFGO
+Buyer                 : ORLEN TRADING
+Product               : Gasoil 0.1%S
+Price                 : Platts VLSFO Singapore +$21.51/MT
+Delivery              : CIF ARA Hamburg
+Laycan                : 1-4 Feb 2024
+Quality               : TBC
+Quantity              : 25kt +/-10% SO
+Pricing               : BL+1
+Payment               : BL+5
+Laytime               : 36+12
+Demurrage             : As per ASBATANKVOY
+Credit                : Per signed credit agreement
+Q&Q Determination     : Loadport
+Inspection            : TBC
+Law                   : TBC
+GT&C                  : TBC
+
+- - - END OF RECAP - - -
+
+----------------------------------------------------------------
+FILE: 20_amendment_NEFGO_HARTREE_PARTNERS.eml
+----------------------------------------------------------------
+Dear all,
+
+Further to the recap issued earlier, please note the following amendment(s) f=
+ollowing mutual agreement:
+
+Payment   : BL+7 -> BL+5
+Demurrage : as per CP -> USD 22,000/day
+
+All other terms remain unchanged as per the original recap.
+
+----------------------------------------------------------------
+FILE: 20_recap_NEFGO_HARTREE_PARTNERS.eml
+----------------------------------------------------------------
+- - - DEAL RECAP - - -
+
+Seller            : NEFGO
+Buyer             : HARTREE PARTNERS
+Product           : Premium Unleaded 98
+Quantity          : 72,000 MT +/-5% at operational tolerance
+Delivery          : FOB one safe berth one safe port Barcelona
+Laycan            : loading 18-21 Jul 2024 in Le Havre
+Price             : Platts ULSD CIF NWE +6.90
+Payment           : BL+7
+Credit            : Net 30 days from BL
+Nomination        : Prompt nomination waiver
+Laytime           : As per CP
+Demurrage         : as per CP
+Q&Q Determination : Q and Q at load, 50/50
+Inspection        : SGS 50/50
+Law               : English law, LCIA arbitration
+GT&C              : ExxonMobil 2021
+
+- - - END OF RECAP - - -
+
+----------------------------------------------------------------
+FILE: 20_recap_SHELL_NEFGO.eml
+----------------------------------------------------------------
+- - - DEAL RECAP - - -
+
+Seller                : SHELL
+Buyer                 : NEFGO
+Product               : Marine Gas Oil
+Price                 : Platts HSFO FOB Rott +$4.51/MT
+Delivery              : CIF Med Singapore
+Laycan                : 8-11 Jul 2025
+Quality               : TBC
+Quantity              : 5kt +/-5%
+Pricing               : 5 days around NOR
+Payment               : BL+3
+Laytime               : 72hrs total
+Demurrage             : USD 22,000/day
+Credit                : Per master agreement
+Q&Q Determination     : Flow meter at loadport
+Inspection            : Intertek joint
+Law                   : English Law
+GT&C                  : TBC
+
+- - - END OF RECAP - - -
+
+----------------------------------------------------------------
+FILE: 21_recap_EKOL_ENERGY_NEFGO.eml
+----------------------------------------------------------------
+- - - DEAL RECAP - - -
+
+Seller                : EKOL ENERGY
+Buyer                 : NEFGO
+Product               : Gasoil 0.1%S
+Price                 : Argus ULSD FOB Med -$9.23/MT
+Delivery              : FOB Primorsk Lisbon
+Laycan                : 8-11 Sep 2025
+Quality               : TBC
+Quantity              : 75kt +/-5% SO Seller
+Pricing               : BL+3
+Payment               : 45 days credit
+Laytime               : 24+6
+Demurrage             : USD 8,000/day pro-rata
+Credit                : Open credit approved
+Q&Q Determination     : Joint survey
+Inspection            : Seller appoints
+Law                   : Dutch Law
+GT&C                  : BP 2015
+
+- - - END OF RECAP - - -
+
+----------------------------------------------------------------
+FILE: 22_recap_NEFGO_PRAX.eml
+----------------------------------------------------------------
+- - - DEAL RECAP - - -
+
+Seller                : NEFGO
+Buyer                 : PRAX
+Product               : Naphtha
+Price                 : Platts VLSFO Singapore -$16.87/MT
+Delivery              : FOB Primorsk Gdansk
+Laycan                : 10-13 Mar 2024
+Quality               : EN228
+Quantity              : 40kt +/-7.5% BO
+Pricing               : 5 days around NOR
+Payment               : TBC
+Laytime               : 36hrs SHINC
+Demurrage             : TBC
+Credit                : LC required
+Q&Q Determination     : Loadport + dischport check
+Inspection            : SGS 50/50
+Law                   : Norwegian Law
+GT&C                  : Shell 2020
+
+- - - END OF RECAP - - -
+
+----------------------------------------------------------------
+FILE: 24_recap_CEPSA_TRADING_NEFGO.eml
+----------------------------------------------------------------
+- - - DEAL RECAP - - -
+
+Seller                : CEPSA TRADING
+Buyer                 : NEFGO
+Product               : Regular Unleaded 95
+Price                 : Platts HSFO FOB Rott +$19.10/MT
+Delivery              : FOB Primorsk Gdansk
+Laycan                : 17-21 Sep 2025
+Quality               : TBC
+Quantity              : 15kt +/-7.5% BO
+Pricing               : TBC
+Payment               : BL+3
+Laytime               : 36hrs SHINC
+Demurrage             : Per fixture
+Credit                : LC required
+Q&Q Determination     : Loadport + dischport check
+Inspection            : Jointly agreed inspector
+Law                   : Singapore Law
+GT&C                  : Shell 2020
+
+- - - END OF RECAP - - -
+
+----------------------------------------------------------------
+FILE: 25_recap_NEFGO_BP_OIL_INTERNATIONAL.eml
+----------------------------------------------------------------
+- - - DEAL RECAP - - -
+
+Seller                : NEFGO
+Buyer                 : BP OIL INTERNATIONAL
+Product               : ULSD 10ppm
+Price                 : Platts ULSD CIF NWE +$3.40/MT
+Delivery              : CIF ARA Lisbon
+Laycan                : 11-15 Nov 2024
+Quality               : ASTM D1655
+Quantity              : 100kt +/-10% SO
+Pricing               : TBC
+Payment               : TBC
+Laytime               : 24hrs SHINC
+Demurrage             : USD 18,500/day
+Credit                : Subject to credit approval
+Q&Q Determination     : Shore tank measurement
+Inspection            : Seller appoints
+Law                   : New York Law
+GT&C                  : Total 2018
+
+- - - END OF RECAP - - -
+
+----------------------------------------------------------------
+FILE: 26_recap_NEFGO_GLENCORE_OIL.eml
+----------------------------------------------------------------
+- - - DEAL RECAP - - -
+
+Seller                : NEFGO
+Buyer                 : GLENCORE OIL
+Product               : Regular Unleaded 95
+Price                 : Platts HSFO FOB Rott -$18.28/MT
+Delivery              : DAP Rotterdam
+Laycan                : 15-17 Feb 2024
+Quality               : MARPOL 0.5%
+Quantity              : 25kt +/-5% BO
+Pricing               : TBC
+Payment               : BL+3
+Laytime               : TBC
+Demurrage             : TBC
+Credit                : TBC
+Q&Q Determination     : Shore tank measurement
+Inspection            : Intertek joint
+Law                   : English Law
+GT&C                  : EFET 2016
+
+- - - END OF RECAP - - -

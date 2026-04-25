@@ -1,0 +1,304 @@
+# AI-CREATED FIXTURE — generated 2026-04-24
+#
+# Q88 PAIRING: this CP is for vessel MTM NORTH SOUND (IMO 9360946,
+# MMSI 566203000). See `DATA/Q88/06 - Chemical Tankers/10-20kt/MTMNorthSound_Q88.pdf`
+# for matching vessel particulars (19,874 DWT, 26 stainless-steel
+# tanks — high-segregation handysize chemical tanker).
+#
+# Scenario: 17kt aromatics multi-grade voyage Lavera -> Houston (TA).
+# Tests parser handling of (a) handysize TA voyage, (b) high-
+# segregation chemical multi-grade with three aromatic grades,
+# (c) chemical-CAP cleaning standard, (d) heating requirement on
+# selected grades only.
+#
+# All clauses below are written fresh in this fixture's voice.
+#
+# AMENDMENTS:
+#   A separate addendum (heating-clause modification adding a higher
+#   minimum temperature requirement for the benzene grade) sits in
+#   the sibling `addendum/recap_addendum.txt`, dated 21 May 2026. It
+#   was agreed three days after this CP because the receiver at
+#   Houston updated their import spec mid-fixture.
+#
+# ---- RECAP BEGINS BELOW ----
+
+
+REF : MTM NORTH SOUND / NEFGO - CP 18.05.2026 - FIXTURE RECAP -
+=================================================================
+
+================================================================
+S T R I C T L Y   P R I V A T E   A N D   C O N F I D E N T I A L
+================================================================
+
+
+IT IS ON THIS DAY AGREED BETWEEN NORTHSEA MARITIME SOLUTIONS PTE OF SINGAPORE
+(HEREINAFTER REFERRED TO AS "OWNERS"), BEING DISPONENT OWNERS OF THE GOOD MOTOR
+TANKER VESSEL CALLED 'MTM NORTH SOUND' (HEREINAFTER REFERRED TO AS "THE VESSEL")
+DESCRIBED HEREOF AND NEFGO OF SINGAPORE (HEREINAFTER
+REFERRED TO AS "CHARTERERS").
+
+WITH CHARTERER'S AUTHORITY WE ARE PLEASED TO RECAP THE FOLLOWING FIXTURE WITH ALL
+SUBJECTS LIFTED AND IN GOOD ORDER.
+
+
+--------------------------------- T I T L E ---------------------------------
+
+CHARTERER           : NEFGO
+                      8 RAFFLES PLACE 35-01 OUB CENTRE
+                      SINGAPORE 048621
+                      SINGAPORE
+
+REGISTERED OWNER    : MTM SHIPPING PTE LTD
+                      6 BATTERY ROAD, #28-01
+                      SINGAPORE 049909
+                      TEL: +65 6336 6688
+                      FAX: +65 6336 6699
+                      EMAIL: chartering@mtmaritime.com
+
+TECHNICAL OPERATOR  : MT MARITIME MANAGEMENT (SINGAPORE) PTE LTD
+                      6 BATTERY ROAD, #28-01
+                      SINGAPORE 049909
+                      TEL: +65 6336 6688
+                      EMAIL: ops@mtmaritime.com
+                      WEB: www.mtmaritime.com
+                      COMPANY IMO#: 1879405
+
+COMMERCIAL OPERATOR : NORTHSEA MARITIME SOLUTIONS PTE LTD
+                      60 CECIL STREET #01-01 PEOPLE'S PARK CENTRE
+                      SINGAPORE 059436
+
+DISPONENT OWNER     : NORTHSEA MARITIME SOLUTIONS PTE LTD
+                      60 CECIL STREET #01-01 PEOPLE'S PARK CENTRE
+                      SINGAPORE 059436
+
+CP DATED            : 18TH MAY, 2026
+
+CHARTER PARTY       : BPVOY4 (CHEMICAL TRADE RIDER)
+
+
+---------------------------------VESSEL---------------------------------
+
+VESSEL              : MTM NORTH SOUND
+
+[GAP — vessel details intentionally omitted from recap body, see Q88
+ attachment: DATA/Q88/06 - Chemical Tankers/10-20kt/MTMNorthSound_Q88.pdf]
+
+
+-----------------------------(CARGO)------------------------------
+
+CARGO QUANTITY      : TOTAL CIRCA 17,000 MTS, 3-GRADE PARCEL AS FOLLOWS:
+
+                      GRADE A: TOLUENE (NITRATION GRADE)    7,000 MT  +/-5 PCT
+                      GRADE B: MIXED XYLENES                 5,000 MT  +/-5 PCT
+                      GRADE C: BENZENE                       5,000 MT  +/-5 PCT
+
+CARGO GRADES        : TOLUENE       — NITRATION GRADE, MIN 99.9% PURITY,
+                                      ASTM D-841 SPEC
+                      XYLENES       — MIXED ISOMERS (O/M/P), MIN 96% C8 AROMATICS
+                      BENZENE       — REFINED GRADE, MIN 99.9% PURITY,
+                                      ASTM D-2359 SPEC
+
+SEGREGATION         : 3 GRADES IN 3 SEPARATE SEGREGATIONS, NO COMMINGLING
+                      DISTRIBUTED ACROSS 12 OF THE 26 AVAILABLE TANKS
+
+HEAT                : TOLUENE  — N/A
+                      XYLENES  — N/A
+                      BENZENE  — MAINTAIN ABOVE 8 DEG C (BENZENE FREEZES AT
+                                 ~5.5 DEG C). LIGHT HEATING REQUIRED IF
+                                 AMBIENT BELOW 6 DEG C.
+
+
+-----------------------------(GEOGRAPHICAL)-----------------------------
+
+LOAD RANGE          : 1 SAFE PORT
+                        LAVERA, FRANCE          BASIS WS 195 (BASE)
+
+DISCHARGE OPTIONS   : 1 SAFE PORT
+                        HOUSTON, USA                     WS 195
+                        OR
+                        BAYTOWN, USA                     WS 195
+                        OR
+                        BEAUMONT, USA                    WS 198
+
+
+-----------------------------(DATES)------------------------------
+
+COMMENCING          : 27TH MAY 2026 (0001 - 2359 HRS) — EARLIEST ARRIVAL
+LAYCAN              : 27-29 MAY 2026 (3-DAY WINDOW)
+
+
+-----------------------------(FINANCIAL)------------------------------
+
+FREIGHT             : WS 195 (BASE — LAVERA / HOUSTON)
+                      APPLIED PER GRADE PRO-RATA TO LOADED QUANTITY OF EACH GRADE
+
+OVERAGE             : 50 PCT
+
+DEMURRAGE RATE      : USD 21,000 PDPR
+
+LAYTIME             : 96 HOURS SHINC TOTAL, REVERSIBLE
+                      ALLOCATED PRO-RATA TO EACH GRADE'S TIME ON BOARD
+
+WS 2026 FLAT RATES, TERMS AND CONDITIONS TO APPLY
+
+
+BANK DETAILS :
+
+USD ACCOUNT DETAILS
+
+ACCOUNT NAME                : NORTHSEA MARITIME SOLUTIONS PTE LTD
+ACCOUNT NO.                 : SG40OCBC56214770382
+BANK                        : OVERSEA-CHINESE BANKING CORPORATION, SINGAPORE (SWIFT: OCBCSGSG)
+CORRESPONDENT BANK NAME     : JPMORGAN CHASE BANK NA, NEW YORK (SWIFT: CHASUS33)
+BENEFICIARY BANK ACCOUNT    : 56214770382
+BENEFICIARY BANK NAME       : OVERSEA-CHINESE BANKING CORPORATION
+
+
+------------------------------------------------------------------
+
+TERMS NEFGO / NORTHSEA
+===========================
+
+CLAUSE 1: NOTICE OF READINESS
+-------------------------------
+NOR may be tendered on arrival WIBON / WIPON / WCCON. Loadport agent
+acknowledges within twenty-four hours of tender. NOR copied to
+operations@northseamaritime.com at moment of tender.
+
+
+CLAUSE 2: LAYTIME COMMENCEMENT
+-------------------------------
+Laytime starts running six hours after NOR tender or on all-fast at the
+berth, whichever first.
+
+
+CLAUSE 3: ETA REPORTING (TRANSATLANTIC CADENCE)
+-------------------------------------------------
+ETA notices to Charterers and discharge-port agent on the following cadence:
+10 / 7 / 5 / 3 / 2 / 1 day notices for the discharge port given the
+TA passage. Final NOR on arrival.
+
+
+CLAUSE 4: LAYDAYS & CANCELLING
+--------------------------------
+Vessel to present 27 May 2026 (earliest) and no later than 29 May 2026 17:00
+local time (cancelling).
+
+
+CLAUSE 5: TANK CLEANING — CHEMICAL CAP-3 STANDARD
+---------------------------------------------------
+CAP-3 cleaning standard for chemical service. Tank-cleanliness certificates
+per grade before loading. Wall-wash for benzene grade with documented
+results to shipper before connection. Three previous cargoes confirmed
+compatible (no aromatic-incompatible residues, no salt water last cargo).
+
+
+CLAUSE 6: SEGREGATION INTEGRITY
+---------------------------------
+Each of the three aromatic grades is loaded into a dedicated, independent
+set of tanks with no shared piping or vapour space. Master confirms
+line-up segregation in writing before each grade loading commences.
+
+
+CLAUSE 7: HEATING DURING VOYAGE — BENZENE GRADE
+-------------------------------------------------
+Owners shall maintain benzene cargo temperature above 8 deg C throughout the
+voyage. Heating logs (4-hourly) to be kept and produced to inspector on
+request. Failure to maintain temperature for the benzene parcel is at
+Owners' risk; on-arrival benzene found below the 8 deg C floor entitles
+Charterers to deduct quality-recovery costs from freight. (NB: see
+Addendum No. 1 dated 21 May 2026 — the benzene minimum temperature was
+subsequently raised by mutual agreement.)
+
+
+CLAUSE 8: QUANTITY DETERMINATION & TOLERANCE
+----------------------------------------------
+Each grade's loaded quantity by the loadport shore meter for that grade,
+under independent inspector witness, plus or minus five percent tolerance.
+Shore-meter figure per grade is binding.
+
+
+CLAUSE 9: BL & DOCUMENTATION
+------------------------------
+Three separate Bills of Lading, one per grade. Master signs as presented
+without prejudice; clean B/Ls only. Documentation set per grade within
+forty-eight hours of completion of loading.
+
+
+CLAUSE 10: BUNKERS
+--------------------
+Vessel delivered at Lavera with approximately 750 MT VLSFO and 130 MT MGO,
+verified by independent surveyor. Quality not warranted.
+
+
+CLAUSE 11: SANCTIONS & WAR RISK
+---------------------------------
+Standard sanctions regime per OFAC / EU / UN / UK. Owners maintain war-risk
+insurance covering Med transit and TA passage. Any additional war-risk
+premium imposed by underwriters as a consequence of Charterers' specific
+orders is reimbursed within five business days.
+
+
+CLAUSE 12: INSURANCE
+----------------------
+Owners maintain H&M, P&I and War-Risk cover. Certificates on request.
+
+
+CLAUSE 13: FORCE MAJEURE
+--------------------------
+Standard force-majeure clause: laytime suspended and contractual deadlines
+extended day-for-day for the duration of any qualifying event.
+
+
+CLAUSE 14: PAYMENT TERMS
+--------------------------
+Freight payable within five business days of email invoice. Demurrage within
+thirty calendar days of demurrage invoice and time-sheet, supported by
+per-grade laytime allocation. No set-off.
+
+
+CLAUSE 15: CLAIMS TIME BAR
+----------------------------
+General claims within nine months. Demurrage and quality-degradation claims
+within ninety calendar days of discharge completion.
+
+
+CLAUSE 16: COMMISSION & BROKERS
+---------------------------------
+Address commission 2.50 percent and brokerage commission 1.25 percent on
+freight, deadfreight and demurrage. Brokerage payable to MEDITERRANEAN
+SHIPBROKERS SAS per details:
+
+NAME        : MEDITERRANEAN SHIPBROKERS SAS
+ADDRESS     : 14 RUE PARADIS
+              13001 MARSEILLE, FRANCE
+EMAIL       : info@medshipbrokers.fr
+
+BROKER      : ANTOINE GIRARD
+EMAIL       : antoine@medshipbrokers.fr
+PHONE       : +33 4 91 33 8800
+
+OPERATIONS  : SOPHIE LEROY
+EMAIL       : ops@medshipbrokers.fr
+PHONE       : +33 4 91 33 8810
+
+
+CLAUSE 17: ARBITRATION & GOVERNING LAW
+----------------------------------------
+LMAA London arbitration. Seat London, language English, English governing
+law.
+
+
+CLAUSE 18: AMENDMENTS & ENTIRE AGREEMENT
+------------------------------------------
+No amendment effective unless in writing signed by both parties. This CP plus
+any addenda constitute the entire agreement.
+
+
+# ---- END OF MAIN RECAP ----
+#
+# ATTACHMENTS:
+#   - Q88 vessel questionnaire for MTM NORTH SOUND
+#     (DATA/Q88/06 - Chemical Tankers/10-20kt/MTMNorthSound_Q88.pdf)
+#   - Addendum No. 1 dated 21 May 2026, in addendum/recap_addendum.txt
+#     (heating-clause modification — benzene minimum temperature raised).

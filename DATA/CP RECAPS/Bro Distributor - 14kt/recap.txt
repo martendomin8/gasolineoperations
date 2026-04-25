@@ -1,0 +1,332 @@
+# AI-COMPLETED FIXTURE — populated 2026-04-24 from a placeholder template
+#
+# Original status: this folder was a transcription scaffold for IMG_5397-
+# 5433 with [VESSEL NAME] / [QUANTITY] / etc. placeholders, never filled
+# with concrete content. It is now populated as a handysize gasoil
+# coastal voyage so the parser corpus exercises smaller-than-MR cargo
+# sizes and short-route economics.
+#
+# Q88 PAIRING: this CP recap is for vessel BRO DISTRIBUTOR (IMO 9313113,
+# current MMSI 352001769). See `DATA/Q88/02 - 10-20kt/BroDistributor_Q88.pdf`
+# for matching vessel particulars. Bro Distributor at 14,907 DWT
+# carries the 13,500-14,500 MT gasoil cargo declared below as a
+# realistic short-route handysize voyage.
+#
+# All clauses below are written fresh in this fixture's own voice
+# (per the "Clause wording — always fresh" rule in
+# domain_cp_recap_rules.md). No copy-paste from real recaps or earlier
+# fixtures in the corpus.
+#
+# AMENDMENTS:
+#   A separate addendum (full-speed clause addition, dated 19 May 2026)
+#   sits in the sibling `addendum/recap_addendum.txt`. It was agreed
+#   three days after this CP and forms part of the contract from that
+#   date forward. The CP body below does NOT reference it (per the
+#   no-forward-reference rule in domain_cp_recap_rules.md).
+#
+# ---- RECAP BEGINS BELOW ----
+
+
+REF : BRO DISTRIBUTOR / NEFGO - CP 16.05.2026 - FIXTURE RECAP -
+================================================================
+
+================================================================
+S T R I C T L Y   P R I V A T E   A N D   C O N F I D E N T I A L
+================================================================
+
+
+IT IS ON THIS DAY AGREED BETWEEN NORTHSEA MARITIME SOLUTIONS PTE OF SINGAPORE
+(HEREINAFTER REFERRED TO AS "OWNERS"), BEING DISPONENT OWNERS OF THE GOOD MOTOR
+TANKER VESSEL CALLED 'BRO DISTRIBUTOR' (HEREINAFTER REFERRED TO AS "THE VESSEL")
+DESCRIBED HEREOF AND NEFGO OF SINGAPORE (HEREINAFTER
+REFERRED TO AS "CHARTERERS").
+
+WITH CHARTERER'S AUTHORITY WE ARE PLEASED TO RECAP THE FOLLOWING FIXTURE WITH ALL
+SUBJECTS LIFTED AND IN GOOD ORDER.
+
+
+--------------------------------- T I T L E ---------------------------------
+
+CHARTERER           : NEFGO
+                      8 RAFFLES PLACE 35-01 OUB CENTRE
+                      SINGAPORE 048621
+                      SINGAPORE
+
+REGISTERED OWNER    : BROSTROEM TANKERS PTE LTD
+                      6 BATTERY ROAD, #16-04
+                      SINGAPORE 049909
+                      TEL: +65 6325 7700
+                      FAX: +65 6325 7711
+                      EMAIL: chartering@maersktankers.com
+
+TECHNICAL OPERATOR  : MAERSK TANKERS A/S — HANDYSIZE FLEET
+                      ESPLANADEN 50
+                      DK-1098 COPENHAGEN K
+                      DENMARK
+                      TEL: +45 3363 1500
+                      FAX: +45 3363 1599
+                      EMAIL: ops@maersktankers.com
+                      WEB: www.maersktankers.com
+                      COMPANY IMO#: 1308662
+
+COMMERCIAL OPERATOR : NORTHSEA MARITIME SOLUTIONS PTE LTD
+                      60 CECIL STREET #01-01 PEOPLE'S PARK CENTRE
+                      SINGAPORE 059436
+
+DISPONENT OWNER     : NORTHSEA MARITIME SOLUTIONS PTE LTD
+                      60 CECIL STREET #01-01 PEOPLE'S PARK CENTRE
+                      SINGAPORE 059436
+
+CP DATED            : 16TH MAY, 2026
+
+CHARTER PARTY       : BPVOY4
+
+
+---------------------------------VESSEL---------------------------------
+
+VESSEL              : BRO DISTRIBUTOR
+
+[GAP — vessel details (IMO, MMSI, DWT, LOA, beam, draft, speed,
+ consumption, last 3 cargoes, P&I, H&M etc.) are intentionally omitted
+ from the recap body. They live in the Q88 attachment.
+ See: DATA/Q88/02 - 10-20kt/BroDistributor_Q88.pdf]
+
+
+-----------------------------(CARGO)------------------------------
+
+CARGO QUANTITY      : MIN 13,500 MTS CHARTERERS OPTION UPTO 14,500 MTS +/-5 PCT MOLOO
+
+CARGO GRADE(S)      : ULSD (ULTRA-LOW-SULFUR DIESEL / GASOIL)
+                      EN 590 SPEC / SULFUR MAX 10 PPM /
+                      DENSITY 820-845 KG/M3 AT 15 DEG C /
+                      CETANE INDEX MIN 46 / FLASH POINT MIN 55 DEG C
+
+SEGREGATION         : 1 GRADE / SINGLE GRADE LOADED IN ALL TANKS
+
+HEAT                : MAINTAIN AT LOADED TEMPERATURE; NO ACTIVE HEATING REQUIRED
+                      FOR ULSD AT NORTH SEA AMBIENTS
+
+
+-----------------------------(GEOGRAPHICAL)-----------------------------
+
+LOAD RANGE          : 1 SAFE PORT
+                        HAMBURG, GERMANY        BASIS WS 305
+
+DISCHARGE OPTIONS   : 1 SAFE PORT IN CHARTERERS OPTION FROM THE FOLLOWING
+                      NORWEGIAN WEST COAST / NORTH SEA RANGE, EACH WITH FREIGHT
+                      RATE INDICATED:
+
+                        BERGEN, NORWAY                   WS 305
+                        MONGSTAD, NORWAY                 WS 308
+                        STURE, NORWAY                    WS 308
+                        SLAGEN, NORWAY                   WS 312
+                        STAVANGER, NORWAY                WS 305
+
+                      IF VESSEL DISCHARGES MONGSTAD, BERGEN FLAT RATES TO APPLY
+                      AND NO FXD DIFFERENTIAL.
+
+
+-----------------------------(DATES)------------------------------
+
+COMMENCING          : 22ND MAY 2026 (0001 - 2359 HRS) — EARLIEST ARRIVAL
+LAYCAN              : 22-24 MAY 2026 (3-DAY WINDOW)
+
+
+-----------------------------(FINANCIAL)------------------------------
+
+FREIGHT             : WS 305 (BASE — HAMBURG / BERGEN)
+
+OVERAGE             : 50 PCT
+
+DEMURRAGE RATE      : USD 19,500 PDPR
+
+LAYTIME             : 72 HOURS SHINC TOTAL (LOAD + DISCHARGE COMBINED), REVERSIBLE
+
+WS 2026 FLAT RATES, TERMS AND CONDITIONS TO APPLY
+
+
+BANK DETAILS :
+
+USD ACCOUNT DETAILS
+
+ACCOUNT NAME                : NORTHSEA MARITIME SOLUTIONS PTE LTD
+ACCOUNT NO.                 : SG40OCBC56214770382
+BANK                        : OVERSEA-CHINESE BANKING CORPORATION, SINGAPORE (SWIFT: OCBCSGSG)
+CORRESPONDENT BANK NAME     : JPMORGAN CHASE BANK NA, NEW YORK (SWIFT: CHASUS33)
+BENEFICIARY BANK ACCOUNT    : 56214770382
+BENEFICIARY BANK NAME       : OVERSEA-CHINESE BANKING CORPORATION
+
+
+------------------------------------------------------------------
+
+TERMS NEFGO / NORTHSEA
+===========================
+
+CLAUSE 1: NOTICE OF READINESS
+-------------------------------
+NOR may be tendered upon the vessel's arrival at the loadport whether in berth
+or not, whether in port or not (WIBON / WIPON). The loadport agent shall
+acknowledge NOR within four hours of tender during office hours, twelve hours
+outside office hours. The Master shall copy each NOR by email to
+operations@northseamaritime.com at the moment of tender.
+
+
+CLAUSE 2: LAYTIME COMMENCEMENT
+-------------------------------
+Laytime starts running four hours after NOR has been tendered, or upon the
+vessel being all fast at the loading berth, whichever occurs first. The same
+rule applies at the discharge port. The reduced four-hour turn-round reflects
+the short coastal voyage and the continuous-operation of North-Sea / Norwegian
+terminals.
+
+
+CLAUSE 3: ETA REPORTING
+------------------------
+The Master and Owners shall send ETA notices to Charterers and to the loadport
+and discharge port agents on the following cadence: 5 days, 72 hours, 48 hours,
+24 hours and 12 hours prior to expected arrival. Final NOR is tendered on
+arrival.
+
+
+CLAUSE 4: LAYDAYS & CANCELLING
+--------------------------------
+The vessel shall present at the loadport on or before 22 May 2026 (earliest
+arrival) and not later than 24 May 2026 17:00 local time (cancelling).
+
+
+CLAUSE 5: DISCHARGE PORT DECLARATION
+--------------------------------------
+Charterers shall declare the discharge port by written notice no later than
+forty-eight hours prior to the vessel's arrival at the loadport. Once declared,
+the nomination is binding.
+
+
+CLAUSE 6: ICE CLAUSE
+----------------------
+This voyage is in May, and the North Sea / Norwegian west coast is ice-free at
+this time of year. Should ice conditions nonetheless develop at any nominated
+port, the vessel is not bound to enter the port; in that event Charterers will
+arrange an alternative discharge.
+
+
+CLAUSE 7: TANK CLEANING & CARGO SPEC
+--------------------------------------
+Vessel's tanks must be clean, dry and in all respects suitable for the carriage
+of EN-590 ULSD. The independent cargo inspector attends loading on Charterers'
+behalf and a tank-acceptance certificate must be issued before loading
+commences. A failure to meet the tank standard suspends laytime until the
+deficiency is remedied at Owners' time and cost.
+
+
+CLAUSE 8: QUANTITY DETERMINATION & TOLERANCE
+----------------------------------------------
+Loaded quantity is established by the loadport shore meter under independent
+inspector witness. The tolerance on the contracted quantity is plus or minus
+five percent. The shore-meter figure, as confirmed by the inspector, is binding.
+
+
+CLAUSE 9: BL & DOCUMENTATION
+------------------------------
+The Master shall sign Bills of Lading as presented by the shippers, without
+prejudice to the vessel or to Owners. Clean Bills only. The shipper shall
+furnish the full documentation set within twenty-four hours of completion of
+loading; the short voyage requires faster turnaround than transoceanic trades.
+
+
+CLAUSE 10: BUNKERS
+--------------------
+The vessel is delivered at the loadport with approximately 450 MT VLSFO and
+80 MT MGO on board, verified by independent surveyor. Bunker quality is not
+warranted. Remaining bunkers at the discharge port are reconciled at the
+prevailing market price on the day of completion of discharge.
+
+
+CLAUSE 11: SANCTIONS & WAR RISK
+---------------------------------
+The vessel, voyage, cargo, parties, payment chain and ultimate destination must
+at all times be in full compliance with OFAC, EU, UN and UK sanctions. War-risk
+insurance is maintained by Owners.
+
+
+CLAUSE 12: INSURANCE
+----------------------
+Owners undertake to maintain valid Hull & Machinery cover, Protection &
+Indemnity cover and War-Risk cover throughout the voyage. Certificates of
+insurance shall be furnished to Charterers on request.
+
+
+CLAUSE 13: FORCE MAJEURE
+--------------------------
+Neither party is in breach where performance of any obligation under this
+charter is prevented, restricted or delayed by an event beyond its reasonable
+control. Laytime is suspended for the duration of such an event.
+
+
+CLAUSE 14: PAYMENT TERMS
+--------------------------
+Freight is payable within five business days of presentation of Owners' email
+invoice with supporting documents attached. Demurrage is payable within thirty
+calendar days of receipt of the demurrage invoice and time-sheet.
+
+
+CLAUSE 15: CLAIMS TIME BAR
+----------------------------
+General claims under this charter must be notified in writing within nine
+months of the event giving rise to them. Demurrage claims must be presented
+within ninety calendar days of completion of discharge.
+
+
+CLAUSE 16: COMMISSION
+-----------------------
+An address commission of 2.50 percent is deductible from freight, deadfreight
+and demurrage. A brokerage commission of 1.25 percent, calculated on the same
+three items, is payable to FJORD CHARTERING AS per the brokers' details below.
+
+
+CLAUSE 17: BROKERS DETAILS
+----------------------------
+NAME        : FJORD CHARTERING AS
+ADDRESS     : DRONNINGENS GATE 8
+              0152 OSLO, NORWAY
+EMAIL       : info@fjordchartering.no
+
+BROKER      : KRISTIAN HANSSEN
+DIRECT      : +47 22 33 4910
+MOBILE      : +47 91 234 567
+EMAIL       : kristian.hanssen@fjordchartering.no
+
+OPERATIONS  : INGRID OLSEN
+DIRECT      : +47 22 33 4915
+MOBILE      : +47 91 245 678
+EMAIL       : ops@fjordchartering.no
+
+All operational correspondence to ops@fjordchartering.no with kristian@ in
+copy. Claims correspondence to info@fjordchartering.no copying ops@.
+
+
+CLAUSE 18: ARBITRATION & GOVERNING LAW
+----------------------------------------
+Any dispute is referred to arbitration in London under LMAA rules. Seat of
+arbitration: London. Language: English. Governing law: England.
+
+
+CLAUSE 19: AMENDMENTS
+-----------------------
+No amendment has effect unless in writing and signed by duly authorised
+representatives of both Owners and Charterers.
+
+
+CLAUSE 20: ENTIRE AGREEMENT
+-----------------------------
+This charter party, together with any addenda subsequently signed by both
+parties, constitutes the entire agreement between the parties regarding this
+voyage. All prior negotiations are superseded.
+
+
+# ---- END OF MAIN RECAP ----
+#
+# ATTACHMENTS:
+#   - Q88 vessel questionnaire for BRO DISTRIBUTOR
+#     (DATA/Q88/02 - 10-20kt/BroDistributor_Q88.pdf)
+#   - Addendum No. 1 (full-speed clause for the laden leg),
+#     dated 19 May 2026, in this folder's `addendum/recap_addendum.txt`.

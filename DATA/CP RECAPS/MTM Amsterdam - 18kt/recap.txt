@@ -1,0 +1,283 @@
+# AI-CREATED FIXTURE — generated 2026-04-24
+#
+# Q88 PAIRING: this CP is for vessel MTM AMSTERDAM (IMO 9776444,
+# MMSI 563048700). See `DATA/Q88/06 - Chemical Tankers/20-38kt/MTMAmsterdam_Q88.pdf`
+# for the matching vessel particulars (21,176 DWT, 18 stainless-steel
+# tanks). MTM Amsterdam is a chemical-capable handysize but is here
+# being chartered for a clean-product (gasoline) Baltic trade — a
+# common dual-trade pattern for stainless ships in summer when
+# chemical demand is softer.
+#
+# Scenario: 18kt gasoline UMS export Riga -> Amsterdam. Short Baltic
+# voyage, ice clause material because Riga can have late-season ice.
+# Tests parser handling of (a) chemical-coded vessel doing clean
+# product trade, (b) Baltic-specific ice clause, (c) handysize
+# economics.
+#
+# All clauses below are written fresh in this fixture's voice.
+#
+# AMENDMENTS: None at recap date.
+#
+# ---- RECAP BEGINS BELOW ----
+
+
+REF : MTM AMSTERDAM / NEFGO - CP 18.05.2026 - FIXTURE RECAP -
+================================================================
+
+================================================================
+S T R I C T L Y   P R I V A T E   A N D   C O N F I D E N T I A L
+================================================================
+
+
+IT IS ON THIS DAY AGREED BETWEEN NORTHSEA MARITIME SOLUTIONS PTE OF SINGAPORE
+(HEREINAFTER REFERRED TO AS "OWNERS"), BEING DISPONENT OWNERS OF THE GOOD MOTOR
+TANKER VESSEL CALLED 'MTM AMSTERDAM' (HEREINAFTER REFERRED TO AS "THE VESSEL")
+DESCRIBED HEREOF AND NEFGO OF SINGAPORE (HEREINAFTER
+REFERRED TO AS "CHARTERERS").
+
+WITH CHARTERER'S AUTHORITY WE ARE PLEASED TO RECAP THE FOLLOWING FIXTURE WITH ALL
+SUBJECTS LIFTED AND IN GOOD ORDER.
+
+
+--------------------------------- T I T L E ---------------------------------
+
+CHARTERER           : NEFGO
+                      8 RAFFLES PLACE 35-01 OUB CENTRE
+                      SINGAPORE 048621
+                      SINGAPORE
+
+REGISTERED OWNER    : MTM SHIPPING PTE LTD
+                      6 BATTERY ROAD, #28-01
+                      SINGAPORE 049909
+                      TEL: +65 6336 6688
+                      FAX: +65 6336 6699
+                      EMAIL: chartering@mtmaritime.com
+
+TECHNICAL OPERATOR  : MT MARITIME MANAGEMENT (SINGAPORE) PTE LTD
+                      6 BATTERY ROAD, #28-01
+                      SINGAPORE 049909
+                      TEL: +65 6336 6688
+                      EMAIL: ops@mtmaritime.com
+                      WEB: www.mtmaritime.com
+                      COMPANY IMO#: 1879405
+
+COMMERCIAL OPERATOR : NORTHSEA MARITIME SOLUTIONS PTE LTD
+                      60 CECIL STREET #01-01 PEOPLE'S PARK CENTRE
+                      SINGAPORE 059436
+
+DISPONENT OWNER     : NORTHSEA MARITIME SOLUTIONS PTE LTD
+                      60 CECIL STREET #01-01 PEOPLE'S PARK CENTRE
+                      SINGAPORE 059436
+
+CP DATED            : 18TH MAY, 2026
+
+CHARTER PARTY       : BPVOY4
+
+
+---------------------------------VESSEL---------------------------------
+
+VESSEL              : MTM AMSTERDAM
+
+[GAP — vessel details intentionally omitted from recap body, see Q88
+ attachment: DATA/Q88/06 - Chemical Tankers/20-38kt/MTMAmsterdam_Q88.pdf]
+
+
+-----------------------------(CARGO)------------------------------
+
+CARGO QUANTITY      : MIN 17,500 MTS CHARTERERS OPTION UPTO 19,000 MTS +/-5 PCT MOLOO
+
+CARGO GRADE(S)      : GASOLINE UMS (UNLEADED, UNDYED, UNMARKED)
+                      RVP MAX 70 KPA / SULFUR MAX 10 PPM /
+                      RON MIN 95 / NO MTBE /
+                      EN-228 SUMMER GRADE
+
+SEGREGATION         : 1 GRADE / SINGLE GRADE LOADED IN UP TO 8 TANKS
+
+HEAT                : N/A
+
+
+-----------------------------(GEOGRAPHICAL)-----------------------------
+
+LOAD RANGE          : 1 SAFE PORT
+                        RIGA, LATVIA            BASIS WS 282 (BASE)
+
+DISCHARGE OPTIONS   : 1 SAFE PORT IN CHARTERERS OPTION
+                        AMSTERDAM, NL                    WS 282
+                        ROTTERDAM, NL                    WS 282
+                        ANTWERP, BELGIUM                 WS 285
+
+
+-----------------------------(DATES)------------------------------
+
+COMMENCING          : 24TH MAY 2026 (0001 - 2359 HRS) — EARLIEST ARRIVAL
+LAYCAN              : 24-26 MAY 2026 (3-DAY WINDOW)
+
+
+-----------------------------(FINANCIAL)------------------------------
+
+FREIGHT             : WS 282 (BASE — RIGA / AMSTERDAM)
+
+OVERAGE             : 50 PCT
+
+DEMURRAGE RATE      : USD 22,000 PDPR
+
+LAYTIME             : 72 HOURS SHINC TOTAL, REVERSIBLE
+
+WS 2026 FLAT RATES, TERMS AND CONDITIONS TO APPLY
+
+
+BANK DETAILS :
+
+USD ACCOUNT DETAILS
+
+ACCOUNT NAME                : NORTHSEA MARITIME SOLUTIONS PTE LTD
+ACCOUNT NO.                 : SG40OCBC56214770382
+BANK                        : OVERSEA-CHINESE BANKING CORPORATION, SINGAPORE (SWIFT: OCBCSGSG)
+CORRESPONDENT BANK NAME     : JPMORGAN CHASE BANK NA, NEW YORK (SWIFT: CHASUS33)
+BENEFICIARY BANK ACCOUNT    : 56214770382
+BENEFICIARY BANK NAME       : OVERSEA-CHINESE BANKING CORPORATION
+
+
+------------------------------------------------------------------
+
+TERMS NEFGO / NORTHSEA
+===========================
+
+CLAUSE 1: NOTICE OF READINESS
+-------------------------------
+NOR may be tendered upon the vessel's arrival at the loadport whether in berth
+or not, whether in port or not (WIBON / WIPON). Acknowledgement by loadport
+agent within four hours during office hours, twelve hours outside. Each NOR
+copied to operations@northseamaritime.com at moment of tender.
+
+
+CLAUSE 2: LAYTIME COMMENCEMENT
+-------------------------------
+Laytime starts six hours after NOR tender, or on all-fast at the berth,
+whichever first.
+
+
+CLAUSE 3: ETA REPORTING
+------------------------
+ETA notices on a 5 / 3 / 2 / 1 day cadence plus 12-hour and 6-hour pre-arrival
+notices for the discharge port given the short Riga-ARA passage.
+
+
+CLAUSE 4: LAYDAYS & CANCELLING
+--------------------------------
+Vessel to present 24 May 2026 (earliest) and no later than 26 May 2026 17:00
+local time (cancelling).
+
+
+CLAUSE 5: ICE CLAUSE — RIGA LOADPORT
+--------------------------------------
+The Gulf of Riga is generally ice-free by mid-May, but late-season ice may
+persist depending on the season. Should ice conditions at Riga prevent the
+vessel from safely entering or departing the port, the Master shall not
+proceed and Charterers will arrange an alternative loadport (default
+Klaipeda) at the same WS 282 base rate. Any deviation costs from the
+alternate loadport are for Charterers' account; laytime is suspended for
+the period of any ice-related delay.
+
+
+CLAUSE 6: TANK CLEANING & CARGO SPEC
+--------------------------------------
+Vessel's tanks must be clean, dry and acceptable for EN-228 gasoline. Despite
+the vessel's stainless-steel chemical-grade construction, standard product
+CAP-2 cleaning suffices for this clean-product voyage. Tank-acceptance
+certificate before loading commences.
+
+
+CLAUSE 7: QUANTITY DETERMINATION & TOLERANCE
+----------------------------------------------
+Loaded quantity by loadport shore meter under independent inspector witness,
+plus or minus five percent tolerance on contracted quantity. Shore-meter
+figure binding.
+
+
+CLAUSE 8: BL & DOCUMENTATION
+------------------------------
+Master signs Bills of Lading as presented; clean Bills only. Documentation
+set within twenty-four hours of completion of loading — short voyage
+requires fast turnaround.
+
+
+CLAUSE 9: BUNKERS
+-------------------
+Vessel delivered Riga with approximately 600 MT VLSFO and 100 MT MGO,
+verified by independent surveyor. Quality not warranted.
+
+
+CLAUSE 10: SANCTIONS & WAR RISK — BALTIC SPECIAL ATTENTION
+------------------------------------------------------------
+The Baltic theatre carries heightened sanctions exposure given the Russian
+border. The vessel, voyage, parties and ultimate cargo destination must
+strictly comply with OFAC, EU, UN and UK sanctions. Charterers warrant that
+no portion of the cargo is of Russian origin and that the discharge cargo
+will not be sold or delivered into a sanctioned destination. Charterers
+indemnify Owners against any loss arising from a sanctions-related delay
+caused by Charterers' nominees.
+
+
+CLAUSE 11: INSURANCE
+----------------------
+Owners maintain valid H&M, P&I and War-Risk cover. Certificates on request.
+
+
+CLAUSE 12: FORCE MAJEURE
+--------------------------
+Standard force-majeure clause: laytime suspended and contractual deadlines
+extended day-for-day for the duration of any event beyond a party's
+reasonable control.
+
+
+CLAUSE 13: PAYMENT TERMS
+--------------------------
+Freight payable within five business days of email invoice. Demurrage within
+thirty calendar days of demurrage invoice with time-sheet. No set-off.
+
+
+CLAUSE 14: CLAIMS TIME BAR
+----------------------------
+General claims notified in writing within nine months. Demurrage claims
+within ninety calendar days of discharge completion.
+
+
+CLAUSE 15: COMMISSION & BROKERS
+---------------------------------
+Address commission 2.50 percent and brokerage commission 1.25 percent on
+freight, deadfreight and demurrage. Brokerage payable to BALTIC OCEAN
+CHARTERING UAB per details:
+
+NAME        : BALTIC OCEAN CHARTERING UAB
+ADDRESS     : LAISVES PR. 60
+              05120 VILNIUS, LITHUANIA
+EMAIL       : info@balticocean.lt
+
+BROKER      : ROBERTAS KAZLAUSKAS
+EMAIL       : robertas@balticocean.lt
+PHONE       : +370 5 261 4900
+
+OPERATIONS  : EGLE PETRAUSKIENE
+EMAIL       : ops@balticocean.lt
+PHONE       : +370 5 261 4905
+
+
+CLAUSE 16: ARBITRATION & GOVERNING LAW
+----------------------------------------
+LMAA London arbitration. Seat London, language English, English governing
+law. Costs follow the event.
+
+
+CLAUSE 17: AMENDMENTS & ENTIRE AGREEMENT
+------------------------------------------
+No amendment effective unless in writing signed by both parties. This CP plus
+any addenda constitute the entire agreement; prior negotiations superseded.
+
+
+# ---- END OF MAIN RECAP ----
+#
+# ATTACHMENTS:
+#   - Q88 vessel questionnaire for MTM AMSTERDAM
+#     (DATA/Q88/06 - Chemical Tankers/20-38kt/MTMAmsterdam_Q88.pdf)
+#   - No addendum at recap date.

@@ -1,0 +1,301 @@
+# AI-CREATED FIXTURE — generated 2026-04-24
+#
+# Q88 PAIRING: this CP is for vessel BOW FAITH (IMO 9114232,
+# MMSI 538009686). See `DATA/Q88/06 - Chemical Tankers/20-38kt/BowFaith_Q88.pdf`
+# for the matching vessel particulars (37,479 DWT, 52 stainless-steel
+# cargo tanks — purpose-built for multi-grade chemical parcel trade).
+#
+# Scenario: chemical multi-grade parcel from ARA to US Gulf. Tests
+# parser handling of (a) multi-grade segregation, (b) per-grade
+# pricing in the cargo block, (c) heating differentiation across
+# parcels, (d) chemical-specific cleaning standard.
+#
+# All clauses below are written fresh in this fixture's voice.
+#
+# AMENDMENTS:
+#   A separate addendum (quantity tolerance widening from +/-5% to
+#   +/-10%) sits in the sibling `addendum/recap_addendum.txt`, dated
+#   16 May 2026. It was agreed three days after this CP because the
+#   methanol shipper short-loaded by 1.5kt and Charterers asked
+#   Owners to widen tolerance rather than re-fix.
+#
+# ---- RECAP BEGINS BELOW ----
+
+
+REF : BOW FAITH / NEFGO - CP 13.05.2026 - FIXTURE RECAP -
+============================================================
+
+================================================================
+S T R I C T L Y   P R I V A T E   A N D   C O N F I D E N T I A L
+================================================================
+
+
+IT IS ON THIS DAY AGREED BETWEEN NORTHSEA MARITIME SOLUTIONS PTE OF SINGAPORE
+(HEREINAFTER REFERRED TO AS "OWNERS"), BEING DISPONENT OWNERS OF THE GOOD MOTOR
+TANKER VESSEL CALLED 'BOW FAITH' (HEREINAFTER REFERRED TO AS "THE VESSEL")
+DESCRIBED HEREOF AND NEFGO OF SINGAPORE (HEREINAFTER
+REFERRED TO AS "CHARTERERS").
+
+WITH CHARTERER'S AUTHORITY WE ARE PLEASED TO RECAP THE FOLLOWING FIXTURE WITH ALL
+SUBJECTS LIFTED AND IN GOOD ORDER.
+
+
+--------------------------------- T I T L E ---------------------------------
+
+CHARTERER           : NEFGO
+                      8 RAFFLES PLACE 35-01 OUB CENTRE
+                      SINGAPORE 048621
+                      SINGAPORE
+
+REGISTERED OWNER    : ODFJELL CHEMICAL TANKERS AS
+                      CONRAD MOHRS VEG 29
+                      P.O. BOX 6101 POSTTERMINALEN
+                      N-5892 BERGEN, NORWAY
+                      TEL: +47 5527 4000
+                      FAX: +47 5527 4001
+                      EMAIL: chartering@odfjell.com
+
+TECHNICAL OPERATOR  : ODFJELL MANAGEMENT AS
+                      CONRAD MOHRS VEG 29
+                      N-5892 BERGEN, NORWAY
+                      TEL: +47 5527 4000
+                      EMAIL: ops.bow.faith@odfjell.com
+                      WEB: www.odfjell.com
+                      COMPANY IMO#: 1322103
+
+COMMERCIAL OPERATOR : NORTHSEA MARITIME SOLUTIONS PTE LTD
+                      60 CECIL STREET #01-01 PEOPLE'S PARK CENTRE
+                      SINGAPORE 059436
+
+DISPONENT OWNER     : NORTHSEA MARITIME SOLUTIONS PTE LTD
+                      60 CECIL STREET #01-01 PEOPLE'S PARK CENTRE
+                      SINGAPORE 059436
+
+CP DATED            : 13TH MAY, 2026
+
+CHARTER PARTY       : BPVOY4 (CHEMICAL TRADE RIDER)
+
+
+---------------------------------VESSEL---------------------------------
+
+VESSEL              : BOW FAITH
+
+[GAP — vessel details intentionally omitted from recap body, see Q88
+ attachment: DATA/Q88/06 - Chemical Tankers/20-38kt/BowFaith_Q88.pdf]
+
+
+-----------------------------(CARGO)------------------------------
+
+CARGO QUANTITY      : TOTAL CIRCA 35,000 MTS, 4-GRADE PARCEL AS FOLLOWS:
+
+                      GRADE A: METHANOL                    12,000 MT  +/-5 PCT
+                      GRADE B: MTBE                        10,000 MT  +/-5 PCT
+                      GRADE C: TOLUENE (NITRATION GRADE)    8,000 MT  +/-5 PCT
+                      GRADE D: ETBE                         5,000 MT  +/-5 PCT
+
+CARGO GRADES        : METHANOL — IMPCA SPEC, MAX 0.10% WATER, COLOUR PT-CO MAX 5
+                      MTBE     — TYPICAL HIGH-PURITY GRADE, MIN 98% PURITY
+                      TOLUENE  — NITRATION GRADE, MIN 99.9% PURITY
+                      ETBE     — MIN 98% PURITY, OXYGENATE BLENDING SPEC
+
+SEGREGATION         : 4 GRADES IN 4 SEPARATE SEGREGATIONS, NO COMMINGLING
+
+HEAT                : METHANOL — MAINTAIN 15-25 DEG C, NO ACTIVE HEATING
+                      MTBE     — MAINTAIN ABOVE 12 DEG C (LIGHT HEATING REQUIRED
+                                 IF AMBIENT BELOW 10 DEG C)
+                      TOLUENE  — N/A
+                      ETBE     — MAINTAIN ABOVE 15 DEG C (LIGHT HEATING REQUIRED)
+
+
+-----------------------------(GEOGRAPHICAL)-----------------------------
+
+LOAD RANGE          : 1 SAFE PORT
+                        ANTWERP, BELGIUM        BASIS WS 220 (BASE)
+
+DISCHARGE OPTIONS   : 1 SAFE PORT
+                        HOUSTON, USA            WS 220
+                        OR
+                        NEW ORLEANS, USA        WS 222
+                        OR
+                        BAYTOWN, USA            WS 220
+
+
+-----------------------------(DATES)------------------------------
+
+COMMENCING          : 23RD MAY 2026 (0001 - 2359 HRS) — EARLIEST ARRIVAL
+LAYCAN              : 23-25 MAY 2026 (3-DAY WINDOW)
+
+
+-----------------------------(FINANCIAL)------------------------------
+
+FREIGHT             : WS 220 (BASE — ANTWERP / HOUSTON)
+                      APPLIED PER GRADE PRO-RATA TO LOADED QUANTITY OF EACH GRADE
+
+OVERAGE             : 50 PCT
+
+DEMURRAGE RATE      : USD 28,000 PDPR
+
+LAYTIME             : 96 HOURS SHINC TOTAL (LOAD + DISCHARGE COMBINED), REVERSIBLE
+                      ALLOCATED PRO-RATA TO EACH GRADE'S TIME ON BOARD
+
+WS 2026 FLAT RATES, TERMS AND CONDITIONS TO APPLY
+
+
+BANK DETAILS :
+
+USD ACCOUNT DETAILS
+
+ACCOUNT NAME                : NORTHSEA MARITIME SOLUTIONS PTE LTD
+ACCOUNT NO.                 : SG40OCBC56214770382
+BANK                        : OVERSEA-CHINESE BANKING CORPORATION, SINGAPORE (SWIFT: OCBCSGSG)
+CORRESPONDENT BANK NAME     : JPMORGAN CHASE BANK NA, NEW YORK (SWIFT: CHASUS33)
+BENEFICIARY BANK ACCOUNT    : 56214770382
+BENEFICIARY BANK NAME       : OVERSEA-CHINESE BANKING CORPORATION
+
+
+------------------------------------------------------------------
+
+TERMS NEFGO / NORTHSEA
+===========================
+
+CLAUSE 1: NOTICE OF READINESS
+-------------------------------
+NOR may be tendered upon the vessel's arrival at the loadport whether in berth
+or not, whether in port or not (WIBON / WIPON). The loadport agent shall
+acknowledge NOR within twenty-four hours of tender. Each NOR is to be copied
+by email to operations@northseamaritime.com at the moment of tender.
+
+
+CLAUSE 2: LAYTIME COMMENCEMENT
+-------------------------------
+Laytime starts running six hours after NOR has been tendered, or upon the
+vessel being all fast at the loading berth, whichever event occurs first.
+
+
+CLAUSE 3: ETA REPORTING
+------------------------
+ETA notices to be sent on a 10 / 7 / 5 / 3 / 2 / 1 day cadence for both
+loadport and discharge port. The 10-day notice gives Charterers time to
+arrange the multi-grade parcel coordination.
+
+
+CLAUSE 4: LAYDAYS & CANCELLING
+--------------------------------
+The vessel shall present at the loadport on or before 23 May 2026 and not
+later than 25 May 2026 17:00 local time (cancelling).
+
+
+CLAUSE 5: TANK CLEANING — CHEMICAL CAP-3 STANDARD
+---------------------------------------------------
+Vessel's tanks must be cleaned to CAP-3 standard for chemical service. Each
+of the four nominated grades requires its own tank-cleanliness certificate
+issued by an independent inspector before loading. Wall-wash test results for
+methanol grade must be presented to the shipper before connection. Failure
+to meet cleanliness standard for any grade suspends laytime for the affected
+parcel(s) until the deficiency is remedied at Owners' time and cost.
+
+
+CLAUSE 6: SEGREGATION INTEGRITY
+---------------------------------
+Each of the four grades must be loaded into a dedicated, independent set of
+tanks with no shared piping, manifolds or vapour space. The Master is
+responsible for confirming line-up segregation in writing before each grade
+loading commences. Any cross-contamination arising from a segregation breach
+is for Owners' account.
+
+
+CLAUSE 7: HEATING
+------------------
+Owners shall maintain the heating regimes specified in the cargo block above.
+Heating logs (4-hourly readings) shall be kept and produced to Charterers'
+inspector on request. Failure to maintain temperature for MTBE or ETBE
+parcels is at Owners' risk; off-spec arrival entitles Charterers to deduct
+quality-degradation costs from freight.
+
+
+CLAUSE 8: QUANTITY DETERMINATION & TOLERANCE
+----------------------------------------------
+Each grade's loaded quantity is established by the loadport shore meter for
+that grade under independent inspector witness, with a tolerance of plus or
+minus five percent. The shore-meter figure, as confirmed by the inspector
+for each grade, is binding. (NB: see Addendum No. 1 dated 16 May 2026 — the
+methanol grade tolerance was subsequently widened to +/-10% by mutual
+agreement.)
+
+
+CLAUSE 9: BL & DOCUMENTATION
+------------------------------
+Four separate Bills of Lading shall be issued, one per grade, each on
+shippers' standard chemical-trade form. Master signs without prejudice; clean
+B/Ls only. Documentation set per grade to be provided within forty-eight
+hours of loading completion.
+
+
+CLAUSE 10: BUNKERS
+--------------------
+Vessel delivered at Antwerp with approximately 1,500 MT VLSFO and 250 MT MGO,
+verified by independent surveyor. Quality not warranted.
+
+
+CLAUSE 11: SANCTIONS & WAR RISK
+---------------------------------
+Standard sanctions and war-risk clauses apply per OFAC / EU / UN / UK regimes.
+Owners maintain war-risk insurance.
+
+
+CLAUSE 12: PAYMENT TERMS
+--------------------------
+Freight is payable within five business days of presentation of Owners' email
+invoice with supporting documents. Demurrage is payable within thirty calendar
+days of receipt of the demurrage invoice and time-sheet, supported by per-grade
+laytime allocation. Payment without condition, set-off or counterclaim.
+
+
+CLAUSE 13: CLAIMS TIME BAR
+----------------------------
+General claims must be notified in writing within nine months of the event.
+Demurrage claims and quality-degradation claims must be presented within
+ninety calendar days of completion of discharge.
+
+
+CLAUSE 14: COMMISSION & BROKERS
+---------------------------------
+Address commission 2.50 percent and brokerage commission 1.25 percent, both
+on freight, deadfreight and demurrage. Brokerage commission payable to
+PARCEL CHARTERING SERVICES BV per details:
+
+NAME        : PARCEL CHARTERING SERVICES BV
+ADDRESS     : WTC AMSTERDAM, ZUIDPLEIN 80
+              1077 XV AMSTERDAM, NETHERLANDS
+EMAIL       : info@parcelchartering.nl
+
+BROKER      : MARK VAN DER BERG
+EMAIL       : mark@parcelchartering.nl
+PHONE       : +31 20 305 6700
+
+OPERATIONS  : ANNA SCHMIDT
+EMAIL       : ops@parcelchartering.nl
+PHONE       : +31 20 305 6710
+
+
+CLAUSE 15: ARBITRATION & GOVERNING LAW
+----------------------------------------
+LMAA London arbitration. Each party appoints one arbitrator, two appointed
+select umpire. Seat London, language English. Costs follow event. English
+governing law.
+
+
+CLAUSE 16: AMENDMENTS & ENTIRE AGREEMENT
+------------------------------------------
+No amendment effective unless in writing and signed by both parties. This CP
+plus any addenda constitute the entire agreement; prior negotiations
+superseded.
+
+
+# ---- END OF MAIN RECAP ----
+#
+# ATTACHMENTS:
+#   - Q88 vessel questionnaire for BOW FAITH
+#     (DATA/Q88/06 - Chemical Tankers/20-38kt/BowFaith_Q88.pdf)
+#   - Addendum No. 1 dated 16 May 2026, in addendum/recap_addendum.txt
+#     (quantity tolerance widening for the methanol grade).
