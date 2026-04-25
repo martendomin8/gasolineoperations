@@ -1838,6 +1838,35 @@ export default function FleetPage() {
                       <span className="text-[var(--color-border-default)]">|</span>
                       <span className="font-mono">{plannerDistance.totalNm.toLocaleString()} NM</span>
                     </div>
+                    {/* Arrival timestamp = NOW + remaining duration. Use the
+                        weather-adjusted figure when the GFS sampler has
+                        landed a delay estimate; otherwise fall back to the
+                        calm-conditions calculation. UTC-labelled to match
+                        the AIS ETA convention used elsewhere in the panel. */}
+                    {plannerDistance.etaDays > 0 && (() => {
+                      const adjustedH = kwonEta.data?.adjustedEtaH;
+                      const durationH = adjustedH != null && Number.isFinite(adjustedH)
+                        ? adjustedH
+                        : plannerDistance.etaDays * 24;
+                      const arrivalAt = new Date(Date.now() + durationH * 3600 * 1000);
+                      const isAdjusted = adjustedH != null && Number.isFinite(adjustedH);
+                      return (
+                        <div className="flex items-center gap-2 mt-1.5 pt-1.5 border-t border-cyan-500/20 text-xs">
+                          <span className="text-[var(--color-text-tertiary)]">Calculated ETA</span>
+                          <span className="ml-auto font-mono font-semibold text-[var(--color-text-primary)]">
+                            {formatEtaShort(arrivalAt)} UTC
+                          </span>
+                          {isAdjusted && (
+                            <span
+                              className="text-[0.6rem] font-mono uppercase tracking-wider text-amber-400"
+                              title="Weather-adjusted ETA — incorporates NOAA GFS forecast delay"
+                            >
+                              wx
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })()}
                     {/* Leg breakdown */}
                     {plannerDistance.legs.length > 1 && (
                       <div className="mt-3 pt-3 border-t border-cyan-500/20 space-y-1">
