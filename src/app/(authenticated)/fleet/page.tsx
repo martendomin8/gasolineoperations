@@ -922,34 +922,70 @@ export default function FleetPage() {
   // an extra "Vessel details" section at the bottom with IMO, laycan,
   // cargo, operator, and an Open Linkage button. No more separate
   // detail-vs-planner toggle shuffle.
+  // We re-key the planner-waypoint effect on `(selectedId | aisMode)` so a
+  // vessel that's already selected when its AIS state transitions from
+  // `predicted` (no fix) to `live` / `dead_reck` (got a fix) triggers a
+  // waypoint rebuild — switching the start anchor from loadport to the
+  // current vessel position. Without this the Planner would silently keep
+  // showing the full-voyage time until the operator clicked the marker
+  // again.
   const prevSelectedRef = useRef<string | null>(null);
+  const selectionKey = selectedVesselId
+    ? `${selectedVesselId}|${vessels.find((v) => v.id === selectedVesselId)?.aisMode ?? "none"}`
+    : null;
   useEffect(() => {
-    if (!selectedVesselId || selectedVesselId === prevSelectedRef.current) return;
-    prevSelectedRef.current = selectedVesselId;
+    if (!selectedVesselId || selectionKey === prevSelectedRef.current) return;
+    prevSelectedRef.current = selectionKey;
 
     const v = vessels.find((vv) => vv.id === selectedVesselId);
     if (!v) return;
 
-    const ports: string[] = [];
-    if (v.loadport) ports.push(v.loadport);
-    if (v.dischargePort && v.dischargePort !== v.loadport) ports.push(v.dischargePort);
+    // Build the waypoint sequence the Planner will route through.
+    //
+    // When the vessel has a live (or recently dead-reckoned) AIS fix we
+    // start from its CURRENT position rather than the loadport — that
+    // way the Planner shows "remaining time to discharge" instead of
+    // the original full-voyage time, which is the operator-relevant
+    // number once the vessel is at sea. The synthetic "Vessel
+    // position" waypoint carries lat/lon directly, no port DB lookup.
+    //
+    // For PREDICTED mode (no AIS yet) or when AIS is disabled we fall
+    // back to the loadport name so the Planner draws the original
+    // contracted route.
+    const useLivePosition =
+      aisEnabled &&
+      (v.aisMode === "live" || v.aisMode === "dead_reck") &&
+      v.position?.lat != null &&
+      v.position?.lng != null;
+
+    const liveWaypoint = useLivePosition
+      ? {
+          name: `Vessel position (${v.aisMode})`,
+          lat: v.position.lat,
+          lon: v.position.lng,
+        }
+      : null;
+
+    const portNames: string[] = [];
+    if (!liveWaypoint && v.loadport) portNames.push(v.loadport);
+    if (v.dischargePort && v.dischargePort !== v.loadport) portNames.push(v.dischargePort);
 
     const linkageDeals = allDeals
       .filter((d) => d.linkageId === v.id)
       .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
     for (const d of linkageDeals) {
-      if (d.dischargePort && !ports.includes(d.dischargePort)) {
-        ports.push(d.dischargePort);
+      if (d.dischargePort && !portNames.includes(d.dischargePort)) {
+        portNames.push(d.dischargePort);
       }
     }
 
-    if (ports.length === 0) {
+    if (!liveWaypoint && portNames.length === 0) {
       setPlannerMode(true);
       return;
     }
 
     Promise.all(
-      ports.map((p) =>
+      portNames.map((p) =>
         fetch(`/api/maritime/sea-distance?search=${encodeURIComponent(p)}`)
           .then((r) => r.json())
           .then((data: { ports: Array<{ name: string; lat: number; lon: number }> }) => {
@@ -959,10 +995,16 @@ export default function FleetPage() {
           .catch(() => ({ name: p, lat: 0, lon: 0 })),
       ),
     ).then((resolved) => {
-      setPlannerPorts(resolved);
+      const waypoints = liveWaypoint ? [liveWaypoint, ...resolved] : resolved;
+      setPlannerPorts(waypoints);
       setPlannerMode(true);
     });
-  }, [selectedVesselId, vessels, allDeals]);
+    // selectionKey already encodes selectedVesselId + aisMode; the rest is
+    // looked up inside via `vessels.find`. We don't include `vessels` /
+    // `allDeals` because every AIS poll mutates `vessels` and we don't
+    // want to thrash the waypoint fetch on every 15 s tick.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectionKey, aisEnabled]);
 
   const operatorOptions = Array.from(
     new Map(
