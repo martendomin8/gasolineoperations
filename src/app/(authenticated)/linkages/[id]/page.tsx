@@ -15,6 +15,7 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
+import { CpQaPanel } from "@/components/cp-qa-panel";
 import { toast } from "sonner";
 import {
   ArrowLeft,
@@ -975,6 +976,10 @@ function VesselSection({ linkage, steps, docs, canEdit, onUpdated }: {
 
     setUploadingCp(true);
     const failed: string[] = [];
+    // Q88s auto-imported from email attachments — collected across all files
+    // so we can trigger parse on the first one once uploads finish.
+    const autoImportedQ88s: Array<{ id: string; filename: string }> = [];
+
     for (const file of files) {
       try {
         const fd = new FormData();
@@ -984,7 +989,28 @@ function VesselSection({ linkage, steps, docs, canEdit, onUpdated }: {
           method: "POST",
           body: fd,
         });
-        if (!res.ok) failed.push(file.name);
+        if (!res.ok) {
+          failed.push(file.name);
+          continue;
+        }
+
+        // The route returns `{ document, autoImported: [{ document, classification }] }`
+        // where autoImported lists any attachments extracted from a .eml drop.
+        // We only auto-trigger parse for Q88 attachments — other classifications
+        // (BL, COA, other) get persisted but don't have a parse pipeline yet.
+        const body = await res.json().catch(() => null);
+        const imported = (body?.autoImported ?? []) as Array<{
+          document: { id: string; filename: string };
+          classification: string;
+        }>;
+        for (const ai of imported) {
+          if (ai.classification === "q88") {
+            autoImportedQ88s.push({
+              id: ai.document.id,
+              filename: ai.document.filename,
+            });
+          }
+        }
       } catch {
         failed.push(file.name);
       }
@@ -996,6 +1022,21 @@ function VesselSection({ linkage, steps, docs, canEdit, onUpdated }: {
       toast.error(`Upload failed: ${failed.join(", ")}`);
     }
     onUpdated();
+
+    // If the email(s) carried Q88 attachment(s), surface what was extracted
+    // and kick off Q88 parsing on the first one. The modal flow inside
+    // runQ88Parse handles the operator confirm step. Additional Q88s sit
+    // as uploaded documents that the operator can parse manually.
+    if (autoImportedQ88s.length > 0) {
+      const names = autoImportedQ88s.map((q) => q.filename).join(", ");
+      const suffix =
+        autoImportedQ88s.length === 1
+          ? `Q88 attachment auto-imported: ${names}`
+          : `${autoImportedQ88s.length} Q88 attachments auto-imported: ${names}`;
+      toast.success(suffix);
+      const first = autoImportedQ88s[0];
+      void runQ88Parse(first.id, first.filename);
+    }
   };
 
   const handleDeleteDoc = async (docId: string, filename: string) => {
@@ -1230,6 +1271,13 @@ function VesselSection({ linkage, steps, docs, canEdit, onUpdated }: {
               </div>
             )}
           </div>
+
+          {/* AI Q&A — read CP recap + base form (BPVOY4 etc.), cite source.
+              Only meaningful once a recap has been uploaded; before that the
+              endpoint returns an actionable error message. */}
+          {cpDocs.length > 0 && (
+            <CpQaPanel linkageId={linkage.id} canEdit={canEdit} />
+          )}
 
           {/* Workflow steps — always visible, disabled when no vessel */}
           {steps.length > 0 && (
@@ -2002,10 +2050,54 @@ function DeleteLinkageButton({ linkageId, dealCount, onDeleted }: { linkageId: s
 //
 // The tank layout is derived from the parsed Q88:
 //   - Tanks ending in "P" go port (top row), "S" starboard (bottom row).
-//   - Tank numbers determine column order (1 = stern, growing bow-ward).
-//   - Slop tanks go at the stern.
-// This is heuristic — real tanker layouts vary — but for a parallel-tank MR
-// it gets the operator to a recognisable picture without hand-wiring geometry.
+//   - Tank numbers determine column order. Per IMO MARPOL Annex I and OCIMF
+//     convention, Tank 1 is forwardmost (at the bow); higher numbers run
+//     aft toward the stern. The SVG renders columns in reverse so Tank 1
+//     sits at the right edge (where the hull tapers into the bow).
+//   - Slop tanks go at the stern, aft of the cargo space near the pump
+//     room — drawn on the left of the SVG.
+// SVG width is adaptive to the column count: typical MRs with 6 pairs fit
+// the modal at 760 px; chemical parcel tankers with 12-25+ pairs (e.g. Bow
+// Faith with 25 tank pairs / 52 cargo tanks) widen the SVG and the
+// container scrolls horizontally so each cell stays readable.
+
+// Stowage planner supports multi-product loading. A "product" is one cargo
+// grade with its own density (e.g. RON95 gasoline @ 740 kg/m³, RON98 @ 745,
+// ULSD @ 830, methanol @ 800). Each tank is assigned to at most one product
+// (or unassigned). Cargo MT per tank = capacity98 × productDensity / 1000.
+// This applies equally to product tankers running multi-grade clean-product
+// voyages and to chemical parcel tankers — the shape is universal.
+type StowageProduct = {
+  id: string;
+  name: string;
+  density: number;
+  colorClass: string;
+};
+
+const PRODUCT_COLORS = [
+  "cyan",
+  "amber",
+  "emerald",
+  "rose",
+  "violet",
+  "indigo",
+  "lime",
+  "fuchsia",
+] as const;
+
+// RGB triplets corresponding to PRODUCT_COLORS. Used inline for SVG fill
+// because Tailwind utility classes don't compose into the rgba() syntax we
+// need for the per-tank intensity gradient.
+const PRODUCT_RGB: Record<string, string> = {
+  cyan: "34, 211, 238",
+  amber: "245, 158, 11",
+  emerald: "16, 185, 129",
+  rose: "244, 63, 94",
+  violet: "139, 92, 246",
+  indigo: "99, 102, 241",
+  lime: "132, 204, 22",
+  fuchsia: "232, 121, 249",
+};
 
 function PlannerModal({
   linkage,
@@ -2028,16 +2120,67 @@ function PlannerModal({
     loadlines.find((l) => l.name === selectedLoadlineName) ?? null;
   const dwtCeiling = selectedLoadline?.dwt ?? particulars.dwt ?? null;
 
-  const [density, setDensity] = useState<number>(740);
-  const [selectedTanks, setSelectedTanks] = useState<Set<string>>(
-    () => new Set(tanks.map((t) => t.name))
+  // Multi-product stowage. The default is a single "Cargo" product at
+  // 740 kg/m³ (gasoline midpoint) with every tank pre-assigned, which
+  // preserves the single-density behaviour the planner had before
+  // multi-product support landed. The operator adds more products via
+  // the Products panel and reassigns tanks by clicking on them with a
+  // different product armed.
+  const [products, setProducts] = useState<StowageProduct[]>(() => [
+    { id: "p1", name: "Cargo", density: 740, colorClass: PRODUCT_COLORS[0] },
+  ]);
+  const [tankAssignments, setTankAssignments] = useState<Record<string, string>>(
+    () => Object.fromEntries(tanks.map((t) => [t.name, "p1"]))
   );
+  const [activeProductId, setActiveProductId] = useState<string>("p1");
+
+  const getProduct = (id: string | null | undefined): StowageProduct | null => {
+    if (!id) return null;
+    return products.find((p) => p.id === id) ?? null;
+  };
+
+  const addProduct = () => {
+    const id = `p${Date.now()}`;
+    setProducts((prev) => [
+      ...prev,
+      {
+        id,
+        name: `Product ${prev.length + 1}`,
+        density: 740,
+        colorClass: PRODUCT_COLORS[prev.length % PRODUCT_COLORS.length],
+      },
+    ]);
+    setActiveProductId(id);
+  };
+
+  const removeProduct = (id: string) => {
+    if (products.length <= 1) return;
+    setTankAssignments((prev) => {
+      const next: Record<string, string> = {};
+      for (const [k, v] of Object.entries(prev)) {
+        if (v !== id) next[k] = v;
+      }
+      return next;
+    });
+    const remaining = products.filter((p) => p.id !== id);
+    setProducts(remaining);
+    if (activeProductId === id) setActiveProductId(remaining[0]?.id ?? "");
+  };
+
+  const updateProduct = (id: string, patch: Partial<StowageProduct>) => {
+    setProducts((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)));
+  };
 
   const toggleTank = (name: string) => {
-    setSelectedTanks((prev) => {
-      const next = new Set(prev);
-      if (next.has(name)) next.delete(name);
-      else next.add(name);
+    setTankAssignments((prev) => {
+      const next = { ...prev };
+      if (next[name] === activeProductId) {
+        // Same product armed → unassign on second click.
+        delete next[name];
+      } else {
+        // Different product or unassigned → set to active product.
+        next[name] = activeProductId;
+      }
       return next;
     });
   };
@@ -2055,7 +2198,10 @@ function PlannerModal({
   const slopTanks = parsed.filter((t) => t._isSlop);
   const otherTanks = parsed.filter((t) => t._num == null && !t._isSlop);
 
-  const columns = Array.from(new Set(numberedTanks.map((t) => t._num as number))).sort((a, b) => a - b);
+  // Reverse-sort so Tank 1 ends up rightmost (at the bow / hull taper) and
+  // higher numbers march left toward the stern, matching IMO/OCIMF tanker
+  // numbering convention (forward-to-aft).
+  const columns = Array.from(new Set(numberedTanks.map((t) => t._num as number))).sort((a, b) => b - a);
 
   const portRow = columns.map((col) => numberedTanks.find((t) => t._num === col && t._side === "P") ?? null);
   const stbdRow = columns.map((col) => numberedTanks.find((t) => t._num === col && t._side === "S") ?? null);
@@ -2067,24 +2213,45 @@ function PlannerModal({
     if (typeof t.capacity100 === "number") return t.capacity100 * 0.98;
     return 0;
   };
-  const cargoMt = (t: VesselTank): number => (cargoM3(t) * density) / 1000;
+  const cargoMt = (t: VesselTank): number => {
+    const product = getProduct(tankAssignments[t.name]);
+    if (!product) return 0;
+    return (cargoM3(t) * product.density) / 1000;
+  };
 
-  const totals = parsed.reduce(
-    (acc, t) => {
-      const m3 = cargoM3(t);
-      const mt = cargoMt(t);
-      acc.totalM3 += m3;
-      acc.totalMt += mt;
-      if (selectedTanks.has(t.name)) {
-        acc.selectedM3 += m3;
-        acc.selectedMt += mt;
+  // Per-product breakdown — count of tanks, m³ and MT.
+  const totalsByProduct = products.map((p) => {
+    let count = 0;
+    let m3 = 0;
+    let mt = 0;
+    for (const t of parsed) {
+      if (tankAssignments[t.name] === p.id) {
+        const tm3 = cargoM3(t);
+        count += 1;
+        m3 += tm3;
+        mt += (tm3 * p.density) / 1000;
       }
-      return acc;
-    },
-    { totalM3: 0, totalMt: 0, selectedM3: 0, selectedMt: 0 }
-  );
+    }
+    return { product: p, count, m3, mt };
+  });
 
-  const svgWidth = 760;
+  const totals = {
+    // Theoretical max if every tank were filled at the "active product" density;
+    // useful as a sanity benchmark against the assigned figure.
+    totalM3: parsed.reduce((s, t) => s + cargoM3(t), 0),
+    totalMt: parsed.reduce((s, t) => s + cargoMt(t), 0),
+    selectedCount: Object.keys(tankAssignments).length,
+    selectedM3: totalsByProduct.reduce((s, x) => s + x.m3, 0),
+    selectedMt: totalsByProduct.reduce((s, x) => s + x.mt, 0),
+  };
+
+  // Adaptive width so chemical parcel tankers with 12+ tank pairs render
+  // with readable cells. minColWidth picks a per-column budget; if it
+  // doesn't fit the default 760 px, the SVG widens and the container
+  // scrolls. For typical 6-pair MRs the SVG stays at 760 px (fits modal).
+  const minColWidth = 65;
+  const slopReserve = slopTanks.length > 0 ? 80 : 30;
+  const svgWidth = Math.max(760, slopReserve + columns.length * minColWidth + 100);
   const svgHeight = 300;
   const margin = 24;
   const hullTop = margin;
@@ -2102,13 +2269,20 @@ function PlannerModal({
   const rowTop = (idx: number) => hullTop + 8 + idx * rowHeight;
 
   const maxM3 = Math.max(...parsed.map((x) => cargoM3(x)), 1);
+  const productRgb = (p: StowageProduct | null) =>
+    p ? PRODUCT_RGB[p.colorClass] ?? PRODUCT_RGB.cyan : null;
+
   const tankFill = (t: VesselTank) => {
-    if (!selectedTanks.has(t.name)) return "var(--color-surface-3)";
+    const product = getProduct(tankAssignments[t.name]);
+    if (!product) return "var(--color-surface-3)";
     const intensity = Math.max(0.3, cargoM3(t) / maxM3);
-    return `rgba(34, 211, 238, ${intensity * 0.6})`;
+    return `rgba(${productRgb(product)}, ${intensity * 0.6})`;
   };
-  const tankStroke = (t: VesselTank) =>
-    selectedTanks.has(t.name) ? "rgb(34, 211, 238)" : "var(--color-border-default)";
+  const tankStroke = (t: VesselTank) => {
+    const product = getProduct(tankAssignments[t.name]);
+    if (!product) return "var(--color-border-default)";
+    return `rgb(${productRgb(product)})`;
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-8 overflow-auto">
@@ -2179,8 +2353,98 @@ function PlannerModal({
             </div>
           )}
 
-          <div className="rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-2)] p-3">
-            <svg viewBox={`0 0 ${svgWidth} ${svgHeight}`} className="w-full h-auto" style={{ maxHeight: 340 }}>
+          {/* Products panel — multi-product stowage with per-product density.
+              Click a row to arm that product, then click tanks in the SVG
+              below to assign them. Same product re-clicked unassigns. */}
+          <div className="rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-2)] px-3 py-2">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[0.65rem] uppercase tracking-wide text-[var(--color-text-tertiary)]">
+                Products ({products.length}) · click a row to arm, then click tanks to assign
+              </span>
+              <button
+                onClick={addProduct}
+                className="text-[0.65rem] text-cyan-400 hover:text-cyan-300 px-2 py-0.5 rounded-[var(--radius-sm)] border border-cyan-500/30 hover:border-cyan-500/60"
+              >
+                + Add product
+              </button>
+            </div>
+            <div className="space-y-1">
+              {products.map((p) => {
+                const isActive = p.id === activeProductId;
+                const rgb = PRODUCT_RGB[p.colorClass] ?? PRODUCT_RGB.cyan;
+                const totalRow =
+                  totalsByProduct.find((x) => x.product.id === p.id) ??
+                  { count: 0, m3: 0, mt: 0 };
+                return (
+                  <div
+                    key={p.id}
+                    onClick={() => setActiveProductId(p.id)}
+                    className={`flex items-center gap-2 px-2 py-1 rounded-[var(--radius-sm)] border transition-colors cursor-pointer ${
+                      isActive
+                        ? "border-cyan-500/60 bg-cyan-500/10"
+                        : "border-[var(--color-border-subtle)] hover:border-[var(--color-border-default)]"
+                    }`}
+                  >
+                    <span
+                      className="w-3 h-3 rounded-full flex-shrink-0"
+                      style={{ backgroundColor: `rgb(${rgb})` }}
+                      title={isActive ? "Active — click tanks to assign" : "Click row to arm this product"}
+                    />
+                    <input
+                      type="text"
+                      value={p.name}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={(e) => updateProduct(p.id, { name: e.target.value })}
+                      className="bg-transparent text-xs text-[var(--color-text-primary)] flex-1 min-w-0 focus:outline-none"
+                    />
+                    <input
+                      type="number"
+                      min={500}
+                      max={1100}
+                      step={1}
+                      value={p.density}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={(e) => updateProduct(p.id, { density: Number(e.target.value) || 0 })}
+                      className="bg-[var(--color-surface-1)] text-xs text-right w-16 px-1 py-0.5 border border-[var(--color-border-subtle)] rounded-[var(--radius-sm)] focus:outline-none focus:border-cyan-500/60"
+                    />
+                    <span className="text-[0.6rem] text-[var(--color-text-tertiary)] flex-shrink-0">
+                      kg/m³
+                    </span>
+                    <span className="text-[0.65rem] text-[var(--color-text-secondary)] tabular-nums w-32 text-right flex-shrink-0">
+                      {totalRow.count} tanks · {fmt(totalRow.mt, " MT")}
+                    </span>
+                    {products.length > 1 && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeProduct(p.id);
+                        }}
+                        className="text-[var(--color-text-tertiary)] hover:text-red-400 flex-shrink-0"
+                        title="Remove product (its tanks become unassigned)"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <div className="mt-2 text-[0.6rem] text-[var(--color-text-tertiary)]">
+              Density hints (kg/m³): RON95 gasoline ~735 · RON98 ~745 · Naphtha ~700 · ULSD ~835 · MTBE ~745 · Methanol ~792 · Toluene ~867 · Benzene ~876
+            </div>
+          </div>
+
+          <div className="rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-2)] p-3 overflow-x-auto">
+            <svg
+              viewBox={`0 0 ${svgWidth} ${svgHeight}`}
+              style={{
+                minWidth: svgWidth,
+                width: "100%",
+                height: "auto",
+                maxHeight: 340,
+                display: "block",
+              }}
+            >
               <path
                 d={`M ${sternX} ${hullTop} L ${bowX - bowTaper} ${hullTop} Q ${bowX} ${hullTop + hullHeight / 2 - hullHeight * 0.25}, ${bowX} ${hullTop + hullHeight / 2} Q ${bowX} ${hullBottom - hullHeight * 0.25}, ${bowX - bowTaper} ${hullBottom} L ${sternX} ${hullBottom} Z`}
                 fill="var(--color-surface-1)"
@@ -2255,7 +2519,7 @@ function PlannerModal({
                     key={i}
                     onClick={() => toggleTank(t.name)}
                     className={`inline-block mx-1 px-1.5 py-0.5 rounded border ${
-                      selectedTanks.has(t.name)
+                      tankAssignments[t.name]
                         ? "border-cyan-500/50 bg-cyan-500/20 text-cyan-300"
                         : "border-[var(--color-border-subtle)] text-[var(--color-text-secondary)]"
                     }`}
@@ -2267,25 +2531,7 @@ function PlannerModal({
             )}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <label className="rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-3 py-2">
-              <span className="block text-[0.65rem] uppercase tracking-wide text-[var(--color-text-tertiary)]">
-                Cargo density (kg/m³)
-              </span>
-              <input
-                type="number"
-                min={500}
-                max={1100}
-                step={1}
-                value={density}
-                onChange={(e) => setDensity(Number(e.target.value) || 0)}
-                className="w-full mt-1 bg-transparent text-sm font-medium text-[var(--color-text-primary)] focus:outline-none"
-              />
-              <span className="block text-[0.6rem] text-[var(--color-text-tertiary)] mt-0.5">
-                Gasoline ~720-745 · Naphtha ~680-720 · Diesel ~820-845
-              </span>
-            </label>
-
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {(() => {
               const overDwt =
                 typeof dwtCeiling === "number" && totals.selectedMt > dwtCeiling;
@@ -2308,13 +2554,14 @@ function PlannerModal({
                   className={`rounded-[var(--radius-md)] border ${borderCls} bg-[var(--color-surface-2)] px-3 py-2`}
                 >
                   <span className="block text-[0.65rem] uppercase tracking-wide text-[var(--color-text-tertiary)]">
-                    Selected tanks
+                    Total assigned
                   </span>
                   <div className={`text-sm font-semibold mt-1 ${textCls}`}>
                     {fmt(totals.selectedMt, " MT")}
                   </div>
                   <div className="text-[0.65rem] text-[var(--color-text-tertiary)]">
-                    {fmt(totals.selectedM3, " m³ @ 98%")} · {selectedTanks.size}/{tanks.length} tanks
+                    {fmt(totals.selectedM3, " m³ @ 98%")} · {totals.selectedCount}/{tanks.length} tanks ·{" "}
+                    {products.length} product{products.length === 1 ? "" : "s"}
                   </div>
                   {overDwt && (
                     <div className="text-[0.65rem] text-red-400 mt-1">
@@ -2333,13 +2580,13 @@ function PlannerModal({
 
             <div className="rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-2)] px-3 py-2">
               <span className="block text-[0.65rem] uppercase tracking-wide text-[var(--color-text-tertiary)]">
-                Max capacity
+                Max capacity (vessel)
               </span>
               <div className="text-sm font-semibold text-[var(--color-text-primary)] mt-1">
                 {fmt(totals.totalMt, " MT")}
               </div>
               <div className="text-[0.65rem] text-[var(--color-text-tertiary)]">
-                {fmt(totals.totalM3, " m³ @ 98%")} · all tanks
+                {fmt(totals.totalM3, " m³ @ 98%")} · all tanks at currently assigned densities
               </div>
             </div>
           </div>
@@ -2351,24 +2598,29 @@ function PlannerModal({
               </span>
               <div className="flex gap-2">
                 <button
-                  onClick={() => setSelectedTanks(new Set(tanks.map((t) => t.name)))}
+                  onClick={() =>
+                    setTankAssignments(
+                      Object.fromEntries(tanks.map((t) => [t.name, activeProductId]))
+                    )
+                  }
                   className="text-[0.65rem] text-cyan-400 hover:text-cyan-300"
+                  title="Assign every tank to the currently armed product"
                 >
-                  Select all
+                  Assign all to active
                 </button>
                 <button
-                  onClick={() => setSelectedTanks(new Set())}
+                  onClick={() => setTankAssignments({})}
                   className="text-[0.65rem] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]"
                 >
-                  Clear
+                  Unassign all
                 </button>
               </div>
             </div>
             <table className="w-full text-[0.7rem]">
               <thead className="text-[var(--color-text-tertiary)]">
                 <tr>
-                  <th className="text-left px-2 py-1 font-normal w-8"></th>
                   <th className="text-left px-2 py-1 font-normal">Tank</th>
+                  <th className="text-left px-2 py-1 font-normal">Product</th>
                   <th className="text-right px-2 py-1 font-normal">100% (m³)</th>
                   <th className="text-right px-2 py-1 font-normal">98% (m³)</th>
                   <th className="text-right px-2 py-1 font-normal">Cargo (MT)</th>
@@ -2377,18 +2629,46 @@ function PlannerModal({
               </thead>
               <tbody>
                 {tanks.map((t, i) => {
-                  const sel = selectedTanks.has(t.name);
+                  const product = getProduct(tankAssignments[t.name]);
+                  const rgb = product
+                    ? PRODUCT_RGB[product.colorClass] ?? PRODUCT_RGB.cyan
+                    : null;
                   return (
                     <tr key={i} className="border-t border-[var(--color-border-subtle)]">
-                      <td className="px-2 py-1">
-                        <input type="checkbox" checked={sel} onChange={() => toggleTank(t.name)} className="accent-cyan-500" />
-                      </td>
                       <td className="px-2 py-1 font-medium">{t.name}</td>
+                      <td className="px-2 py-1">
+                        <select
+                          value={tankAssignments[t.name] ?? ""}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            setTankAssignments((prev) => {
+                              const next = { ...prev };
+                              if (v === "") delete next[t.name];
+                              else next[t.name] = v;
+                              return next;
+                            });
+                          }}
+                          className="bg-[var(--color-surface-2)] border border-[var(--color-border-subtle)] rounded-[var(--radius-sm)] px-1 py-0.5 text-[0.65rem] focus:outline-none focus:border-cyan-500/60"
+                          style={rgb ? { color: `rgb(${rgb})` } : undefined}
+                        >
+                          <option value="">— unassigned —</option>
+                          {products.map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.name}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
                       <td className="px-2 py-1 text-right">{fmt(t.capacity100)}</td>
                       <td className="px-2 py-1 text-right">
                         {fmt(t.capacity98 ?? (t.capacity100 ? t.capacity100 * 0.98 : null))}
                       </td>
-                      <td className={`px-2 py-1 text-right ${sel ? "text-cyan-300 font-medium" : "text-[var(--color-text-tertiary)]"}`}>
+                      <td
+                        className={`px-2 py-1 text-right ${
+                          product ? "font-medium" : "text-[var(--color-text-tertiary)]"
+                        }`}
+                        style={product && rgb ? { color: `rgb(${rgb})` } : undefined}
+                      >
                         {fmt(cargoMt(t))}
                       </td>
                       <td className="px-2 py-1 text-[var(--color-text-tertiary)]">{t.coating ?? "—"}</td>
