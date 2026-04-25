@@ -1,12 +1,22 @@
 /**
  * Port coordinates dictionary for the Fleet Map prototype.
  *
- * Maps port name strings (as they appear in deal loadport/dischargePort fields)
- * to geographic coordinates. Matching is case-insensitive and substring-based
- * since operators type ports in various formats (e.g. "Lavera", "FOS LAVERA").
+ * Originally a 24-entry hardcoded dictionary — sufficient for the early
+ * prototype but the proper 200+ port catalogue lives in
+ * `src/lib/maritime/sea-distance` (used by the AIS snapshot route + the
+ * Planner). Keeping two port DBs in sync was a bug magnet: a deal whose
+ * loadport resolved fine for the AIS layer (e.g. Bayonne, Gdansk) was
+ * silently tagged "unlocated" on the Fleet map because that lookup
+ * missed the smaller dictionary here.
  *
- * Phase 2: Replace with a proper port database or geocoding API.
+ * `findPortCoordinates` now delegates to `getPortCoords` from the
+ * sea-distance provider so the Fleet view, Planner, AIS snapshot, and
+ * Excel listing all see the same port catalogue. The local `PORTS`
+ * record remains for the legacy `CORE_TERMINALS` export which a few
+ * map overlays still depend on; new code should not extend it.
  */
+
+import { getPortCoords } from "@/lib/maritime/sea-distance";
 
 export interface PortCoordinates {
   lat: number;
@@ -14,7 +24,7 @@ export interface PortCoordinates {
   label: string; // Display name
 }
 
-/** Known port coordinates — extend as needed */
+/** Legacy core-terminal anchors — kept for `CORE_TERMINALS`. */
 const PORTS: Record<string, PortCoordinates> = {
   // Coordinates point to the actual port/harbor area, NOT city centers.
   // This keeps mock vessel positions in the water instead of on land.
@@ -65,17 +75,32 @@ export const CORE_TERMINALS: PortCoordinates[] = [
 
 /**
  * Resolve a free-text port name to coordinates.
- * Case-insensitive substring match — "LAVERA", "Fos/Lavera", "Amsterdam ARA" all work.
+ *
+ * Delegates to the sea-distance provider's port catalogue (200+ tanker
+ * ports, kept in sync with the ocean-routing graph) so the Fleet map
+ * sees the same port set as the Planner and AIS snapshot route. Falls
+ * back to the legacy `PORTS` dictionary for any niche aliases historic
+ * code paths might still rely on.
+ *
  * Returns null if no match found.
  */
 export function findPortCoordinates(portName: string | null | undefined): PortCoordinates | null {
   if (!portName) return null;
   const lower = portName.toLowerCase().trim();
 
-  // Exact match first
-  if (PORTS[lower]) return PORTS[lower];
+  // Primary path — proper port DB (Bayonne, Gdansk, all Med + ARA + Baltic
+  // + W. Africa + USEC etc.). Returns { lat, lon }; we adapt to the legacy
+  // { lat, lng, label } shape this module exposes.
+  const canon = getPortCoords(portName);
+  if (canon) {
+    // Use the cleaned-up name as the display label when available, falling
+    // back to the operator's raw input.
+    return { lat: canon.lat, lng: canon.lon, label: portName };
+  }
 
-  // Substring match — port name contains or is contained by a known key
+  // Legacy fallback — the small hardcoded dictionary above. Kept for
+  // robustness in case the proper DB rejects a quirky historical alias.
+  if (PORTS[lower]) return PORTS[lower];
   for (const [key, coords] of Object.entries(PORTS)) {
     if (lower.includes(key) || key.includes(lower)) {
       return coords;
