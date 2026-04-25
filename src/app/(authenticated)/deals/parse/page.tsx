@@ -439,10 +439,20 @@ function DebugPanel({ onLoad }: { onLoad: (text: string) => void }) {
 
   return (
     <div className="rounded-[var(--radius-md)] border border-dashed border-[var(--color-border-default)] bg-[var(--color-surface-1)]">
-      {/* Header row */}
-      <button
+      {/* Header row — div+role rather than <button> so the nested
+          "Random" button doesn't trigger a "<button> inside <button>"
+          hydration warning in React 19 / Next 15. */}
+      <div
+        role="button"
+        tabIndex={0}
         onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center gap-2 px-3 py-2.5 text-left"
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            setOpen((o) => !o);
+          }
+        }}
+        className="w-full flex items-center gap-2 px-3 py-2.5 text-left cursor-pointer"
       >
         <FlaskConical className="h-3.5 w-3.5 text-[var(--color-text-tertiary)] flex-shrink-0" />
         <span className="text-xs font-medium text-[var(--color-text-secondary)]">Debug fixtures</span>
@@ -460,7 +470,7 @@ function DebugPanel({ onLoad }: { onLoad: (text: string) => void }) {
           ? <ChevronUp className="h-3.5 w-3.5 text-[var(--color-text-tertiary)]" />
           : <ChevronDown className="h-3.5 w-3.5 text-[var(--color-text-tertiary)]" />
         }
-      </button>
+      </div>
 
       {/* Fixture list */}
       {open && (
