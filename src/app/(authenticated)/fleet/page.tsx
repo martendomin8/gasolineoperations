@@ -765,6 +765,13 @@ export default function FleetPage() {
     displayVessels = displayVessels.map((v) => {
       const ais = aisByLinkageId.get(v.id);
       if (ais === undefined) return v;
+      // AIS is enabled and the vessel is tracked, but the worker has no
+      // fix yet AND there's no usable loadport anchor. Don't overwrite
+      // the base mock position — keeping it means the fleet card still
+      // appears in a sensible spot rather than vanishing or jumping to
+      // (0, 0). Operators see the AIS toggle is on but no AIS metadata
+      // is layered on top of this card.
+      if (ais.position === null) return v;
 
       // Compute the remaining-route override: for LIVE / DEAD_RECK
       // vessels, trim the planned polyline at whichever waypoint is

@@ -185,14 +185,20 @@ export const GET = withAuth(async (req: NextRequest, _ctx, session) => {
         lengthM: snap?.static.lengthM ?? null,
         beamM: snap?.static.beamM ?? null,
       },
-      position: {
-        lat: resolved.lat,
-        lon: resolved.lon,
-        mode: resolved.mode,
-        bearingDeg: resolved.bearingDeg,
-        ageMs: Number.isFinite(resolved.ageMs) ? resolved.ageMs : null,
-        aisReceivedAt: resolved.aisReceivedAt?.toISOString() ?? null,
-      },
+      // Position is null when we have no AIS fix AND no usable loadport
+      // anchor — the UI shows the vessel in a "tracked, position unknown"
+      // state rather than painting a marker at (0, 0).
+      position:
+        resolved === null
+          ? null
+          : {
+              lat: resolved.lat,
+              lon: resolved.lon,
+              mode: resolved.mode,
+              bearingDeg: resolved.bearingDeg,
+              ageMs: Number.isFinite(resolved.ageMs) ? resolved.ageMs : null,
+              aisReceivedAt: resolved.aisReceivedAt?.toISOString() ?? null,
+            },
       voyage: {
         loadportName: voyage.loadportName,
         dischargePortName: voyage.dischargePortName,
@@ -329,8 +335,11 @@ function voyagePlanFor(ctx: VoyageContext): VoyagePlan {
   const hasLoadport = ctx.loadportLat !== null && ctx.loadportLon !== null;
   const hasDischarge = ctx.dischargeLat !== null && ctx.dischargeLon !== null;
   return {
-    loadportLat: ctx.loadportLat ?? 0,
-    loadportLon: ctx.loadportLon ?? 0,
+    // Pass through null when the loadport name didn't resolve. The
+    // resolver treats null + no AIS as "tracked but unknown position"
+    // rather than dropping the marker at (0, 0) in the Atlantic.
+    loadportLat: hasLoadport ? ctx.loadportLat : null,
+    loadportLon: hasLoadport ? ctx.loadportLon : null,
     cpSpeedKn: null,
     dischargeLat: hasDischarge ? ctx.dischargeLat : null,
     dischargeLon: hasDischarge ? ctx.dischargeLon : null,

@@ -33,9 +33,16 @@ const EARTH_RADIUS_NM = 3440.065;
 // ---- Inputs --------------------------------------------------------
 
 export interface VoyagePlan {
-  /** Anchor for PREDICTED mode when we've never seen AIS — e.g. loadport coords. */
-  loadportLat: number;
-  loadportLon: number;
+  /**
+   * Anchor for PREDICTED mode when we've never seen AIS — e.g. loadport
+   * coords. Null when the loadport name didn't resolve in the port DB
+   * (typo, "TBD" placeholder, or a port we haven't catalogued yet). When
+   * null AND we have no AIS fix, the resolver returns `null` from
+   * `resolvePosition` to signal "tracked but no position fix" rather
+   * than dropping the marker at (0, 0) in the Atlantic.
+   */
+  loadportLat: number | null;
+  loadportLon: number | null;
   /** CP speed from Q88, knots. Falls back to `DEFAULT_CP_SPEED_KN`. */
   cpSpeedKn: number | null;
   /**
@@ -80,9 +87,14 @@ export interface ResolveArgs {
  * returned `mode` tells the UI which marker style to use; the lat/lon
  * are where to draw it.
  *
+ * Returns `null` when we have no AIS fix AND no usable loadport anchor —
+ * the previous behaviour (lat=0, lon=0 fallback) painted a marker in
+ * the middle of the Atlantic which was actively misleading. Caller
+ * surfaces this as "tracked but no position fix" in the UI instead.
+ *
  * Branches:
- *   1. No AIS ever → PREDICTED from loadport, or the loadport itself
- *      if `routePredict` is null.
+ *   1. No AIS ever → PREDICTED from loadport, or `null` if loadport
+ *      coords are also unknown.
  *   2. AIS age < 10 min → LIVE, use the AIS fix verbatim.
  *   3. AIS age < 2 h    → DEAD_RECK, extrapolate AIS cog+sog.
  *   4. AIS age ≥ 2 h    → PREDICTED from the last AIS anchor.
@@ -91,7 +103,7 @@ export function resolvePosition({
   lastAis,
   now,
   voyage,
-}: ResolveArgs): ResolvedPosition {
+}: ResolveArgs): ResolvedPosition | null {
   const cpSpeed = voyage.cpSpeedKn ?? DEFAULT_CP_SPEED_KN;
 
   // --- Branch 1: never seen AIS ---
@@ -108,6 +120,11 @@ export function resolvePosition({
   // The moment the worker ingests its first `PositionReport` for this
   // MMSI, branch 2/3/4 takes over and the marker jumps to real data.
   if (lastAis === null) {
+    if (voyage.loadportLat === null || voyage.loadportLon === null) {
+      // No fix and no anchor — caller renders this as "tracked, position
+      // unknown" instead of dragging the marker to (0, 0).
+      return null;
+    }
     return {
       lat: voyage.loadportLat,
       lon: voyage.loadportLon,

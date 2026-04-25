@@ -45,6 +45,11 @@ export interface AisSnapshotVessel {
     lengthM: number | null;
     beamM: number | null;
   };
+  /**
+   * `null` when the AIS worker has no fix yet AND the linkage has no
+   * loadport coords to fall back to. UI should show the vessel in the
+   * "tracked, no position" sidebar state rather than dropping a marker.
+   */
   position: {
     lat: number;
     lon: number;
@@ -52,7 +57,7 @@ export interface AisSnapshotVessel {
     bearingDeg: number | null;
     ageMs: number | null;
     aisReceivedAt: string | null;
-  };
+  } | null;
   voyage: {
     loadportName: string | null;
     dischargePortName: string | null;

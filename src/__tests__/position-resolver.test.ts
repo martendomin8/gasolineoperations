@@ -22,7 +22,21 @@ import {
   _test,
   type VoyagePlan,
 } from "@/lib/maritime/ais/position-resolver";
-import { NavStatus, type VesselPosition } from "@/lib/maritime/ais/types";
+import { NavStatus, type VesselPosition, type ResolvedPosition } from "@/lib/maritime/ais/types";
+
+/**
+ * Test wrapper around `resolvePosition` that throws if the resolver
+ * returns null. The vast majority of tests below build voyages with
+ * resolvable loadport coords, so a null return there means the test
+ * setup is wrong — not a regression in resolver behaviour. This helper
+ * keeps test assertions terse (`out.mode`, not `out!.mode`) without
+ * reaching for non-null bangs everywhere.
+ */
+function resolveOrThrow(args: Parameters<typeof resolvePosition>[0]): ResolvedPosition {
+  const r = resolvePosition(args);
+  if (r === null) throw new Error("Test setup error: resolvePosition returned null");
+  return r;
+}
 
 // ---- Fixtures ----------------------------------------------------
 
@@ -78,7 +92,7 @@ describe("resolvePosition — no AIS history", () => {
   // comment on branch 1 in `position-resolver.ts` for the reasoning
   // (laycanStart ≠ actual departure).
   it("plants marker at loadport when no AIS ever", () => {
-    const out = resolvePosition({ lastAis: null, now: NOW, voyage: voyage() });
+    const out = resolveOrThrow({ lastAis: null, now: NOW, voyage: voyage() });
     expect(out.mode).toBe("predicted");
     expect(out.lat).toBe(ROTTERDAM[0]);
     expect(out.lon).toBe(ROTTERDAM[1]);
@@ -102,7 +116,7 @@ describe("resolvePosition — no AIS history", () => {
   });
 
   it("plants at loadport even with no route oracle / discharge", () => {
-    const out = resolvePosition({
+    const out = resolveOrThrow({
       lastAis: null,
       now: NOW,
       voyage: voyage({
@@ -115,6 +129,25 @@ describe("resolvePosition — no AIS history", () => {
     expect(out.lat).toBe(ROTTERDAM[0]);
     expect(out.lon).toBe(ROTTERDAM[1]);
   });
+
+  it("returns null when no AIS AND no loadport coords (no fix, no anchor)", () => {
+    // Critical regression guard: an earlier version of voyagePlanFor
+    // fell back to (0, 0) when the loadport name didn't resolve in the
+    // port DB, painting markers in the middle of the Atlantic. The
+    // resolver now signals "tracked but no position fix" by returning
+    // null so the UI can render the vessel in a sidebar list rather
+    // than dragging a marker to bogus coordinates.
+    const out = resolvePosition({
+      lastAis: null,
+      now: NOW,
+      voyage: voyage({
+        loadportLat: null,
+        loadportLon: null,
+        routePredict: null,
+      }),
+    });
+    expect(out).toBeNull();
+  });
 });
 
 // ---- Branch 2: LIVE ---------------------------------------------
@@ -123,7 +156,7 @@ describe("resolvePosition — LIVE window", () => {
   it("returns the AIS fix verbatim when < 10 min old", () => {
     const receivedAt = new Date(NOW.getTime() - 5 * 60 * 1000);
     const ais = fix({ lat: 52.1, lon: 3.9, receivedAt });
-    const out = resolvePosition({ lastAis: ais, now: NOW, voyage: voyage() });
+    const out = resolveOrThrow({ lastAis: ais, now: NOW, voyage: voyage() });
     expect(out.mode).toBe("live");
     expect(out.lat).toBe(52.1);
     expect(out.lon).toBe(3.9);
@@ -136,13 +169,13 @@ describe("resolvePosition — LIVE window", () => {
       cog: 180,
       heading: 275,
     });
-    const out = resolvePosition({ lastAis: ais, now: NOW, voyage: voyage() });
+    const out = resolveOrThrow({ lastAis: ais, now: NOW, voyage: voyage() });
     expect(out.bearingDeg).toBe(275);
   });
 
   it("edge: exactly at LIVE_WINDOW_MS still counts as dead-reck (< not <=)", () => {
     const ais = fix({ receivedAt: new Date(NOW.getTime() - LIVE_WINDOW_MS) });
-    const out = resolvePosition({ lastAis: ais, now: NOW, voyage: voyage() });
+    const out = resolveOrThrow({ lastAis: ais, now: NOW, voyage: voyage() });
     expect(out.mode).toBe("dead_reck");
   });
 });
@@ -155,7 +188,7 @@ describe("resolvePosition — DEAD_RECK window", () => {
     // Expected forward travel: 12 nm westward from starting point.
     const receivedAt = new Date(NOW.getTime() - 60 * 60 * 1000);
     const ais = fix({ lat: 51.95, lon: 4.14, cog: 270, sog: 12, receivedAt });
-    const out = resolvePosition({ lastAis: ais, now: NOW, voyage: voyage() });
+    const out = resolveOrThrow({ lastAis: ais, now: NOW, voyage: voyage() });
     expect(out.mode).toBe("dead_reck");
     // At lat ~52°, 1 nm longitude ≈ 0.027°. 12 nm westward → ~0.32° west.
     expect(out.lon).toBeLessThan(ais.lon);
@@ -167,7 +200,7 @@ describe("resolvePosition — DEAD_RECK window", () => {
   it("stays put when sog is zero (at anchor)", () => {
     const receivedAt = new Date(NOW.getTime() - 60 * 60 * 1000);
     const ais = fix({ sog: 0, receivedAt });
-    const out = resolvePosition({ lastAis: ais, now: NOW, voyage: voyage() });
+    const out = resolveOrThrow({ lastAis: ais, now: NOW, voyage: voyage() });
     expect(out.mode).toBe("dead_reck");
     expect(out.lat).toBe(ais.lat);
     expect(out.lon).toBe(ais.lon);
@@ -175,7 +208,7 @@ describe("resolvePosition — DEAD_RECK window", () => {
 
   it("edge: exactly at DEAD_RECK_WINDOW_MS flips to predicted", () => {
     const ais = fix({ receivedAt: new Date(NOW.getTime() - DEAD_RECK_WINDOW_MS) });
-    const out = resolvePosition({ lastAis: ais, now: NOW, voyage: voyage() });
+    const out = resolveOrThrow({ lastAis: ais, now: NOW, voyage: voyage() });
     expect(out.mode).toBe("predicted");
   });
 });
@@ -192,7 +225,7 @@ describe("resolvePosition — PREDICTED from last AIS anchor", () => {
       since: Date;
       cpSpeedKn: number;
     } | null = null;
-    const out = resolvePosition({
+    const out = resolveOrThrow({
       lastAis: ais,
       now: NOW,
       voyage: voyage({
@@ -233,7 +266,7 @@ describe("resolvePosition — PREDICTED from last AIS anchor", () => {
       lon: -15.0,
       receivedAt: new Date(NOW.getTime() - 3 * 60 * 60 * 1000),
     });
-    const out = resolvePosition({
+    const out = resolveOrThrow({
       lastAis: ais,
       now: NOW,
       voyage: voyage({ routePredict: () => null }),
