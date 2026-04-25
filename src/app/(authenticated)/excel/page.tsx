@@ -5,6 +5,13 @@ import { toast } from "sonner";
 import Link from "next/link";
 import { Trash2, Pencil } from "lucide-react";
 
+interface DealParcel {
+  parcelNo: number;
+  product: string;
+  quantityMt: string;
+  contractedQty: string | null;
+}
+
 interface DealRow {
   id: string;
   externalRef: string | null;
@@ -17,6 +24,19 @@ interface DealRow {
   quantityMt: string;
   contractedQty: string | null;
   nominatedQty: string | null;
+  /**
+   * 1 for single-parcel deals (the dominant case), 2+ for multi-grade deals
+   * (e.g. ISOMERATE + REFORMATE on the same voyage). The Product(s) cell
+   * uses this to decide whether to render `deal.product` directly or stack
+   * the per-parcel breakdown.
+   */
+  parcelCount?: number;
+  /**
+   * Per-parcel detail. Only populated by the API for multi-parcel deals
+   * (parcel_count > 1) — single-parcel rows carry their grade in `product`
+   * directly. Don't assume this is always present.
+   */
+  parcels?: DealParcel[];
   incoterm: string;
   loadport: string;
   dischargePort: string | null;
@@ -61,6 +81,11 @@ const COLUMNS = [
   { key: "reference", label: "Reference", width: "90px" },
   { key: "ops", label: "OPS(name)", width: "80px" },
   { key: "pricing", label: "PRICING", width: "130px" },
+  // Product(s) — single-parcel deals show one product line; multi-parcel
+  // deals show stacked per-parcel rows with their individual quantities.
+  // Edits cascade across the linkage's back-to-back deals — see the
+  // ProductsCell component for details.
+  { key: "products", label: "PRODUCT(S)", width: "150px" },
   { key: "blFigures", label: "B/L FIGURES", width: "140px" },
   { key: "docInstructions", label: "DOC INSTRUCTIONS", width: "130px" },
   { key: "voyOrders", label: "VOY ORDERS", width: "100px" },
@@ -838,6 +863,212 @@ function PricingCell({ deal, onUpdate }: { deal: DealRow; onUpdate: () => void }
 }
 
 // ---------------------------------------------------------------------------
+// ProductsCell — Product(s) column.
+//
+// Single-parcel deals (the dominant case) render `deal.product` as a single
+// row, edited inline like B/L Figures. Multi-parcel deals (parcel_count > 1)
+// render the per-parcel breakdown stacked vertically; each row's product is
+// individually editable.
+//
+// Edits are wired to a future PATCH /api/deals/:id/parcels/:no endpoint that
+// cascades the new value to back-to-back deals in the same linkage where the
+// matching parcel still carries the OLD product name. Cascade behaviour is
+// the v2 step — for v1 we save just this deal's product/parcel and refresh.
+// ---------------------------------------------------------------------------
+
+function ProductsCell({ deal, onUpdate }: { deal: DealRow; onUpdate: () => void }) {
+  const isMultiParcel = (deal.parcelCount ?? 1) > 1 && (deal.parcels?.length ?? 0) > 1;
+
+  // Single-parcel: simple inline-edit cell over deal.product
+  if (!isMultiParcel) {
+    return (
+      <SingleProductCell
+        dealId={deal.id}
+        product={deal.product}
+        version={deal.version}
+        onUpdate={onUpdate}
+      />
+    );
+  }
+
+  // Multi-parcel: stacked rows, one per parcel
+  return (
+    <td className="px-1.5 py-1 text-[0.6875rem] border-b border-r border-[var(--color-border-subtle)] align-top">
+      <div className="flex flex-col gap-0.5">
+        {deal.parcels!.map((p) => (
+          <ParcelProductLine
+            key={p.parcelNo}
+            dealId={deal.id}
+            parcelNo={p.parcelNo}
+            product={p.product}
+            quantityMt={p.quantityMt}
+            onUpdate={onUpdate}
+          />
+        ))}
+      </div>
+    </td>
+  );
+}
+
+/**
+ * Single-parcel deal's product cell. Same UX shape as EditableTextCell but
+ * we own the layout so the multi-parcel variant can match its visual rhythm.
+ */
+function SingleProductCell({
+  dealId,
+  product,
+  version,
+  onUpdate,
+}: {
+  dealId: string;
+  product: string;
+  version: number;
+  onUpdate: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(product);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!editing) setValue(product);
+  }, [product, editing]);
+
+  const commit = async () => {
+    if (value === product) {
+      setEditing(false);
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/deals/${dealId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ product: value.trim() || product, version }),
+      });
+      if (res.ok) {
+        onUpdate();
+        setEditing(false);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.error ?? "Failed to update product");
+      }
+    } catch {
+      toast.error("Failed to update product");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <td
+      className="px-1.5 py-1 text-[0.6875rem] border-b border-r border-[var(--color-border-subtle)] cursor-text"
+      onClick={() => !editing && setEditing(true)}
+    >
+      {editing ? (
+        <input
+          autoFocus
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") commit();
+            if (e.key === "Escape") { setValue(product); setEditing(false); }
+          }}
+          disabled={saving}
+          className="w-full bg-transparent border-0 outline-none text-[var(--color-text-primary)]"
+        />
+      ) : (
+        <span className="text-[var(--color-text-primary)]">
+          {product || <span className="text-[var(--color-text-tertiary)]">—</span>}
+        </span>
+      )}
+    </td>
+  );
+}
+
+/**
+ * One row of a multi-parcel cell. Renders e.g. "ISOMERATE  2,500 MT" with
+ * an inline-editable product name. Click the product to switch to an input.
+ */
+function ParcelProductLine({
+  dealId,
+  parcelNo,
+  product,
+  quantityMt,
+  onUpdate,
+}: {
+  dealId: string;
+  parcelNo: number;
+  product: string;
+  quantityMt: string;
+  onUpdate: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(product);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!editing) setValue(product);
+  }, [product, editing]);
+
+  const commit = async () => {
+    if (value === product) {
+      setEditing(false);
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/deals/${dealId}/parcels/${parcelNo}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ product: value.trim() || product }),
+      });
+      if (res.ok) {
+        onUpdate();
+        setEditing(false);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.error ?? "Failed to update parcel product");
+      }
+    } catch {
+      toast.error("Failed to update parcel product");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="flex items-baseline gap-1.5">
+      {editing ? (
+        <input
+          autoFocus
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") commit();
+            if (e.key === "Escape") { setValue(product); setEditing(false); }
+          }}
+          disabled={saving}
+          className="bg-transparent border-0 outline-none text-[var(--color-text-primary)] flex-1 min-w-0"
+        />
+      ) : (
+        <button
+          onClick={() => setEditing(true)}
+          className="text-left text-[var(--color-text-primary)] hover:text-[var(--color-accent-text)] truncate flex-1 min-w-0 cursor-text"
+          title={`Edit parcel #${parcelNo} product`}
+        >
+          {product || <span className="text-[var(--color-text-tertiary)]">—</span>}
+        </button>
+      )}
+      <span className="text-[var(--color-text-tertiary)] tabular-nums text-[0.625rem]">
+        {Number(quantityMt).toLocaleString()} MT
+      </span>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // StatusCell — read-only display for workflow step statuses (used for locked cells)
 // ---------------------------------------------------------------------------
 
@@ -1022,6 +1253,10 @@ function DealRowComponent({
 
       {/* Pricing — special interactive cell */}
       <PricingCell deal={deal} onUpdate={onUpdate} />
+
+      {/* Product(s) — single-parcel deals show one line, multi-parcel deals
+          show stacked per-parcel rows with their individual quantities. */}
+      <ProductsCell deal={deal} onUpdate={onUpdate} />
 
       {/* B/L Figures — editable contracted qty text */}
       <EditableTextCell
@@ -1404,7 +1639,15 @@ export default function ExcelPage() {
     if (d.linkageId) linkageIdsWithRegular.add(d.linkageId);
   });
 
-  // Internal section: terminal deals whose linkage has NO regular deals
+  // Internal section: ONLY terminal deals whose linkage has NO regular deals.
+  //
+  // Once a linkage gains a real buy or sell deal, the operator no longer needs
+  // the own-terminal move tracked separately — the same physical cargo move
+  // is now visible through the regular purchase/sale row, and showing the
+  // terminal op alongside it is just duplicate noise. So terminal-operation
+  // deals attached to a linkage that ALSO contains a real deal are filtered
+  // out of the spreadsheet entirely (the linkage detail page still shows
+  // them as a discharge/load block on the buy or sell side).
   const internalDeals = terminalDeals.filter(
     (d) => !d.linkageId || !linkageIdsWithRegular.has(d.linkageId)
   );
@@ -1439,13 +1682,9 @@ export default function ExcelPage() {
     };
   });
 
-  // Terminal ops attached to a regular linkage render in the INTERNAL section
-  // alongside the standalone terminal-only linkages. This way the operator sees
-  // own-terminal moves grouped together regardless of which linkage they're in.
-  const linkedTerminalOps = terminalDeals.filter(
-    (d) => d.linkageId && linkageIdsWithRegular.has(d.linkageId)
-  );
-  const allInternalDeals = [...internalDeals, ...linkedTerminalOps];
+  // (No linkedTerminalOps here on purpose — see the comment on `internalDeals`
+  // above. Terminal ops in mixed linkages are intentionally hidden from the
+  // spreadsheet so they don't double up with the real buy/sell row.)
 
   return (
     <div className="space-y-4">
@@ -1536,8 +1775,8 @@ export default function ExcelPage() {
                 <tbody>
                   <InternalSectionHeader />
                   <InternalColumnHeaders />
-                  {allInternalDeals.length > 0 ? (
-                    withGroupInfo(allInternalDeals).map((d) => <InternalDealRowComponent key={d.id} deal={d} onUpdate={refreshData} onDelete={requestDelete} operators={allOperators} isFirstInGroup={d.isFirstInGroup} groupSize={d.groupSize} />)
+                  {internalDeals.length > 0 ? (
+                    withGroupInfo(internalDeals).map((d) => <InternalDealRowComponent key={d.id} deal={d} onUpdate={refreshData} onDelete={requestDelete} operators={allOperators} isFirstInGroup={d.isFirstInGroup} groupSize={d.groupSize} />)
                   ) : (
                     <tr><td colSpan={COLUMNS.length} className="px-3 py-4 text-xs text-center text-[var(--color-text-tertiary)]">No internal operations</td></tr>
                   )}

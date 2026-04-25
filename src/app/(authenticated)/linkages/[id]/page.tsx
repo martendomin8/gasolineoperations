@@ -403,7 +403,7 @@ export default function LinkageDetailPage() {
           </h2>
           {buyDeals.length === 0 ? (
             isOperator ? (
-              <AddDealMenu linkageId={linkage.id} linkageCode={displayName} variant="placeholder" side="buy" />
+              <AddDealMenu linkageId={linkage.id} linkageCode={displayName} variant="placeholder" side="buy" siblingDeals={sellDeals} />
             ) : (
               <div className="rounded-[var(--radius-md)] border border-dashed border-[var(--color-border-subtle)] py-8 text-center">
                 <p className="text-sm text-[var(--color-text-tertiary)]">No purchases yet</p>
@@ -432,7 +432,7 @@ export default function LinkageDetailPage() {
                 </div>
               ))}
               {isOperator && (
-                <AddDealMenu linkageId={linkage.id} linkageCode={displayName} variant="compact" side="buy" />
+                <AddDealMenu linkageId={linkage.id} linkageCode={displayName} variant="compact" side="buy" siblingDeals={sellDeals} />
               )}
             </>
           )}
@@ -449,7 +449,7 @@ export default function LinkageDetailPage() {
           </h2>
           {sellDeals.length === 0 ? (
             isOperator ? (
-              <AddDealMenu linkageId={linkage.id} linkageCode={displayName} variant="placeholder" side="sell" />
+              <AddDealMenu linkageId={linkage.id} linkageCode={displayName} variant="placeholder" side="sell" siblingDeals={buyDeals} />
             ) : (
               <div className="rounded-[var(--radius-md)] border border-dashed border-[var(--color-border-subtle)] py-8 text-center">
                 <p className="text-sm text-[var(--color-text-tertiary)]">No sales yet</p>
@@ -478,7 +478,7 @@ export default function LinkageDetailPage() {
                 </div>
               ))}
               {isOperator && (
-                <AddDealMenu linkageId={linkage.id} linkageCode={displayName} variant="compact" side="sell" />
+                <AddDealMenu linkageId={linkage.id} linkageCode={displayName} variant="compact" side="sell" siblingDeals={buyDeals} />
               )}
             </>
           )}
@@ -1860,11 +1860,34 @@ interface TerminalParty {
   isFixed: boolean;
 }
 
-function AddDealMenu({ linkageId, linkageCode, side, variant }: {
+/**
+ * SessionStorage key used to hand a dropped recap from the linkage view's
+ * AddDealMenu over to the /deals/parse page. The parse page reads it on
+ * mount when the URL carries `?fromDrop=1`, populates rawText, and auto-
+ * triggers a parse so the operator lands directly on the confirmation view.
+ *
+ * Versioned in case the payload shape evolves.
+ */
+const DROPPED_RECAP_KEY = "nefgo:parse-drop:v1";
+
+function AddDealMenu({ linkageId, linkageCode, side, variant, siblingDeals = [] }: {
   linkageId: string;
   linkageCode: string;
   side: "buy" | "sell";
   variant: "placeholder" | "compact";
+  /**
+   * Deals on the OPPOSITE side of this linkage. Used to seed smart defaults
+   * for the load/discharge ports when creating an own-terminal operation:
+   *   - "Discharge to own terminal" (this side = sell): cargo was loaded
+   *     wherever the sibling buy says it was loaded — pre-fill loadport
+   *     with the buy's loadport so the operator doesn't get the terminal
+   *     name dumped into both fields.
+   *   - "Load from own terminal" (this side = buy): cargo will be delivered
+   *     wherever the sibling sell points to — pre-fill dischargePort.
+   * Empty array when there are no sibling deals yet — defaults fall back to
+   * blanks for the inherited side, the operator types the value manually.
+   */
+  siblingDeals?: DealSummary[];
 }) {
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -1872,18 +1895,131 @@ function AddDealMenu({ linkageId, linkageCode, side, variant }: {
   const [terminals, setTerminals] = useState<TerminalParty[]>([]);
   const [loadingTerminals, setLoadingTerminals] = useState(false);
   const [creating, setCreating] = useState<string | null>(null);
+  // Two-step flow for own-terminal operations: pick a terminal, THEN review
+  // and edit the load/discharge ports before submitting. Without this step
+  // the previous version forced both ports to the terminal name, which
+  // broke "Discharge to own terminal" voyages where the cargo was loaded
+  // at a different port (e.g. buy at Genoa, discharge at Vopak Amsterdam).
+  const [chosenTerminal, setChosenTerminal] = useState<TerminalParty | null>(null);
+  const [formLoadport, setFormLoadport] = useState("");
+  const [formDischarge, setFormDischarge] = useState("");
+  // Drag-drop state — applies to the placeholder variant only. When a recap
+  // file is dropped here we extract text inline, stash it for the parse
+  // page, then navigate so the operator lands on the confirmation form
+  // with linkage + direction already locked in.
+  const [dragOver, setDragOver] = useState(false);
+  const [dropProcessing, setDropProcessing] = useState(false);
 
   const direction = side;
   const label = side === "buy" ? "Add purchase / loading" : "Add sale / discharge";
   const terminalLabel = side === "buy" ? "Load from own terminal" : "Discharge to own terminal";
 
   const openMenu = () => setMenuOpen(true);
-  const closeAll = () => { setMenuOpen(false); setTerminalPicker(false); };
+  const closeAll = () => {
+    setMenuOpen(false);
+    setTerminalPicker(false);
+    setChosenTerminal(null);
+    setFormLoadport("");
+    setFormDischarge("");
+  };
+
+  /**
+   * Compute smart defaults for the load/discharge port form when a terminal
+   * is picked. The terminal port goes on the side that matches the action
+   * (load OR discharge); the OTHER side is inherited from the first sibling
+   * deal in the linkage if one exists. Operator can override either before
+   * submitting.
+   */
+  const computePortDefaults = useCallback(
+    (terminal: TerminalParty): { loadport: string; dischargePort: string } => {
+      const terminalPort = terminal.port ?? terminal.name;
+      const sibling = siblingDeals[0];
+      if (side === "buy") {
+        // "Load from own terminal" — we load at the terminal, deliver to
+        // wherever the sibling sell says (or leave blank for now).
+        return {
+          loadport: terminalPort,
+          dischargePort: sibling?.dischargePort ?? "",
+        };
+      }
+      // side === "sell" — "Discharge to own terminal" — cargo was loaded
+      // at the sibling buy's loadport (the operator's actual physical
+      // origin), discharged at the terminal.
+      return {
+        loadport: sibling?.loadport ?? "",
+        dischargePort: terminalPort,
+      };
+    },
+    [side, siblingDeals]
+  );
+
+  const pickTerminal = (terminal: TerminalParty) => {
+    const defaults = computePortDefaults(terminal);
+    setChosenTerminal(terminal);
+    setFormLoadport(defaults.loadport);
+    setFormDischarge(defaults.dischargePort);
+  };
 
   const goParseEmail = () => {
     closeAll();
     router.push(`/deals/parse?linkageId=${encodeURIComponent(linkageId)}&linkageCode=${encodeURIComponent(linkageCode)}&direction=${direction}`);
   };
+
+  const handleDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    // Only react when the drag carries actual files — ignore text drags etc.
+    if (!Array.from(e.dataTransfer.types).includes("Files")) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (!dropProcessing) setDragOver(true);
+  }, [dropProcessing]);
+
+  const handleDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOver(false);
+  }, []);
+
+  const handleDrop = useCallback(async (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOver(false);
+    if (dropProcessing) return;
+
+    const files = e.dataTransfer.files;
+    if (!files || files.length === 0) return;
+
+    const file = files[0];
+    setDropProcessing(true);
+    try {
+      const { extractTextFromFile } = await import("@/lib/utils/extract-file-text");
+      const text = await extractTextFromFile(file);
+      // Stash the extracted text + filename for the parse page to pick up.
+      // Using sessionStorage rather than URL params because a recap can be
+      // tens of KB — too big for a query string.
+      sessionStorage.setItem(
+        DROPPED_RECAP_KEY,
+        JSON.stringify({
+          text,
+          filename: file.name,
+          linkageId,
+          direction,
+        })
+      );
+      router.push(
+        `/deals/parse?linkageId=${encodeURIComponent(linkageId)}` +
+          `&linkageCode=${encodeURIComponent(linkageCode)}` +
+          `&direction=${direction}` +
+          `&fromDrop=1`
+      );
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to read file";
+      toast.error(message);
+      setDropProcessing(false);
+    }
+    // Note: don't reset dropProcessing on success — we're about to navigate
+    // away. If navigation fails for some reason the spinner stays until
+    // unmount, which is acceptable.
+  }, [dropProcessing, linkageId, linkageCode, direction, router]);
 
   const goManualEntry = () => {
     closeAll();
@@ -1905,8 +2041,15 @@ function AddDealMenu({ linkageId, linkageCode, side, variant }: {
     setLoadingTerminals(false);
   };
 
-  const handleTerminalOperation = async (terminal: TerminalParty) => {
-    setCreating(terminal.id);
+  const handleTerminalOperation = async () => {
+    if (!chosenTerminal) return;
+    // Loadport is NOT NULL on the deals table — fall back to "TBD" so the
+    // create call succeeds even if the operator clears the field. They can
+    // still set the real value via the deal detail edit page later.
+    const finalLoadport = formLoadport.trim() || "TBD";
+    const finalDischarge = formDischarge.trim() || null;
+
+    setCreating(chosenTerminal.id);
     try {
       const today = new Date().toISOString().slice(0, 10);
       const isBuy = side === "buy";
@@ -1914,25 +2057,24 @@ function AddDealMenu({ linkageId, linkageCode, side, variant }: {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          counterparty: `Own Terminal \u2014 ${terminal.name}`,
+          counterparty: `Own Terminal \u2014 ${chosenTerminal.name}`,
           direction,
           dealType: "terminal_operation",
           product: "Gasoline",
           quantityMt: 1,
           incoterm: "FOB",
-          loadport: terminal.port ?? terminal.name,
-          dischargePort: isBuy ? null : (terminal.port ?? terminal.name),
+          loadport: finalLoadport,
+          dischargePort: finalDischarge,
           laycanStart: today,
           laycanEnd: today,
           linkageId,
           linkageCode,
-          specialInstructions: `${isBuy ? "Load from" : "Discharge to"} own terminal: ${terminal.name}`,
+          specialInstructions: `${isBuy ? "Load from" : "Discharge to"} own terminal: ${chosenTerminal.name}`,
         }),
       });
       if (res.ok) {
-        toast.success(`${isBuy ? "Load from" : "Discharge to"} ${terminal.name} created`);
+        toast.success(`${isBuy ? "Load from" : "Discharge to"} ${chosenTerminal.name} created`);
         closeAll();
-        // Trigger parent refetch
         window.dispatchEvent(new CustomEvent("linkage:deal-added"));
       } else {
         const err = await res.json().catch(() => ({}));
@@ -1944,7 +2086,7 @@ function AddDealMenu({ linkageId, linkageCode, side, variant }: {
     setCreating(null);
   };
 
-  // Terminal picker sub-view
+  // Terminal picker sub-view (and post-pick port-edit form)
   if (terminalPicker) {
     return (
       <div className="rounded-[var(--radius-md)] border-2 border-dashed border-teal-400/50 bg-teal-50/30 dark:bg-teal-950/20 p-4 space-y-3">
@@ -1954,26 +2096,102 @@ function AddDealMenu({ linkageId, linkageCode, side, variant }: {
             <X className="h-3.5 w-3.5" />
           </button>
         </div>
-        {loadingTerminals ? (
+
+        {chosenTerminal ? (
+          // Step 2: edit ports before submit. Smart defaults from sibling
+          // deals already populated the inputs; operator can override.
+          <div className="space-y-3">
+            <div className="rounded-[var(--radius-sm)] bg-[var(--color-surface-2)] px-3 py-2 flex items-center justify-between">
+              <div>
+                <div className="text-sm font-medium text-[var(--color-text-primary)]">{chosenTerminal.name}</div>
+                {chosenTerminal.port && (
+                  <div className="text-xs text-[var(--color-text-tertiary)]">{chosenTerminal.port}</div>
+                )}
+              </div>
+              <button
+                onClick={() => { setChosenTerminal(null); setFormLoadport(""); setFormDischarge(""); }}
+                className="text-xs text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] cursor-pointer"
+              >
+                Change
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <label className="text-xs">
+                <span className="block text-[var(--color-text-secondary)] mb-1">
+                  Loadport
+                  {side === "sell" && siblingDeals[0]?.loadport && (
+                    <span className="ml-1 text-[var(--color-text-tertiary)] font-normal">
+                      (from buy)
+                    </span>
+                  )}
+                </span>
+                <input
+                  type="text"
+                  value={formLoadport}
+                  onChange={(e) => setFormLoadport(e.target.value)}
+                  placeholder="e.g. Genoa, IT"
+                  className="w-full px-2 py-1.5 rounded-[var(--radius-sm)] bg-[var(--color-surface-1)] border border-[var(--color-border-default)] text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-teal-500"
+                />
+              </label>
+              <label className="text-xs">
+                <span className="block text-[var(--color-text-secondary)] mb-1">
+                  Discharge port
+                  {side === "buy" && siblingDeals[0]?.dischargePort && (
+                    <span className="ml-1 text-[var(--color-text-tertiary)] font-normal">
+                      (from sale)
+                    </span>
+                  )}
+                </span>
+                <input
+                  type="text"
+                  value={formDischarge}
+                  onChange={(e) => setFormDischarge(e.target.value)}
+                  placeholder="e.g. Amsterdam"
+                  className="w-full px-2 py-1.5 rounded-[var(--radius-sm)] bg-[var(--color-surface-1)] border border-[var(--color-border-default)] text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-teal-500"
+                />
+              </label>
+            </div>
+
+            <div className="flex items-center gap-2 justify-end pt-1">
+              <button
+                onClick={closeAll}
+                className="px-3 py-1.5 text-xs text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-3)] rounded-[var(--radius-sm)] cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleTerminalOperation}
+                disabled={creating !== null}
+                className="px-3 py-1.5 text-xs bg-teal-500/80 hover:bg-teal-500 text-white rounded-[var(--radius-sm)] cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+              >
+                {creating !== null && (
+                  <div className="h-3 w-3 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                )}
+                Create
+              </button>
+            </div>
+          </div>
+        ) : loadingTerminals ? (
           <div className="flex justify-center py-4">
             <div className="h-4 w-4 rounded-full border-2 border-[var(--color-accent)] border-t-transparent animate-spin" />
           </div>
         ) : terminals.length === 0 ? (
           <p className="text-xs text-[var(--color-text-tertiary)] text-center py-4">No terminals found</p>
         ) : (
+          // Step 1: pick terminal. Click forwards to step 2 (port-edit form)
+          // instead of submitting immediately.
           <div className="space-y-1.5">
             {terminals.map((t) => (
               <button
                 key={t.id}
-                onClick={() => handleTerminalOperation(t)}
-                disabled={creating === t.id}
-                className="w-full text-left px-3 py-2 rounded-[var(--radius-sm)] border border-[var(--color-border-subtle)] hover:border-teal-500/40 hover:bg-teal-900/10 transition-colors cursor-pointer disabled:opacity-50 flex items-center justify-between"
+                onClick={() => pickTerminal(t)}
+                className="w-full text-left px-3 py-2 rounded-[var(--radius-sm)] border border-[var(--color-border-subtle)] hover:border-teal-500/40 hover:bg-teal-900/10 transition-colors cursor-pointer flex items-center justify-between"
               >
                 <div>
                   <div className="text-sm font-medium text-[var(--color-text-primary)]">{t.name}</div>
                   {t.port && <div className="text-xs text-[var(--color-text-tertiary)]">{t.port}</div>}
                 </div>
-                {creating === t.id && <div className="h-3 w-3 rounded-full border-2 border-teal-400 border-t-transparent animate-spin" />}
               </button>
             ))}
           </div>
@@ -2010,12 +2228,39 @@ function AddDealMenu({ linkageId, linkageCode, side, variant }: {
         ) : (
           <div
             onClick={openMenu}
-            className="rounded-[var(--radius-lg)] border-2 border-dashed border-[var(--color-border-subtle)] py-10 flex flex-col items-center justify-center gap-3 hover:border-[var(--color-border-default)] hover:bg-[var(--color-surface-2)]/50 transition-colors cursor-pointer"
+            onDragOver={handleDragOver}
+            onDragEnter={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            className={`rounded-[var(--radius-lg)] border-2 border-dashed py-10 flex flex-col items-center justify-center gap-3 transition-colors cursor-pointer ${
+              dragOver
+                ? "border-[var(--color-accent)] bg-[var(--color-accent-muted)]/40"
+                : "border-[var(--color-border-subtle)] hover:border-[var(--color-border-default)] hover:bg-[var(--color-surface-2)]/50"
+            }`}
           >
-            <div className="h-14 w-14 rounded-full bg-[var(--color-surface-3)] border border-[var(--color-border-default)] flex items-center justify-center group-hover:bg-[var(--color-surface-4)]">
-              <Plus className="h-6 w-6 text-[var(--color-text-tertiary)]" />
+            <div className={`h-14 w-14 rounded-full border flex items-center justify-center ${
+              dragOver
+                ? "bg-[var(--color-accent-muted)] border-[var(--color-accent)]"
+                : "bg-[var(--color-surface-3)] border-[var(--color-border-default)] group-hover:bg-[var(--color-surface-4)]"
+            }`}>
+              {dropProcessing ? (
+                <Loader2 className="h-6 w-6 text-[var(--color-accent)] animate-spin" />
+              ) : dragOver ? (
+                <Upload className="h-6 w-6 text-[var(--color-accent)]" />
+              ) : (
+                <Plus className="h-6 w-6 text-[var(--color-text-tertiary)]" />
+              )}
             </div>
-            <span className="text-sm text-[var(--color-text-tertiary)]">{label}</span>
+            <div className="text-center">
+              <span className={`block text-sm ${dragOver ? "text-[var(--color-accent-text)] font-medium" : "text-[var(--color-text-tertiary)]"}`}>
+                {dropProcessing ? "Reading recap…" : dragOver ? "Drop recap to parse" : label}
+              </span>
+              {!dragOver && !dropProcessing && (
+                <span className="block text-[0.6875rem] text-[var(--color-text-tertiary)] mt-1">
+                  click for options · or drop a recap file
+                </span>
+              )}
+            </div>
           </div>
         )}
       </div>

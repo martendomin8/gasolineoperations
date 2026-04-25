@@ -30,12 +30,26 @@ import { FileDropZone } from "@/components/ui/file-drop-zone";
 // TYPES
 // ============================================================
 
+interface ParsedParcel {
+  product: string | null;
+  quantity_mt: number | null;
+  contracted_qty: string | null;
+}
+
 interface ParsedFields {
   counterparty: string | null;
   direction: "buy" | "sell" | null;
   product: string | null;
   quantity_mt: number | null;
   contracted_qty: string | null;
+  /**
+   * Per-parcel breakdown when the recap covers multiple grades on the same
+   * voyage (e.g. ISOMERATE + REFORMATE). Always at least length 1 — for
+   * single-parcel recaps it mirrors the top-level product/qty/contracted_qty.
+   * The parser-side convention (see parse-deal.ts): when length >= 2, the
+   * top-level `product` is rewritten to "X + Y" and `quantity_mt` to the sum.
+   */
+  parcels?: ParsedParcel[];
   incoterm: "FOB" | "CIF" | "CFR" | "DAP" | null;
   loadport: string | null;
   discharge_port: string | null;
@@ -505,6 +519,11 @@ export default function ParseDealPage() {
       ? { direction: prefillDirection }
       : {}
   );
+  // Parcels live outside `editedFields` because the value is an array, not a
+  // flat string. For multi-parcel recaps (length >= 2) we display a read-only
+  // breakdown in the Extracted Fields panel and forward the array as-is to
+  // POST /api/deals so the backend can fan out into deal_parcels rows.
+  const [parcels, setParcels] = useState<ParsedParcel[]>([]);
   const [creating, setCreating] = useState(false);
 
   // Duplicate detection state
@@ -590,8 +609,12 @@ export default function ParseDealPage() {
     }
   };
 
-  const handleParse = async () => {
-    if (!rawText.trim()) return;
+  const handleParse = async (textOverride?: string) => {
+    // Accept an optional override so callers triggering a parse immediately
+    // after setRawText (e.g. the drag-drop handoff useEffect) don't read a
+    // stale closure value.
+    const textToParse = textOverride ?? rawText;
+    if (!textToParse.trim()) return;
     setParsing(true);
     setError(null);
     setResult(null);
@@ -600,16 +623,21 @@ export default function ParseDealPage() {
         ? { direction: prefillDirection }
         : {}
     );
+    setParcels([]);
     setLinkageSuggestions([]);
     // Preserve prefill linkage lock across re-parse
     setSelectedLinkageId(prefillLinkageId ?? null);
 
     try {
-      const data = await runParse(rawText);
+      const data = await runParse(textToParse);
       if (!data) return;
       setResult(data);
       const initial: Record<string, string> = {};
       for (const [k, v] of Object.entries(data.fields)) {
+        // Skip the parcels array — it's not a flat string field. Tracked
+        // separately in `parcels` state so multi-parcel detail survives
+        // through to POST /api/deals.
+        if (k === "parcels") continue;
         initial[k] = v != null ? String(v) : "";
       }
       // If the parse came from a linkage "+ parse email" menu, force the
@@ -618,6 +646,7 @@ export default function ParseDealPage() {
         initial.direction = prefillDirection;
       }
       setEditedFields(initial);
+      setParcels(data.fields.parcels ?? []);
       // If caller pre-locked the linkage, keep it locked and skip suggestions.
       if (prefillLinkageId) {
         setSelectedLinkageId(prefillLinkageId);
@@ -639,30 +668,47 @@ export default function ParseDealPage() {
   const buildDealPayload = (
     fields: Record<string, string>,
     source: string,
-    linkageId?: string | null
-  ) => ({
-    counterparty: fields.counterparty || undefined,
-    direction: fields.direction || undefined,
-    product: fields.product || undefined,
-    quantityMt: fields.quantity_mt ? Number(fields.quantity_mt) : undefined,
-    contractedQty: fields.contracted_qty || null,
-    incoterm: fields.incoterm || undefined,
-    loadport: fields.loadport || undefined,
-    dischargePort: fields.discharge_port || null,
-    laycanStart: fields.laycan_start || undefined,
-    laycanEnd: fields.laycan_end || undefined,
-    vesselName: fields.vessel_name || null,
-    vesselImo: fields.vessel_imo || null,
-    pricingFormula: fields.pricing_formula || null,
-    pricingPeriodType: fields.pricing_period_type || null,
-    pricingPeriodValue: fields.pricing_period_value || null,
-    specialInstructions: fields.special_instructions || null,
-    externalRef: fields.external_ref || null,
-    sourceRawText: source,
-    // Auto-linkage: if linkageId is provided (non-null), backend links to it;
-    // if omitted/null, backend auto-creates a TEMP linkage.
-    linkageId: linkageId ?? undefined,
-  });
+    linkageId?: string | null,
+    parcelsForPayload: ParsedParcel[] = parcels
+  ) => {
+    // Only forward parcels[] when the parser actually detected a multi-grade
+    // recap (>= 2 parcels). For single-parcel deals we let the API's
+    // synthesise-from-top-level branch handle it — keeps the wire payload
+    // smaller and matches the schema convention in domain_deal_recap_rules.md.
+    const multiParcelPayload =
+      parcelsForPayload.length >= 2
+        ? parcelsForPayload.map((p) => ({
+            product: p.product ?? "",
+            quantityMt: p.quantity_mt ?? 0,
+            contractedQty: p.contracted_qty ?? null,
+          }))
+        : undefined;
+
+    return {
+      counterparty: fields.counterparty || undefined,
+      direction: fields.direction || undefined,
+      product: fields.product || undefined,
+      quantityMt: fields.quantity_mt ? Number(fields.quantity_mt) : undefined,
+      contractedQty: fields.contracted_qty || null,
+      parcels: multiParcelPayload,
+      incoterm: fields.incoterm || undefined,
+      loadport: fields.loadport || undefined,
+      dischargePort: fields.discharge_port || null,
+      laycanStart: fields.laycan_start || undefined,
+      laycanEnd: fields.laycan_end || undefined,
+      vesselName: fields.vessel_name || null,
+      vesselImo: fields.vessel_imo || null,
+      pricingFormula: fields.pricing_formula || null,
+      pricingPeriodType: fields.pricing_period_type || null,
+      pricingPeriodValue: fields.pricing_period_value || null,
+      specialInstructions: fields.special_instructions || null,
+      externalRef: fields.external_ref || null,
+      sourceRawText: source,
+      // Auto-linkage: if linkageId is provided (non-null), backend links to it;
+      // if omitted/null, backend auto-creates a TEMP linkage.
+      linkageId: linkageId ?? undefined,
+    };
+  };
 
   const submitDeal = async (payload: any) => {
     setCreating(true);
@@ -748,10 +794,13 @@ export default function ParseDealPage() {
 
       const fields: Record<string, string> = {};
       for (const [k, v] of Object.entries(parsed.fields)) {
+        if (k === "parcels") continue;
         fields[k] = v != null ? String(v) : "";
       }
+      const e2eParcels = parsed.fields.parcels ?? [];
       setResult(parsed);
       setEditedFields(fields);
+      setParcels(e2eParcels);
 
       // In tour mode: pause so the viewer can see the parsed fields + confidence scores
       if (tourMode) {
@@ -779,7 +828,10 @@ export default function ParseDealPage() {
       const createRes = await fetch("/api/deals", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(buildDealPayload(fields, sample.text)),
+        // Pass parcels explicitly — buildDealPayload's default closes over
+        // `parcels` state but the E2E flow may run before React commits the
+        // setParcels above, so be defensive and forward what we just parsed.
+        body: JSON.stringify(buildDealPayload(fields, sample.text, null, e2eParcels)),
       });
       const dealData = await createRes.json();
       if (!createRes.ok) throw new Error(dealData.error ?? "Deal creation failed");
@@ -813,6 +865,38 @@ export default function ParseDealPage() {
     };
     window.addEventListener("tour:run-e2e", handleTourE2E);
     return () => window.removeEventListener("tour:run-e2e", handleTourE2E);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Drag-drop handoff: when the operator drops a recap file onto a linkage
+  // view's empty BUY/SALE card, the linkage page stashes the extracted text
+  // in sessionStorage and navigates here with `?fromDrop=1`. Read it once on
+  // mount, populate rawText + filename, kick off the parse so the operator
+  // skips the "click Parse" step and lands directly on the confirmation form.
+  useEffect(() => {
+    const fromDrop = searchParams.get("fromDrop");
+    if (fromDrop !== "1") return;
+
+    try {
+      const raw = sessionStorage.getItem("nefgo:parse-drop:v1");
+      if (!raw) return;
+      sessionStorage.removeItem("nefgo:parse-drop:v1");
+
+      const parsed = JSON.parse(raw) as {
+        text?: string;
+        filename?: string;
+      };
+      if (!parsed?.text || typeof parsed.text !== "string") return;
+
+      setRawText(parsed.text);
+      setUploadedFilename(parsed.filename ?? null);
+      // Auto-parse immediately — pass the text directly to dodge the
+      // setRawText -> rawText state-update lag.
+      void handleParse(parsed.text);
+    } catch {
+      // Bad JSON or storage access blocked — silently ignore. The operator
+      // can still paste/upload manually as a fallback.
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -881,6 +965,7 @@ export default function ParseDealPage() {
                 setResult(null);
                 setError(null);
                 setEditedFields({});
+                setParcels([]);
               }}
               disabled={parsing}
             />
@@ -919,7 +1004,7 @@ Price: Platts CIF NWE -$5/MT`}
             <div className="flex items-center gap-2 pt-2 border-t border-[var(--color-border-subtle)]">
               <Button
                 variant="primary"
-                onClick={handleParse}
+                onClick={() => handleParse()}
                 disabled={parsing || !rawText.trim()}
                 className="flex-1"
               >
@@ -937,7 +1022,7 @@ Price: Platts CIF NWE -$5/MT`}
               </Button>
               {rawText && (
                 <button
-                  onClick={() => { setRawText(""); setUploadedFilename(null); setResult(null); setError(null); }}
+                  onClick={() => { setRawText(""); setUploadedFilename(null); setResult(null); setError(null); setParcels([]); }}
                   className="text-xs text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] transition-colors"
                 >
                   Clear
@@ -947,7 +1032,7 @@ Price: Platts CIF NWE -$5/MT`}
           </Card>
 
           {/* Debug fixtures */}
-          <DebugPanel onLoad={(text) => { setRawText(text); setResult(null); setError(null); setEditedFields({}); }} />
+          <DebugPanel onLoad={(text) => { setRawText(text); setResult(null); setError(null); setEditedFields({}); setParcels([]); }} />
 
           {error && (
             <div className="flex items-start gap-2 p-3 rounded-[var(--radius-md)] bg-[var(--color-danger-muted)] border border-[var(--color-danger)] border-opacity-30">
@@ -996,6 +1081,47 @@ Price: Platts CIF NWE -$5/MT`}
                 <FieldRow label="Product"       fieldKey="product"       value={editedFields.product       ?? ""} score={result.confidenceScores.product       ?? 0} onChange={updateField} />
                 <FieldRow label="Quantity (MT)" fieldKey="quantity_mt"   value={editedFields.quantity_mt   ?? ""} score={result.confidenceScores.quantity_mt   ?? 0} onChange={updateField} type="number" />
                 <FieldRow label="Contracted Qty" fieldKey="contracted_qty" value={editedFields.contracted_qty ?? ""} score={result.confidenceScores.contracted_qty ?? 0} onChange={updateField} />
+
+                {/* Multi-parcel breakdown — read-only here, edit via spreadsheet
+                    view's Product(s) column or deal detail page after creation. */}
+                {parcels.length >= 2 && (
+                  <div className="rounded-[var(--radius-sm)] border border-[var(--color-accent)] border-opacity-40 bg-[var(--color-accent-muted)] bg-opacity-30 p-2.5 space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="accent" className="text-[0.6rem]">
+                        {parcels.length} parcels
+                      </Badge>
+                      <span className="text-[0.6875rem] text-[var(--color-text-secondary)]">
+                        Multi-grade recap detected
+                      </span>
+                    </div>
+                    <div className="space-y-0.5 mt-1">
+                      {parcels.map((p, i) => (
+                        <div key={i} className="flex items-baseline gap-2 text-xs font-mono">
+                          <span className="text-[var(--color-text-tertiary)] tabular-nums w-5">
+                            #{i + 1}
+                          </span>
+                          <span className="font-medium text-[var(--color-text-primary)] truncate flex-shrink-0">
+                            {p.product || "—"}
+                          </span>
+                          <span className="text-[var(--color-text-secondary)] tabular-nums">
+                            {p.quantity_mt != null ? Number(p.quantity_mt).toLocaleString() : "—"} MT
+                          </span>
+                          {p.contracted_qty && (
+                            <span className="text-[0.6875rem] text-[var(--color-text-tertiary)] truncate ml-auto">
+                              {p.contracted_qty}
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-[0.625rem] text-[var(--color-text-tertiary)] leading-relaxed">
+                      Top-level fields above hold the combined summary. Per-parcel
+                      values are forwarded as-is and editable in the spreadsheet view
+                      after creation.
+                    </p>
+                  </div>
+                )}
+
                 <FieldRow label="Incoterm"      fieldKey="incoterm"      value={editedFields.incoterm      ?? ""} score={result.confidenceScores.incoterm      ?? 0} onChange={updateField} type="select" options={["FOB", "CIF", "CFR", "DAP"]} />
 
                 <p className="text-[0.6875rem] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider mt-3 mb-1">Logistics</p>
