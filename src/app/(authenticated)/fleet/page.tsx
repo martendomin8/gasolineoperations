@@ -922,22 +922,41 @@ export default function FleetPage() {
   // an extra "Vessel details" section at the bottom with IMO, laycan,
   // cargo, operator, and an Open Linkage button. No more separate
   // detail-vs-planner toggle shuffle.
-  // We re-key the planner-waypoint effect on `(selectedId | aisMode)` so a
-  // vessel that's already selected when its AIS state transitions from
-  // `predicted` (no fix) to `live` / `dead_reck` (got a fix) triggers a
-  // waypoint rebuild — switching the start anchor from loadport to the
-  // current vessel position. Without this the Planner would silently keep
-  // showing the full-voyage time until the operator clicked the marker
-  // again.
+  // We re-key the planner-waypoint effect on `(selectedId | aisMode |
+  // pos-bucket)` so a vessel that's already selected when its AIS state
+  // transitions from `predicted` (no fix) to `live` / `dead_reck` (got a
+  // fix) triggers a waypoint rebuild — switching the start anchor from
+  // loadport to the current vessel position. Without this the Planner
+  // would silently keep showing the full-voyage time until the operator
+  // clicked the marker again.
+  //
+  // CRITICAL: look up the vessel from `displayVessels`, not `vessels`.
+  // `vessels` is the pre-AIS-merge mock-interpolated list — its
+  // `position` is computeMockPosition's interpolation along the planned
+  // route based on laycan dates, NOT the actual AIS fix. Using `vessels`
+  // here would anchor the planner waypoint somewhere along the original
+  // contract route while the marker on screen sits where AIS says the
+  // vessel actually is — operator sees the correct marker but the
+  // distance / time numbers tell a different story (full route ≈ 1,373
+  // NM vs. real remaining ≈ 587 NM).
+  //
+  // pos-bucket: 0.1° rounded lat/lng so a continually-moving live AIS
+  // vessel doesn't refire the effect every poll, only when the marker
+  // has actually moved a meaningful amount.
+  const selectedDisplayVessel = selectedVesselId
+    ? displayVessels.find((v) => v.id === selectedVesselId)
+    : null;
   const prevSelectedRef = useRef<string | null>(null);
-  const selectionKey = selectedVesselId
-    ? `${selectedVesselId}|${vessels.find((v) => v.id === selectedVesselId)?.aisMode ?? "none"}`
+  const selectionKey = selectedDisplayVessel
+    ? `${selectedDisplayVessel.id}|${selectedDisplayVessel.aisMode ?? "none"}|${
+        selectedDisplayVessel.position?.lat?.toFixed(1) ?? "x"
+      },${selectedDisplayVessel.position?.lng?.toFixed(1) ?? "x"}`
     : null;
   useEffect(() => {
     if (!selectedVesselId || selectionKey === prevSelectedRef.current) return;
     prevSelectedRef.current = selectionKey;
 
-    const v = vessels.find((vv) => vv.id === selectedVesselId);
+    const v = selectedDisplayVessel;
     if (!v) return;
 
     // Build the waypoint sequence the Planner will route through.
