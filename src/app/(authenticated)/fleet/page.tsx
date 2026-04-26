@@ -186,41 +186,51 @@ function trimRouteFromNearest(
     dest[1],
   );
 
-  // Forward-only filter. Keep every planned waypoint whose distance to
-  // destination is STRICTLY LESS than the vessel's — i.e. waypoints
-  // that lie "ahead of" the vessel on the way to discharge. Filtering
-  // by destination-distance rather than nearest-waypoint slicing fixes
-  // a class of zigzag bugs:
+  // Forward-only, strictly-monotonic filter.
   //
-  //   - Old behaviour: pick the single nearest planned waypoint, slice
-  //     everything after it. If the vessel was OFF the planned polyline
-  //     (e.g. predicted-from-AIS-anchor projected sideways), the
-  //     "nearest" waypoint could sit further from destination than the
-  //     vessel itself. The remaining slice then walked the polyline
-  //     BACKWARDS for one segment before resuming forward — visible as
-  //     up/down/everywhere route shapes when the operator scrubbed the
-  //     time slider.
+  // We need TWO independent guards on the resulting polyline so it can
+  // never visually backtrack:
   //
-  //   - New behaviour: vessel + only waypoints that are closer to
-  //     destination than the vessel is. The line always heads forward.
+  //   1. Ahead-of-vessel: keep only waypoints whose distance to
+  //      destination is strictly less than the vessel's. Drops the
+  //      "behind" portion of the planned polyline (the part of the
+  //      voyage already covered).
   //
-  // Caveat: routes with deliberate detours (Cape of Good Hope around
-  // Africa, both endpoints far apart so the polyline first heads away
-  // from destination before circling back) will have intermediate
-  // waypoints filtered out. That's acceptable for European trades
-  // where every voyage is roughly monotonic; revisit if NEFGO ever
-  // takes an Asia-bound contract.
-  const ahead = plannedRoute.filter((wp) => {
+  //   2. Monotonic-decrease across the kept waypoints: walking left to
+  //      right along the original polyline order, keep a waypoint only
+  //      if its distance-to-destination is strictly less than the LAST
+  //      KEPT waypoint's distance. This kills local zigzag — the
+  //      ocean-routing polyline can curl back on itself in ways that
+  //      a simple "ahead" check still admits (W₂ at 190 NM from dest
+  //      then W₃ at 100 NM is fine; W₁ at 180 → W₂ at 190 → W₃ at 100
+  //      is "all ahead" but visually loops north before swinging
+  //      south).
+  //
+  // The combination guarantees a strictly forward path: every kept
+  // waypoint is closer to destination than every previous kept point,
+  // including the vessel itself.
+  //
+  // Caveat for routes with intentional detours (Cape of Good Hope
+  // around Africa, polar-pass voyages) — the monotonic filter will
+  // chop out the southbound leg of the detour. NEFGO's European
+  // gasoline trades don't use such routes; revisit when the desk
+  // takes Asia-bound contracts.
+  const monotonic: Array<[number, number]> = [];
+  let lastDistNm = vesselToDestNm;
+  for (const wp of plannedRoute) {
     const dToDest = distanceNM(wp[0], wp[1], dest[0], dest[1]);
-    return dToDest < vesselToDestNm;
-  });
+    if (dToDest < lastDistNm) {
+      monotonic.push(wp);
+      lastDistNm = dToDest;
+    }
+  }
 
-  if (ahead.length === 0) {
+  if (monotonic.length === 0) {
     // Vessel is already closer to destination than every planned
     // waypoint — connect directly. Happens near arrival.
     return [currentPos, dest];
   }
-  return [currentPos, ...ahead];
+  return [currentPos, ...monotonic];
 }
 
 /** Format a signed/positive hour duration as "+Xd Yh" or "+Xh". */
