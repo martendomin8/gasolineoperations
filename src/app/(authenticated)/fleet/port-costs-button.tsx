@@ -133,11 +133,11 @@ export function PortCostsButton({ portName }: Props) {
           e.stopPropagation();
           setOpen(true);
         }}
-        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[0.65rem] font-semibold text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 cursor-pointer transition-colors"
-        title={`Port costs for ${portName.split(",")[0]}`}
+        className="inline-flex items-center justify-center h-5 w-5 flex-shrink-0 rounded text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 cursor-pointer transition-colors"
+        title={`Add / view port costs for ${portName.split(",")[0]}`}
+        aria-label={`Add or view port costs for ${portName.split(",")[0]}`}
       >
-        <DollarSign className="h-3 w-3" />
-        Add/view port costs
+        <DollarSign className="h-3.5 w-3.5" />
       </button>
 
       {open && (
