@@ -513,17 +513,39 @@ async function main() {
     console.log("[ais-ingest] idle — waiting for watchlist to populate");
   }
 
-  setInterval(flush, FLUSH_INTERVAL_MS);
-  setInterval(refreshWatchlist, WATCHLIST_REFRESH_MS);
+  // Wrap each periodic task in a try/catch shim so transient failures
+  // (Neon DNS hiccup, brief network drop) get logged and we continue
+  // to the next tick instead of crashing the whole worker. Earlier
+  // version let any rejected promise bubble out of the setInterval
+  // callback, which Node treats as an unhandled rejection — the
+  // worker died on the first ENOTFOUND blip from Neon's pooler. Now
+  // we just log + retry on the next interval; the WebSocket itself
+  // already has its own reconnect-with-backoff so the overall
+  // resilience story is now consistent across all the worker's
+  // pieces.
+  const safe = <T>(name: string, fn: () => Promise<T> | T) => async () => {
+    try {
+      await fn();
+    } catch (err) {
+      const cause = (err as { cause?: { code?: string } })?.cause?.code;
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(
+        `[${name}] failed (${cause ?? "unknown"}): ${msg} — will retry next interval`,
+      );
+    }
+  };
+
+  setInterval(safe("flush", flush), FLUSH_INTERVAL_MS);
+  setInterval(safe("watchlist", refreshWatchlist), WATCHLIST_REFRESH_MS);
   setInterval(heartbeat, HEARTBEAT_MS);
-  setInterval(scanAnomalies, ANOMALY_CHECK_INTERVAL_MS);
-  setInterval(retentionSweep, RETENTION_INTERVAL_MS);
+  setInterval(safe("anomalies", scanAnomalies), ANOMALY_CHECK_INTERVAL_MS);
+  setInterval(safe("retention", retentionSweep), RETENTION_INTERVAL_MS);
 
   // Run one retention sweep ~5 min after startup so newly deployed
   // instances catch up on any pent-up trimming without blocking the
   // connect/subscribe flow. setTimeout so the first full 24h interval
   // still fires normally after this one.
-  setTimeout(retentionSweep, 5 * 60 * 1000);
+  setTimeout(safe("retention", retentionSweep), 5 * 60 * 1000);
 
   const shutdown = async (signal: string) => {
     console.log(`[ais-ingest] ${signal} received, shutting down`);
