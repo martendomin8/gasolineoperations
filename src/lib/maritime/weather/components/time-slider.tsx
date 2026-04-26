@@ -112,10 +112,40 @@ export function TimeSlider({
   }, [playing, range, time, onChange]);
 
   // ---- Derived values for the `<input type=range>` --------------------
+  // The visible left edge of the slider is `max(range.start, now)` —
+  // we hide already-elapsed forecast hours the same way windy.com
+  // does. The forecast frames before "now" are still in the manifest
+  // (the provider can sample backward if anything explicitly requests
+  // a past time), but the slider track + day ticks always start at
+  // the current UTC hour. Wall-clock recomputed every minute so the
+  // edge marches forward as the operator stares at the screen — no
+  // need for a useState since the change is purely visual.
+  const [nowMs, setNowMs] = useState(() => {
+    const d = new Date();
+    d.setUTCMinutes(0, 0, 0);
+    return d.getTime();
+  });
+  useEffect(() => {
+    const tick = () => {
+      const d = new Date();
+      d.setUTCMinutes(0, 0, 0);
+      setNowMs(d.getTime());
+    };
+    const id = setInterval(tick, 60_000);
+    return () => clearInterval(id);
+  }, []);
+
   const rangeMs = useMemo(() => {
     if (range === null) return null;
-    return { min: range.start.getTime(), max: range.end.getTime() };
-  }, [range]);
+    const rawMin = range.start.getTime();
+    const rawMax = range.end.getTime();
+    // Clamp the visible left edge to "now". If the entire manifest is
+    // in the past (shouldn't happen in steady state, but defends
+    // against a stale CDN), fall back to the original window so the
+    // operator at least sees something.
+    const visibleMin = nowMs < rawMax ? Math.max(rawMin, nowMs) : rawMin;
+    return { min: visibleMin, max: rawMax };
+  }, [range, nowMs]);
 
   const currentMs = time?.getTime() ?? rangeMs?.min ?? 0;
 
