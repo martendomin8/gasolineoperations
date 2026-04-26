@@ -1299,19 +1299,44 @@ export function FleetMapInner({
   }, [hoveredZone, isPortHovered]);
 
   // ── Imperative projection switch (mercator ↔ globe) ───────
+  //
   // MapLibre's projection is a style-level setting. Setting it via
   // the declarative prop on <Map> doesn't always re-render cleanly,
   // so we call setProjection on the underlying instance when the
   // prop changes.
+  //
+  // CRITICAL: also re-apply on every `style.load` event. MapLibre
+  // re-creates the style from scratch when the basemap toggles
+  // (dark ↔ satellite), and the new style ships with the default
+  // projection (mercator). Without this re-apply, an operator who
+  //   1. clicks Globe → projection state "globe", map renders globe
+  //   2. clicks Satellite → style reloads, projection resets to
+  //      mercator on the actual map but React state still says
+  //      "globe"
+  //   3. clicks Map → state flips "globe"→"mercator" but the map is
+  //      already showing mercator, so visually nothing changes —
+  //      and now state matches the visual, so the next "Globe"
+  //      click is what finally makes it look right
+  // ends up with the toggle apparently dead for one click. Hooking
+  // setProjection into style.load makes the prop the single source
+  // of truth across every style swap.
   useEffect(() => {
     const map = mapRef.current?.getMap();
     if (!map) return;
     const spec: ProjectionSpecification = { type: projection };
-    try {
-      map.setProjection(spec);
-    } catch {
-      // Older MapLibre versions don't have the method — silently ignore.
-    }
+    const apply = () => {
+      try {
+        map.setProjection(spec);
+      } catch {
+        // Older MapLibre versions don't have the method — silently
+        // ignore so the rest of the app keeps working.
+      }
+    };
+    apply();
+    map.on("style.load", apply);
+    return () => {
+      map.off("style.load", apply);
+    };
   }, [projection]);
 
   // ── Basemap label halo override ──────────────────────────
