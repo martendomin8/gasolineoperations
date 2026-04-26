@@ -995,21 +995,44 @@ export default function FleetPage() {
           }
         : null;
 
+    // Two-pass port collection.
+    //
+    // First pass: walk every deal in the linkage and gather all loadports +
+    // dischargePorts, dedupe by lowercase trim. Catches "GDANSK" vs
+    // "Gdansk" mismatches that would otherwise survive a strict-equality
+    // includes() check.
+    //
+    // Second pass (after sea-distance search resolves each name to a
+    // canonical port DB entry): dedupe AGAIN by the resolved name. Catches
+    // aliases that point to the same port (e.g. "GDANSK, POLAND" vs
+    // "Gdansk" both resolve to "Gdansk, PL"). Without this the planner
+    // ends up with "Gdansk → Gdansk 0 NM" zero-distance phantom legs when
+    // the same port is referenced from both a buy and a sell deal.
+    const seenLower = new Set<string>();
+    const collect = (name: string | null | undefined) => {
+      if (!name) return;
+      const trimmed = name.trim();
+      if (!trimmed) return;
+      const key = trimmed.toLowerCase();
+      if (seenLower.has(key)) return;
+      seenLower.add(key);
+      portNames.push(trimmed);
+    };
+
     const portNames: string[] = [];
     // Skip the loadport whenever we have a vessel-position waypoint —
     // we'd be routing from the vessel through its origin, which is
     // either zero distance (vessel at loadport) or backwards (vessel
     // already at sea).
-    if (!liveWaypoint && v.loadport) portNames.push(v.loadport);
-    if (v.dischargePort && v.dischargePort !== v.loadport) portNames.push(v.dischargePort);
+    if (!liveWaypoint) collect(v.loadport);
+    collect(v.dischargePort);
 
     const linkageDeals = allDeals
       .filter((d) => d.linkageId === v.id)
       .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
     for (const d of linkageDeals) {
-      if (d.dischargePort && !portNames.includes(d.dischargePort)) {
-        portNames.push(d.dischargePort);
-      }
+      if (!liveWaypoint) collect(d.loadport);
+      collect(d.dischargePort);
     }
 
     if (!liveWaypoint && portNames.length === 0) {
@@ -1023,12 +1046,30 @@ export default function FleetPage() {
           .then((r) => r.json())
           .then((data: { ports: Array<{ name: string; lat: number; lon: number }> }) => {
             const match = data.ports?.[0];
-            return match ?? { name: p, lat: 0, lon: 0 };
+            // Unresolved port: return null so we can drop it before it
+            // pollutes the route with a (0, 0) leg. Operator gets a
+            // route over the resolvable ports rather than an error.
+            if (!match || !Number.isFinite(match.lat) || !Number.isFinite(match.lon)) {
+              return null;
+            }
+            return match;
           })
-          .catch(() => ({ name: p, lat: 0, lon: 0 })),
+          .catch(() => null),
       ),
     ).then((resolved) => {
-      const waypoints = liveWaypoint ? [liveWaypoint, ...resolved] : resolved;
+      // Drop unresolvables.
+      const valid = resolved.filter(
+        (p): p is { name: string; lat: number; lon: number } => p !== null,
+      );
+      // Second-pass dedup: same canonical name from different aliases.
+      const seenCanon = new Set<string>();
+      const uniq = valid.filter((p) => {
+        const key = p.name.trim().toLowerCase();
+        if (seenCanon.has(key)) return false;
+        seenCanon.add(key);
+        return true;
+      });
+      const waypoints = liveWaypoint ? [liveWaypoint, ...uniq] : uniq;
       setPlannerPorts(waypoints);
       setPlannerMode(true);
     });
