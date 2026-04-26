@@ -2193,7 +2193,17 @@ export default function FleetPage() {
                   there are at least 2 waypoints. Always uses Route A
                   (the "main" route) even in compare mode, since WS
                   rates are per (load, discharge) pair not per variant. */}
-              {plannerPorts.length >= 2 && (
+              {/* Worldscale flat rates are published only for real
+                  port pairs, never for arbitrary lat/lon anchors. Hide
+                  the whole panel the moment either endpoint is a
+                  custom waypoint (name prefixed with "@", per the
+                  computeRoute coords-anchor convention). The operator
+                  can flip the planner's "Contracted route" toggle to
+                  swap the vessel-position anchor for the actual
+                  loadport name and the panel reappears. */}
+              {plannerPorts.length >= 2 &&
+                !plannerPorts[0]?.name?.startsWith("@") &&
+                !plannerPorts[plannerPorts.length - 1]?.name?.startsWith("@") && (
                 <WorldscalePanel
                   loadPort={plannerPorts[0]?.name ?? null}
                   dischargePort={plannerPorts[plannerPorts.length - 1]?.name ?? null}
