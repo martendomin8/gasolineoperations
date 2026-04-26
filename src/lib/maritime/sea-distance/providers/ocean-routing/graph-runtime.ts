@@ -1336,12 +1336,16 @@ export function routeThroughGraph(
     // the few nodes it had.
     //
     // Heuristic: if the chosen path is materially longer than the
-    // great-circle on a SHORT hop (< 300 NM direct), the discrepancy
-    // is almost certainly graph-density artifact rather than a
-    // legitimate land-avoiding detour. Replace with the direct line.
-    // Long legs (Iberia rounding, English Channel transit, etc.) keep
-    // their Dijkstra-routed path because direct lines there really
-    // would cut continents.
+    // great-circle on a SHORT hop (< 300 NM direct) AND the great-
+    // circle is verified clear of land, the discrepancy is graph-
+    // density artifact rather than a legitimate detour — replace
+    // with the direct line.
+    //
+    // The `isArcClearOfLand` recheck is critical. The first version
+    // of this fallback skipped it and ended up drawing direct lines
+    // through Poland for vessel-position → Gdansk legs whose great-
+    // circle clearly crosses inland. We only override Dijkstra when
+    // the direct alternative is genuinely water-only.
     //
     // Numbers picked empirically:
     //   direct < 300 NM   — Baltic / North Sea / Med inter-port hops
@@ -1354,7 +1358,16 @@ export function routeThroughGraph(
         toCoord.lat,
         toCoord.lon,
       );
-      if (directNm < 300 && legDistance > directNm * 1.3) {
+      if (
+        directNm < 300 &&
+        legDistance > directNm * 1.3 &&
+        isArcClearOfLand(
+          fromCoord.lat,
+          fromCoord.lon,
+          toCoord.lat,
+          toCoord.lon,
+        )
+      ) {
         legs.push({
           from: from.label,
           to: to.label,
