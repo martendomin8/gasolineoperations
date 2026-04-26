@@ -79,6 +79,7 @@ CHARTER PARTY       : BPVOY4 (CHEMICAL TRADE RIDER)
 ---------------------------------VESSEL---------------------------------
 
 VESSEL              : MTM NORTH SOUND
+WARRANTED SPEED     : ABOUT 12 KNOTS LADEN WSNP
 
 [GAP — vessel details intentionally omitted from recap body, see Q88
  attachment: DATA/Q88/06 - Chemical Tankers/10-20kt/MTMNorthSound_Q88.pdf]

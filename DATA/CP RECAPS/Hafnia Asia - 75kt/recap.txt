@@ -83,8 +83,9 @@ CHARTER PARTY       : BPVOY4
 ---------------------------------VESSEL---------------------------------
 
 VESSEL              : HAFNIA ASIA
+WARRANTED SPEED     : ABOUT 12 KNOTS LADEN WSNP
 
-[GAP — vessel details (IMO, MMSI, DWT, LOA, beam, draft, speed,
+[GAP — vessel details (IMO, MMSI, DWT, LOA, beam, draft,
  consumption, last 3 cargoes, P&I, H&M etc.) are intentionally omitted
  from the recap body. They live in the Q88 attachment.
  See: DATA/Q88/05 - LR 55-115kt/HafniaAsia_Q88.pdf]

@@ -79,6 +79,7 @@ CHARTER PARTY       : BPVOY4 (CHEMICAL TRADE RIDER)
 ---------------------------------VESSEL---------------------------------
 
 VESSEL              : BOW FAITH
+WARRANTED SPEED     : ABOUT 12 KNOTS LADEN WSNP
 
 [GAP — vessel details intentionally omitted from recap body, see Q88
  attachment: DATA/Q88/06 - Chemical Tankers/20-38kt/BowFaith_Q88.pdf]

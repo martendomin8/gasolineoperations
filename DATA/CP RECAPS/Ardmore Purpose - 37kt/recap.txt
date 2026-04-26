@@ -87,6 +87,7 @@ CHARTER PARTY       : BPVOY4
 ---------------------------------VESSEL---------------------------------
 
 VESSEL              : ARDMORE PURPOSE
+WARRANTED SPEED     : ABOUT 12 KNOTS LADEN WSNP
 
 [GAP 1 — vessel details block missing from photos.
  Expected fields in a BPVOY4 vessel block (per BP VOY4 Q88-driven layout):

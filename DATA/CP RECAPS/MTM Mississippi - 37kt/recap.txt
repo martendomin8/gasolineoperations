@@ -89,6 +89,7 @@ CHARTER PARTY       : BPVOY4
 ---------------------------------VESSEL---------------------------------
 
 VESSEL              : MTM MISSISSIPPI
+WARRANTED SPEED     : ABOUT 12 KNOTS LADEN WSNP
 
 [GAP 1 — vessel details block missing from photos.
  Expected fields (per BP VOY4 Q88-driven layout):

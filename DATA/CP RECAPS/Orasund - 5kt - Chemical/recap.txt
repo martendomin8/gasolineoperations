@@ -74,6 +74,7 @@ CHARTER PARTY       : BPVOY4 (SHORT-VOYAGE COASTAL RIDER)
 ---------------------------------VESSEL---------------------------------
 
 VESSEL              : ORASUND
+WARRANTED SPEED     : ABOUT 12 KNOTS LADEN WSNP
 
 [GAP — vessel details intentionally omitted from recap body, see Q88
  attachment: DATA/Q88/06 - Chemical Tankers/5-10kt/Orasund_Q88.pdf]

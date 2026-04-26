@@ -74,6 +74,7 @@ CHARTER PARTY       : BPVOY4
 ---------------------------------VESSEL---------------------------------
 
 VESSEL              : TORM HELENE
+WARRANTED SPEED     : ABOUT 12.5 KNOTS LADEN WSNP
 
 [GAP — vessel details intentionally omitted from recap body, see Q88
  attachment: DATA/Q88/05 - LR 55-115kt/TormHelene_Q88.pdf]

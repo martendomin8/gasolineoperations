@@ -96,6 +96,7 @@ CHARTER PARTY       : BPVOY4
 ---------------------------------VESSEL---------------------------------
 
 VESSEL              : HISTRIA CORAL
+WARRANTED SPEED     : ABOUT 12.5 KNOTS LADEN WSNP
 
 [GAP — vessel details block intentionally absent from recap text.
  IMO, Flag, Built year, Class, DWT, LOA, Beam, Draft, SBT/CBT, COW, IGS,
