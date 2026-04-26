@@ -193,7 +193,11 @@ export const dealFilterSchema = z.object({
   assignedOperatorId: z.string().uuid().optional(),
   search: z.string().optional(),
   page: z.coerce.number().int().positive().default(1),
-  perPage: z.coerce.number().int().positive().max(100).default(25),
+  // Bumped from 100 → 500 because the spreadsheet view and the parser's
+  // duplicate-check both call `/api/deals?perPage=200` to render the full
+  // operator workspace in one shot rather than paginating. 500 keeps the
+  // upper bound generous for export but well short of "unbounded".
+  perPage: z.coerce.number().int().positive().max(500).default(25),
 });
 
 // Fields that trigger re-notification checks when changed

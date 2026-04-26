@@ -4,7 +4,7 @@ import { withTenantDb } from "@/lib/db";
 import { deals, dealParcels, linkages, linkageSteps, auditLogs, users, workflowInstances, workflowSteps, type Deal } from "@/lib/db/schema";
 import { matchTemplate, instantiateWorkflow } from "@/lib/workflow-engine";
 import { createDealSchema, dealFilterSchema } from "@/lib/types/deal";
-import { eq, and, ilike, or, desc, asc, sql, like } from "drizzle-orm";
+import { eq, and, ilike, or, desc, asc, sql, like, inArray } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 
 /** Map workflow step status to display value for Excel view */
@@ -162,6 +162,12 @@ export const GET = withAuth(async (req, _ctx, session) => {
       Array<{ parcelNo: number; product: string; quantityMt: string; contractedQty: string | null }>
     >();
     if (multiParcelDealIds.length > 0) {
+      // Use drizzle's inArray rather than raw `sql\`... = ANY(${arr}::uuid[])\``
+      // because postgres-js doesn't reliably bind a JS array through the
+      // drizzle sql template literal — the array gets stringified and the
+      // ::uuid[] cast then chokes on a comma-separated UUID blob, which
+      // surfaces as a 500 on every GET /api/deals request that contains a
+      // multi-parcel deal. inArray serialises the array correctly.
       const parcelRows = await db
         .select({
           dealId: dealParcels.dealId,
@@ -174,8 +180,7 @@ export const GET = withAuth(async (req, _ctx, session) => {
         .where(
           and(
             eq(dealParcels.tenantId, session.user.tenantId),
-            // Drizzle's inArray over a small set is fine here.
-            sql`${dealParcels.dealId} = ANY(${multiParcelDealIds}::uuid[])`
+            inArray(dealParcels.dealId, multiParcelDealIds)
           )
         )
         .orderBy(asc(dealParcels.dealId), asc(dealParcels.parcelNo));
