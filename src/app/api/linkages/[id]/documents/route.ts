@@ -6,6 +6,10 @@ import { eq, and } from "drizzle-orm";
 import path from "path";
 import { uploadDocument } from "@/lib/storage/documents";
 import { isEmailFile, parseEmail, type AttachmentClassification } from "@/lib/ai/parse-email";
+import {
+  extractCpRecapText,
+  extractWarrantedSpeedFromText,
+} from "@/lib/maritime/voyage-timeline/cp-speed";
 
 // ---------------------------------------------------------------------------
 // Accepted Q88 / CP Recap formats. Real Q88s arrive as PDF or Word.
@@ -184,6 +188,57 @@ export const POST = withAuth(
           // already stored as the cp_recap doc; the operator can manually
           // open it if needed.
           console.error(`[documents] email parse failed for linkage ${id}:`, err);
+        }
+      }
+
+      // -------------------------------------------------------------------
+      // CP speed auto-extraction (best-effort, never blocks the upload).
+      //
+      // When a CP recap lands, scan its text body for a WARRANTED SPEED /
+      // FULL SERVICE SPEED clause and write to linkages.cp_speed_kn. This
+      // populates the voyage-timeline cascade without the operator typing
+      // the value manually. CP-clause source beats Q88; only writes when
+      // the linkage doesn't already carry a manual override.
+      // -------------------------------------------------------------------
+      if (fileTypeField === "cp_recap") {
+        try {
+          const recapText = await extractCpRecapText(buf, fileField.name);
+          const speedKn = extractWarrantedSpeedFromText(recapText);
+          if (speedKn !== null) {
+            const [current] = await db
+              .select({
+                cpSpeedKn: schema.linkages.cpSpeedKn,
+                cpSpeedSource: schema.linkages.cpSpeedSource,
+              })
+              .from(schema.linkages)
+              .where(
+                and(eq(schema.linkages.id, id), eq(schema.linkages.tenantId, tenantId))
+              );
+            // Don't clobber a manual operator override.
+            if (!current || current.cpSpeedSource !== "manual") {
+              await db
+                .update(schema.linkages)
+                .set({
+                  cpSpeedKn: String(speedKn),
+                  cpSpeedSource: "cp_clause",
+                  updatedAt: new Date(),
+                })
+                .where(
+                  and(
+                    eq(schema.linkages.id, id),
+                    eq(schema.linkages.tenantId, tenantId)
+                  )
+                );
+            }
+          }
+        } catch (err) {
+          // Speed extraction failures must never block the upload — the
+          // document itself is already stored, and the operator can still
+          // type the speed manually.
+          console.error(
+            `[documents] CP speed extraction failed for linkage ${id}:`,
+            err
+          );
         }
       }
 

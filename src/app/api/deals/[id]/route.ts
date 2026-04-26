@@ -137,12 +137,18 @@ export const PUT = withAuth(
         }
       }
 
-      // Build update payload
+      // Build update payload — strip undefined keys so a partial PUT (e.g.
+      // the voyage strip sending only `departureOverride`) doesn't NULL out
+      // every other column via drizzle's `.set({ col: undefined })` quirk.
+      // Zod's optional fields surface as undefined when the request body
+      // omits them; we honour that as "leave alone", not "set to null".
       const updatePayload: Record<string, unknown> = {
-        ...updates,
         version: version + 1,
         updatedAt: new Date(),
       };
+      for (const [key, value] of Object.entries(updates)) {
+        if (value !== undefined) updatePayload[key] = value;
+      }
       if (newStatus) updatePayload.status = newStatus;
       if (updates.quantityMt) updatePayload.quantityMt = String(updates.quantityMt);
 

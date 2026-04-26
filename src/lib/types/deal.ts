@@ -145,6 +145,28 @@ export const importDealSchema = z
     { message: "Laycan end must be on or after laycan start", path: ["laycanEnd"] }
   );
 
+// Coerce ISO 8601 timestamp strings (or empty/null) to Date / null. Used for
+// the voyage-timeline arrival/departure fields, which the API passes straight
+// through to drizzle's `timestamp({ withTimezone: true })` columns.
+//
+// IMPORTANT: undefined → undefined (NOT null). The voyage strip sends partial
+// PUTs containing only the field the operator just edited; if undefined got
+// coerced to null, every ETS edit would clobber arrivalAt and vice-versa.
+// The deal route additionally strips undefined keys before drizzle .set().
+const optionalTimestamp = z.preprocess(
+  (val) => {
+    if (val === undefined) return undefined;
+    if (val === "" || val === null) return null;
+    if (val instanceof Date) return val;
+    if (typeof val === "string") {
+      const d = new Date(val);
+      return Number.isNaN(d.getTime()) ? val : d;
+    }
+    return val;
+  },
+  z.date().nullable().optional()
+);
+
 export const updateDealSchema = z.object({
   externalRef: z.string().max(100).nullable().optional(),
   linkageCode: z.string().max(100).nullable().optional(),
@@ -180,6 +202,13 @@ export const updateDealSchema = z.object({
   pricingConfirmed: z.boolean().optional(),
   estimatedBlNorDate: optionalDateString,
   specialInstructions: optionalString,
+  // Voyage-timeline events. arrivalAt = ETA at this deal's port; flips to
+  // ATA semantically when arrivalIsActual = true (same column, just a flag).
+  // departureOverride pins ETS manually when the operator wants to bypass
+  // the auto-computed `arrival + qty / port-rate + MIN_BERTH_SETUP_HOURS`.
+  arrivalAt: optionalTimestamp,
+  arrivalIsActual: z.boolean().optional(),
+  departureOverride: optionalTimestamp,
   version: z.number().int().positive("Version is required for optimistic locking"),
 });
 

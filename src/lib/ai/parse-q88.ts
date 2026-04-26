@@ -77,6 +77,7 @@ Guidance:
 - Coating: e.g. "Epoxy", "Phenolic epoxy", "Zinc silicate", "Marineline 784". If different tanks have different coatings, put the dominant one here and the per-tank values in the tanks array.
 - Segregations: number of independent cargo segregations (often called "grades" in the Q88).
 - Pump type: e.g. "Deep well submerged", "Centrifugal", "Framo".
+- Service speed (laden): the Q88's "Speed" / "Service Speed" / "Laden Speed" field, in knots. Q88 forms typically state laden and ballast speeds separately — extract the LADEN value (slightly slower than ballast). If only one number is given without a laden/ballast label, use that. Range sanity: realistic tanker speeds are 8-20 kn; reject values outside that.
 - Loadlines: Q88 Section 1.39 shows a table with rows for Summer, Winter, Tropical, Fresh, Tropical Fresh — each with Freeboard / Draft / Deadweight / Displacement columns. Extract EVERY row into the loadlines array. Also include any "Assigned DWT 1/2/3..." rows from Section 1.40/1.41 (multi-SDWT vessels) — use name "Assigned DWT 1", "Assigned DWT 2", etc. The DWT (deadweight) column is the one the planner cares about; freeboard and draft may not always be present for Assigned DWT rows.
 - Top-level DWT: prefer the Summer loadline's DWT (this is the industry default — "summer deadweight"). If the vessel is multi-SDWT and "Assigned DWT 1" is different from the Summer row, Summer still wins for the top-level field; the planner will let the operator pick a specific Assigned DWT from the loadlines array.
 
@@ -116,6 +117,10 @@ const EXTRACTION_TOOL: Anthropic.Tool = {
       coating: { type: "string", description: "Dominant cargo tank coating" },
       segregations: { type: "number", description: "Number of independent cargo segregations" },
       pump_type: { type: "string", description: "Cargo pump type" },
+      service_speed_laden_kn: {
+        type: "number",
+        description: "Warranted laden service speed in knots (from the Q88 Speed / Service Speed field; LADEN value, not ballast)",
+      },
       tanks: {
         type: "array",
         description: "List of cargo tanks with capacities",
@@ -240,6 +245,7 @@ export async function parseQ88(text: string): Promise<ParsedQ88Result> {
     coating: strOrNull(raw.coating),
     segregations: numOrNull(raw.segregations),
     pumpType: strOrNull(raw.pump_type),
+    serviceSpeedLadenKn: numOrNull(raw.service_speed_laden_kn),
     tanks: tanks.length > 0 ? tanks : undefined,
     loadlines: loadlines.length > 0 ? loadlines : undefined,
   };

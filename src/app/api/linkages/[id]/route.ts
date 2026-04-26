@@ -70,6 +70,11 @@ export const PUT = withAuth(
       if (updates.assignedOperatorId !== undefined) updatePayload.assignedOperatorId = updates.assignedOperatorId;
       if (updates.secondaryOperatorId !== undefined) updatePayload.secondaryOperatorId = updates.secondaryOperatorId;
       if (updates.notes !== undefined) updatePayload.notes = updates.notes;
+      if (updates.cpSpeedKn !== undefined) {
+        updatePayload.cpSpeedKn =
+          updates.cpSpeedKn === null ? null : String(updates.cpSpeedKn);
+      }
+      if (updates.cpSpeedSource !== undefined) updatePayload.cpSpeedSource = updates.cpSpeedSource;
 
       const [updated] = await db
         .update(linkages)

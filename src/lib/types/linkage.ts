@@ -25,7 +25,13 @@ const vesselParticularsSchema = z
 
 export const updateLinkageSchema = z.object({
   linkageNumber: z.string().max(100).nullable().optional(),
-  status: z.enum(["active", "loading", "sailing", "discharging", "completed"]).optional(),
+  // Voyage-state intermediate values (loading / sailing / discharging) are
+  // now derived from arrival/departure timestamps via deriveVoyageState —
+  // operators no longer set them manually. The only manual transition that
+  // remains is "active" ↔ "completed" (archive flag). Old DB rows with
+  // intermediate values still exist; they're treated as "active" by every
+  // consumer so no data migration is required.
+  status: z.enum(["active", "completed"]).optional(),
   vesselName: z.string().max(255).nullable().optional(),
   vesselImo: z.string().max(20).nullable().optional(),
   // MMSI — the 9-digit AIS identifier. Required for live tracking but
@@ -38,6 +44,15 @@ export const updateLinkageSchema = z.object({
   assignedOperatorId: optionalUuid,
   secondaryOperatorId: optionalUuid,
   notes: z.string().nullable().optional(),
+  // CP-warranted speed override. When the parser hasn't filled this from
+  // CP recap / Q88, the operator can type it in; cpSpeedSource = 'manual'
+  // disambiguates from parser-derived values for the voyage-bar badge
+  // ("13.5 kn — from addendum" vs "12 kn — manual").
+  cpSpeedKn: z.preprocess(
+    (val) => (val === "" || val === null || val === undefined ? null : Number(val)),
+    z.number().positive().max(25).nullable().optional()
+  ),
+  cpSpeedSource: z.enum(["cp_clause", "q88", "manual"]).nullable().optional(),
 });
 
 export type CreateLinkageInput = z.infer<typeof createLinkageSchema>;

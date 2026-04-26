@@ -50,6 +50,13 @@
       "when": 1777142608209,
       "tag": "0006_petite_glorian",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1777210928755,
+      "tag": "0007_opposite_salo",
+      "breakpoints": true
     }
   ]
 }

@@ -63,6 +63,12 @@ export interface VesselParticulars {
   coating?: string | null;           // dominant coating
   segregations?: number | null;      // number of cargo segregations
   pumpType?: string | null;
+  /**
+   * Warranted laden service speed in knots, as stated in the Q88. Read by
+   * the voyage-timeline `resolveCpSpeed` chain as the q88-source fallback
+   * (CP recap clause wins; this loses to a manual operator override).
+   */
+  serviceSpeedLadenKn?: number | null;
   tanks?: VesselTank[];
   /**
    * Full loadline table from the Q88. The `dwt` field on this interface above
@@ -213,6 +219,12 @@ export const linkages = pgTable(
     assignedOperatorId: uuid("assigned_operator_id").references(() => users.id),
     secondaryOperatorId: uuid("secondary_operator_id").references(() => users.id),
     notes: text("notes"),
+    // CP-warranted speed in knots. Resolved by the parser pipeline:
+    //   cp_clause (recap WARRANTED SPEED / addendum) > q88 > manual > 12 default.
+    // Drives voyage-timeline auto-fill (sailing time = distance / cpSpeedKn) and
+    // the >14 kn reality check on operator-overridden disport ETAs.
+    cpSpeedKn: decimal("cp_speed_kn", { precision: 4, scale: 1 }),
+    cpSpeedSource: varchar("cp_speed_source", { length: 20 }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
@@ -309,6 +321,15 @@ export const deals = pgTable(
     // summary (combined product string, summed quantity) so dashboards and
     // legacy consumers don't need to JOIN deal_parcels for every read.
     parcelCount: integer("parcel_count").default(1).notNull(),
+    // Voyage-timeline event fields. arrivalAt = ETA at this deal's port
+    // (loadport for buys, dischargePort for sells). arrivalIsActual flips
+    // false → true when the operator confirms NOR/COD; the value itself
+    // doesn't change (ETA becomes ATA in place). departureOverride is the
+    // manual ETS pin — when null the resolver auto-computes departure as
+    // arrivalAt + qty / port-rate + MIN_BERTH_SETUP_HOURS.
+    arrivalAt: timestamp("arrival_at", { withTimezone: true }),
+    arrivalIsActual: boolean("arrival_is_actual").default(false).notNull(),
+    departureOverride: timestamp("departure_override", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
