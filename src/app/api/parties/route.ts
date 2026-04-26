@@ -45,10 +45,25 @@ export const GET = withAuth(async (req, _ctx, session) => {
     if (filters.port) {
       const portLower = filters.port.toLowerCase();
 
-      // Region-matched parties: regionTags array contains a tag matching the port (case-insensitive)
+      // A party is "matched" for this port if EITHER of:
+      //   - their `port` column equals the port (case-insensitive) — common
+      //     for fixed-contact terminals and single-port inspectors who
+      //     never bothered to fill out region_tags;
+      //   - or any of their `regionTags` array entries equals the port
+      //     (case-insensitive) — used when one party covers multiple ports
+      //     in a region (e.g. SGS Antwerp / Rotterdam / Amsterdam).
+      //
+      // Earlier version only checked regionTags, so an inspector created
+      // with port="Bayonne" and an empty regionTags list silently never
+      // surfaced in the dropdown for Bayonne deals — the operator had to
+      // hit "Show all" and pick from the unfiltered fallback. Now both
+      // surfaces work and `regionTags` becomes optional.
       const regionConditions = [
         ...conditions,
-        sql`EXISTS (SELECT 1 FROM unnest(${parties.regionTags}) AS tag WHERE lower(tag) = ${portLower})`,
+        sql`(
+          lower(${parties.port}) = ${portLower}
+          OR EXISTS (SELECT 1 FROM unnest(${parties.regionTags}) AS tag WHERE lower(tag) = ${portLower})
+        )`,
       ];
 
       const matched = await db
