@@ -176,22 +176,51 @@ function trimRouteFromNearest(
   currentPos: [number, number],
 ): [number, number][] {
   if (plannedRoute.length === 0) return [currentPos];
-  let nearestIdx = 0;
-  let nearestDistNm = Infinity;
-  for (let i = 0; i < plannedRoute.length; i++) {
-    const [lat, lon] = plannedRoute[i];
-    const dNm = distanceNM(lat, lon, currentPos[0], currentPos[1]);
-    if (dNm < nearestDistNm) {
-      nearestDistNm = dNm;
-      nearestIdx = i;
-    }
+  if (plannedRoute.length === 1) return [currentPos, plannedRoute[0]];
+
+  const dest = plannedRoute[plannedRoute.length - 1];
+  const vesselToDestNm = distanceNM(
+    currentPos[0],
+    currentPos[1],
+    dest[0],
+    dest[1],
+  );
+
+  // Forward-only filter. Keep every planned waypoint whose distance to
+  // destination is STRICTLY LESS than the vessel's — i.e. waypoints
+  // that lie "ahead of" the vessel on the way to discharge. Filtering
+  // by destination-distance rather than nearest-waypoint slicing fixes
+  // a class of zigzag bugs:
+  //
+  //   - Old behaviour: pick the single nearest planned waypoint, slice
+  //     everything after it. If the vessel was OFF the planned polyline
+  //     (e.g. predicted-from-AIS-anchor projected sideways), the
+  //     "nearest" waypoint could sit further from destination than the
+  //     vessel itself. The remaining slice then walked the polyline
+  //     BACKWARDS for one segment before resuming forward — visible as
+  //     up/down/everywhere route shapes when the operator scrubbed the
+  //     time slider.
+  //
+  //   - New behaviour: vessel + only waypoints that are closer to
+  //     destination than the vessel is. The line always heads forward.
+  //
+  // Caveat: routes with deliberate detours (Cape of Good Hope around
+  // Africa, both endpoints far apart so the polyline first heads away
+  // from destination before circling back) will have intermediate
+  // waypoints filtered out. That's acceptable for European trades
+  // where every voyage is roughly monotonic; revisit if NEFGO ever
+  // takes an Asia-bound contract.
+  const ahead = plannedRoute.filter((wp) => {
+    const dToDest = distanceNM(wp[0], wp[1], dest[0], dest[1]);
+    return dToDest < vesselToDestNm;
+  });
+
+  if (ahead.length === 0) {
+    // Vessel is already closer to destination than every planned
+    // waypoint — connect directly. Happens near arrival.
+    return [currentPos, dest];
   }
-  // Start the remaining route at the AIS position itself, then
-  // everything AFTER the nearest waypoint. Even if the vessel has
-  // already passed the nearest waypoint (common mid-leg), this still
-  // produces a clean "vessel → next unvisited waypoint → ... →
-  // discharge" polyline.
-  return [currentPos, ...plannedRoute.slice(nearestIdx + 1)];
+  return [currentPos, ...ahead];
 }
 
 /** Format a signed/positive hour duration as "+Xd Yh" or "+Xh". */
