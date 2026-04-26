@@ -1,8 +1,14 @@
 import { z } from "zod";
 
 // Coerce empty strings to null for optional UUID fields (forms send "" for "none")
+// Preserve undefined (= "key absent") so partial PUTs don't NULL out
+// fields the operator never touched. See memory/feedback_zod_preserve_undefined.md.
 const optionalUuid = z.preprocess(
-  (val) => (val === "" || val === null || val === undefined ? null : val),
+  (val) => {
+    if (val === undefined) return undefined;
+    if (val === "" || val === null) return null;
+    return val;
+  },
   z.string().uuid().nullable().optional()
 );
 
@@ -49,10 +55,29 @@ export const updateLinkageSchema = z.object({
   // disambiguates from parser-derived values for the voyage-bar badge
   // ("13.5 kn — from addendum" vs "12 kn — manual").
   cpSpeedKn: z.preprocess(
-    (val) => (val === "" || val === null || val === undefined ? null : Number(val)),
+    (val) => {
+      if (val === undefined) return undefined;
+      if (val === "" || val === null) return null;
+      return Number(val);
+    },
     z.number().positive().max(25).nullable().optional()
   ),
   cpSpeedSource: z.enum(["cp_clause", "q88", "manual"]).nullable().optional(),
+  // Freight commission toggles. Flip + edit-pct lets the operator deduct
+  // address commission (default ON, 2.5%) and brokerage (default OFF,
+  // 1.25%) from the freight line. Address commission is normal practice;
+  // brokerage is rare (recap usually puts it on owner) but the operator
+  // can switch it on when the recap explicitly assigns it to charterers.
+  freightDeductAddressCommission: z.boolean().optional(),
+  freightAddressCommissionPct: z.preprocess(
+    (val) => (val === "" || val === null || val === undefined ? undefined : String(val)),
+    z.string().optional()
+  ),
+  freightDeductBrokerage: z.boolean().optional(),
+  freightBrokeragePct: z.preprocess(
+    (val) => (val === "" || val === null || val === undefined ? undefined : String(val)),
+    z.string().optional()
+  ),
 });
 
 export type CreateLinkageInput = z.infer<typeof createLinkageSchema>;

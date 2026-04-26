@@ -225,6 +225,16 @@ export const linkages = pgTable(
     // the >14 kn reality check on operator-overridden disport ETAs.
     cpSpeedKn: decimal("cp_speed_kn", { precision: 4, scale: 1 }),
     cpSpeedSource: varchar("cp_speed_source", { length: 20 }),
+    // Freight commission deductions. Address commission is the broker's cut
+    // taken out of freight before settlement; brokerage commission is rare
+    // (almost always owner's account) but operators can flip it on per
+    // voyage when the recap explicitly assigns it to charterers. Both
+    // percentages are editable so an unusual recap clause can be honoured
+    // without a code change.
+    freightDeductAddressCommission: boolean("freight_deduct_address_commission").default(true).notNull(),
+    freightAddressCommissionPct: decimal("freight_address_commission_pct", { precision: 5, scale: 2 }).default("2.50").notNull(),
+    freightDeductBrokerage: boolean("freight_deduct_brokerage").default(false).notNull(),
+    freightBrokeragePct: decimal("freight_brokerage_pct", { precision: 5, scale: 2 }).default("1.25").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
@@ -719,6 +729,67 @@ export const portCosts = pgTable(
     // Fast lookup by "all costs for this port" (shown in the port
     // click popup).
     index("port_costs_port_idx").on(table.tenantId, table.port),
+  ]
+);
+
+// ============================================================
+// LINKAGE COSTS
+// ============================================================
+
+/**
+ * Per-line voyage cost entries belonging to a linkage. Distinct from
+ * `port_costs` (which is the cross-tenant catalogue of standard fees per
+ * port-year-type that ops have seen historically): linkage_costs is the
+ * actual ledger for THIS voyage — what was estimated, what was invoiced,
+ * what was paid.
+ *
+ * Most linkages have very few rows here because owner usually pays
+ * everything. Costs appear when:
+ *   - Demurrage was incurred (always a row, even at $0 — ops still emails
+ *     the trader and the row is the audit trail)
+ *   - NEFGO is the charterer and freight is owed (computed live from
+ *     deals + linkage.freight_*_pct toggles, then materialised as a row
+ *     once the operator confirms the actual)
+ *   - NEFGO used an interim port and inherited the agency / pilotage /
+ *     superintendent fees that the owner usually carries
+ *   - A full-speed clause was invoked
+ *   - Custom one-offs the operator types in
+ */
+export const linkageCosts = pgTable(
+  "linkage_costs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .references(() => tenants.id, { onDelete: "cascade" })
+      .notNull(),
+    linkageId: uuid("linkage_id")
+      .references(() => linkages.id, { onDelete: "cascade" })
+      .notNull(),
+    // 'demurrage' | 'freight' | 'full_speed' | 'port_costs' | 'agency' |
+    // 'inspector' | 'superintendent' | 'custom'
+    // Plain varchar (not a pg enum) so we can extend without a migration —
+    // the UI dropdown is the source of truth for valid values.
+    category: varchar("category", { length: 30 }).notNull(),
+    description: text("description"),
+    /** Estimated amount in cents-of-USD (decimal). Pre-invoice / contract value. */
+    estimatedAmount: decimal("estimated_amount", { precision: 14, scale: 2 }),
+    /** Actual amount once invoiced / paid. */
+    actualAmount: decimal("actual_amount", { precision: 14, scale: 2 }),
+    currency: varchar("currency", { length: 3 }).default("USD").notNull(),
+    /** Which port this cost belongs to (NULL for non-port costs like demurrage / freight). */
+    portName: varchar("port_name", { length: 255 }),
+    notes: text("notes"),
+    sortOrder: integer("sort_order").default(0).notNull(),
+    createdBy: uuid("created_by")
+      .references(() => users.id)
+      .notNull(),
+    version: integer("version").default(1).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("linkage_costs_linkage_idx").on(table.linkageId),
+    index("linkage_costs_tenant_linkage_idx").on(table.tenantId, table.linkageId),
   ]
 );
 

@@ -227,6 +227,24 @@ export async function parseDealFromText(rawText: string): Promise<ParsedDealResu
     contracted_qty: typeof p.contracted_qty === "string" ? p.contracted_qty : null,
   }));
 
+  // Anthropic occasionally hallucinates a placeholder string ("Not specified",
+  // "N/A", "—") into optional text fields when the source recap is silent.
+  // Spreadsheet/Excel cells then render that nonsense as if it were data.
+  // This helper normalises the well-known "no-data" phrases to null so
+  // downstream consumers can rely on truthiness checks.
+  const DUMMY_PHRASES = new Set([
+    "not specified", "not stated", "not mentioned", "not given",
+    "n/a", "na", "none", "null", "undefined",
+    "tbd", "tba", "tbc", "—", "-", "?", "unknown",
+  ]);
+  function dummyToNull(v: string | null | undefined): string | null {
+    if (v == null) return null;
+    const trimmed = String(v).trim();
+    if (!trimmed) return null;
+    if (DUMMY_PHRASES.has(trimmed.toLowerCase())) return null;
+    return trimmed;
+  }
+
   // If the model didn't fill parcels (older payload, or single-parcel deal
   // where it just answered with top-level fields), synthesise a single
   // entry mirroring the top-level. This guarantees consumers can iterate
@@ -251,11 +269,11 @@ export async function parseDealFromText(rawText: string): Promise<ParsedDealResu
     discharge_port: (input.discharge_port as string) ?? null,
     laycan_start: (input.laycan_start as string) ?? null,
     laycan_end: (input.laycan_end as string) ?? null,
-    vessel_name: (input.vessel_name as string) ?? null,
-    vessel_imo: (input.vessel_imo as string) ?? null,
-    pricing_formula: (input.pricing_formula as string) ?? null,
+    vessel_name: dummyToNull(input.vessel_name as string | null | undefined),
+    vessel_imo: dummyToNull(input.vessel_imo as string | null | undefined),
+    pricing_formula: dummyToNull(input.pricing_formula as string | null | undefined),
     pricing_period_type: (input.pricing_period_type as ParsedDealFields["pricing_period_type"]) ?? null,
-    pricing_period_value: (input.pricing_period_value as string) ?? null,
+    pricing_period_value: dummyToNull(input.pricing_period_value as string | null | undefined),
     special_instructions: (input.special_instructions as string) ?? null,
     external_ref: (input.external_ref as string) ?? null,
   };

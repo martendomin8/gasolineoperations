@@ -48,6 +48,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useSession } from "next-auth/react";
+import { formatVesselName } from "@/lib/utils/vessel-display";
 import type { DealStatus, WorkflowStepStatus } from "@/lib/db/schema";
 import type { WorkflowInstanceDetail, WorkflowStepWithDraft } from "@/lib/workflow-engine";
 
@@ -1337,7 +1338,7 @@ function VoyageInfoBar({
             <Ship className="h-3.5 w-3.5 text-[var(--color-text-tertiary)]" />
             <div className="text-left">
               <span className="text-sm font-medium text-[var(--color-text-primary)]">
-                {vesselName || "TBN"}
+                {formatVesselName(vesselName)}
               </span>
               {vesselImo && (
                 <span className="text-xs font-mono text-[var(--color-text-tertiary)] ml-1.5">

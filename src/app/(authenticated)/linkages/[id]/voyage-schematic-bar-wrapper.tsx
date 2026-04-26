@@ -13,9 +13,11 @@
 //   - Render the bar with a "Mark voyage completed" button slotted into the header
 //   - Tick every minute so the vessel marker advances without an external refetch
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { CheckCircle2, RotateCcw } from "lucide-react";
-import VoyageSchematicBar from "./voyage-schematic-bar";
+import VoyageSchematicBar, {
+  type PortSavePayload,
+} from "./voyage-schematic-bar";
 import {
   resolveVoyageTimeline,
   type VoyageDealInput,
@@ -23,6 +25,7 @@ import {
 import { deriveVoyageStateWithGlobalProgress } from "@/lib/maritime/voyage-timeline/state";
 import { formatInPortTime } from "@/lib/maritime/voyage-timeline/port-timezones";
 import { resolveCpSpeed } from "@/lib/maritime/voyage-timeline/cp-speed";
+import { formatVesselName } from "@/lib/utils/vessel-display";
 
 export interface VoyageSchematicBarDeal {
   id: string;
@@ -36,6 +39,14 @@ export interface VoyageSchematicBarDeal {
   arrivalAt: string | null;
   arrivalIsActual: boolean;
   departureOverride: string | null;
+  /** Threaded through so per-port popover edits can pass an optimistic-lock
+   *  version back to PUT /api/deals/:id without an extra fetch. */
+  version: number;
+  /** Per-parcel breakdown for multi-grade deals (>=2 parcels). Undefined or
+   *  empty → render the deal-level product/quantity summary. With >=2
+   *  parcels the label code emits one "qty MT grade" per parcel — never
+   *  summed/joined per the multi-parcel display rule. */
+  parcels?: { parcelNo: number; product: string; quantityMt: string }[];
 }
 
 interface Props {
@@ -77,17 +88,24 @@ function formatLaycanRange(buyDeals: VoyageSchematicBarDeal[]): string {
 
 function formatProductLabel(buyDeals: VoyageSchematicBarDeal[]): string {
   if (buyDeals.length === 0) return "—";
-  const totalMt = buyDeals.reduce(
-    (sum, d) => sum + (parseFloat(d.quantityMt) || 0),
-    0,
-  );
-  // Dedupe products across deals (multi-parcel often repeats the same grade
-  // on each row; we only want the unique list).
-  const products = Array.from(
-    new Set(buyDeals.map((d) => d.product?.trim()).filter(Boolean)),
-  );
-  const productJoined = products.join(" + ") || "—";
-  return `${totalMt.toLocaleString()} MT ${productJoined}`;
+  // Multi-parcel rule (per Arne 2026-04-26 + memory feedback): never collapse
+  // multi-grade quantities into a sum + joined grade list. Each parcel keeps
+  // its own qty + grade so "ISOMERATE + REFORMATE" doesn't read as one
+  // shared 5,000 MT pile when it's actually two 2,500 MT parcels.
+  const segments: string[] = [];
+  for (const d of buyDeals) {
+    const hasParcels = (d.parcels?.length ?? 0) > 1;
+    if (hasParcels) {
+      for (const p of d.parcels!) {
+        const q = Math.round(parseFloat(p.quantityMt) || 0).toLocaleString();
+        segments.push(`${q} MT ${p.product}`);
+      }
+    } else {
+      const q = Math.round(parseFloat(d.quantityMt) || 0).toLocaleString();
+      segments.push(`${q} MT ${d.product}`);
+    }
+  }
+  return segments.join(" + ") || "—";
 }
 
 function keyForPair(a: string, b: string): string {
@@ -229,13 +247,27 @@ export function VoyageSchematicBarWrapper({
 
   if (stops.length === 0) return null;
 
+  // Disport laycan end → drives SPEED NEEDED + LAYCAN MARGIN math. Prefer
+  // the sell-side window (the disport's contractual discharge cutoff);
+  // fall back to the buy-side or the dummy first laycan if no sell exists.
+  const laycanEnd = (() => {
+    const candidates = sellDeals.length > 0 ? sellDeals : buyDeals;
+    const ends = candidates.map((d) => d.laycanEnd).filter(Boolean).sort();
+    const last = ends[ends.length - 1];
+    if (!last) return null;
+    // Treat the laycan end as end-of-day UTC — the operator gives a date,
+    // not a time. Same convention as the resolver elsewhere.
+    return new Date(`${last}T23:59:59Z`);
+  })();
+
   const header = {
     voyageRef: linkageNumber || linkageTempName,
-    vesselName: vesselName || "TBN",
+    vesselName: formatVesselName(vesselName),
     productLabel: formatProductLabel(buyDeals),
     laycanRange: formatLaycanRange(buyDeals),
     cpSpeedKn: speedKn,
     totalDistanceNm: totalDistanceNm ?? 0,
+    laycanEnd,
   };
 
   // Override the derived state phase when the operator has manually marked
@@ -245,12 +277,55 @@ export function VoyageSchematicBarWrapper({
     ? { ...state, phase: "completed" as const, globalProgress: 1, label: "Completed" }
     : state;
 
+  // Per-port save: the popover passes us the dealId from stop.dealIds[0]
+  // and a partial PortSavePayload; we look the version up from buyDeals/
+  // sellDeals (kept fresh by the parent's fetchData ticking after onUpdated).
+  const dealVersionMap = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const d of [...buyDeals, ...sellDeals]) m.set(d.id, d.version);
+    return m;
+  }, [buyDeals, sellDeals]);
+
+  const handleSavePort = useCallback(
+    async (dealId: string, payload: PortSavePayload) => {
+      const version = dealVersionMap.get(dealId);
+      if (version === undefined) return;
+      const r = await fetch(`/api/deals/${dealId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...payload, version }),
+      });
+      if (r.ok) {
+        onUpdated();
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("deal:updated", { detail: { dealId } }));
+        }
+      }
+    },
+    [dealVersionMap, onUpdated],
+  );
+
+  const handleChangeCpSpeed = useCallback(
+    async (knots: number) => {
+      const r = await fetch(`/api/linkages/${linkageId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cpSpeedKn: knots, cpSpeedSource: "manual" }),
+      });
+      if (r.ok) onUpdated();
+    },
+    [linkageId, onUpdated],
+  );
+
   return (
     <VoyageSchematicBar
       header={header}
       stops={stops}
       state={effectiveState}
       formatInPortTime={formatInPortTime}
+      onSavePort={handleSavePort}
+      onChangeCpSpeed={handleChangeCpSpeed}
+      canEdit={canEdit}
       headerActionSlot={
         canEdit ? (
           <button

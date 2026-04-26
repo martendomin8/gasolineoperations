@@ -75,6 +75,18 @@ export const PUT = withAuth(
           updates.cpSpeedKn === null ? null : String(updates.cpSpeedKn);
       }
       if (updates.cpSpeedSource !== undefined) updatePayload.cpSpeedSource = updates.cpSpeedSource;
+      if (updates.freightDeductAddressCommission !== undefined) {
+        updatePayload.freightDeductAddressCommission = updates.freightDeductAddressCommission;
+      }
+      if (updates.freightAddressCommissionPct !== undefined) {
+        updatePayload.freightAddressCommissionPct = updates.freightAddressCommissionPct;
+      }
+      if (updates.freightDeductBrokerage !== undefined) {
+        updatePayload.freightDeductBrokerage = updates.freightDeductBrokerage;
+      }
+      if (updates.freightBrokeragePct !== undefined) {
+        updatePayload.freightBrokeragePct = updates.freightBrokeragePct;
+      }
 
       const [updated] = await db
         .update(linkages)

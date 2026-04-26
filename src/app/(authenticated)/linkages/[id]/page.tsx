@@ -42,11 +42,12 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
-import { VoyageStrip, type VoyageStripDeal } from "./voyage-strip";
 import {
   VoyageSchematicBarWrapper,
   type VoyageSchematicBarDeal,
 } from "./voyage-schematic-bar-wrapper";
+import { CostsSection } from "./costs-section";
+import { formatVesselName, formatVesselImo } from "@/lib/utils/vessel-display";
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -99,6 +100,10 @@ interface LinkageData {
   vesselParticulars: VesselParticulars | null;
   cpSpeedKn: string | number | null;
   cpSpeedSource: string | null;
+  freightDeductAddressCommission: boolean;
+  freightAddressCommissionPct: string | number;
+  freightDeductBrokerage: boolean;
+  freightBrokeragePct: string | number;
   assignedOperatorId: string | null;
   secondaryOperatorId: string | null;
   notes: string | null;
@@ -174,26 +179,11 @@ interface LinkageDoc {
   createdAt: string;
 }
 
-// Adapter: dashboard's DealSummary → voyage-strip input shape. Keeps the
-// VoyageStrip prop contract narrow (only the fields it actually reads) and
-// quietly drops anything the strip doesn't care about.
-function toVoyageStripDeal(d: DealSummary): VoyageStripDeal {
-  return {
-    id: d.id,
-    direction: d.direction === "buy" ? "buy" : "sell",
-    loadport: d.loadport,
-    dischargePort: d.dischargePort,
-    quantityMt: d.quantityMt,
-    arrivalAt: d.arrivalAt ?? null,
-    arrivalIsActual: d.arrivalIsActual ?? false,
-    departureOverride: d.departureOverride ?? null,
-    version: d.version ?? 1,
-  };
-}
-
-// Adapter for the schematic bar — needs product + laycan window in addition
-// to the timeline events so the header can render "5,000 MT EBOB · LAYCAN
-// 23–27 APR" without an extra fetch.
+// Adapter for the schematic bar — carries product + laycan window so the
+// header can render "5,000 MT EBOB · LAYCAN 23–27 APR" without an extra
+// fetch, plus `version` for the per-port edit popover and `parcels` so the
+// product label can render multi-grade deals as "2,500 MT ISOMERATE + 2,500
+// MT REFORMATE" instead of summing them.
 function toVoyageSchematicBarDeal(d: DealSummary): VoyageSchematicBarDeal {
   return {
     id: d.id,
@@ -207,6 +197,12 @@ function toVoyageSchematicBarDeal(d: DealSummary): VoyageSchematicBarDeal {
     arrivalAt: d.arrivalAt ?? null,
     arrivalIsActual: d.arrivalIsActual ?? false,
     departureOverride: d.departureOverride ?? null,
+    version: d.version ?? 1,
+    parcels: d.parcels?.map((p) => ({
+      parcelNo: p.parcelNo,
+      product: p.product,
+      quantityMt: p.quantityMt,
+    })),
   };
 }
 
@@ -392,7 +388,14 @@ export default function LinkageDetailPage() {
         </div>
         <div className="flex items-center gap-2">
           {isOperator && (
-            <DeleteLinkageButton linkageId={linkage.id} dealCount={deals.length} onDeleted={() => router.push("/dashboard")} />
+            <>
+              <MergeLinkageButton
+                currentLinkageId={linkage.id}
+                currentDisplayName={displayName}
+                onMerged={(targetId) => router.push(`/linkages/${targetId}`)}
+              />
+              <DeleteLinkageButton linkageId={linkage.id} dealCount={deals.length} onDeleted={() => router.push("/dashboard")} />
+            </>
           )}
         </div>
       </div>
@@ -405,9 +408,10 @@ export default function LinkageDetailPage() {
         onUpdated={fetchData}
       />
 
-      {/* Voyage schematic bar (presentation; auto-derived state) +
-          Voyage timeline strip (compact data-entry table). Both surface
-          the same arrival/departure events. */}
+      {/* Voyage schematic bar — single source of voyage-state visualisation
+          AND per-port event editing (the old VoyageStrip data-entry table
+          was deleted because every timestamp it showed was already on the
+          bar; operators now click a port node directly to edit). */}
       {(buyDeals.length > 0 || sellDeals.length > 0) && (
         <>
           <VoyageSchematicBarWrapper
@@ -424,13 +428,13 @@ export default function LinkageDetailPage() {
             canEdit={isOperator}
             onUpdated={fetchData}
           />
-          <VoyageStrip
+          <CostsSection
             linkageId={linkage.id}
-            cpSpeedKn={linkage.cpSpeedKn}
-            cpSpeedSource={linkage.cpSpeedSource}
-            vesselParticulars={linkage.vesselParticulars}
-            buyDeals={buyDeals.map(toVoyageStripDeal)}
-            sellDeals={sellDeals.map(toVoyageStripDeal)}
+            freightDeductAddressCommission={linkage.freightDeductAddressCommission}
+            freightAddressCommissionPct={linkage.freightAddressCommissionPct}
+            freightDeductBrokerage={linkage.freightDeductBrokerage}
+            freightBrokeragePct={linkage.freightBrokeragePct}
+            deals={deals.map((d) => ({ direction: d.direction === "buy" ? "buy" : "sell", incoterm: d.incoterm }))}
             canEdit={isOperator}
             onUpdated={fetchData}
           />
@@ -706,7 +710,7 @@ function VoyageBar({ linkage, operators, canEdit, onUpdated }: {
             className={`flex items-center gap-2 ${canEdit ? "cursor-pointer hover:bg-[var(--color-surface-3)] rounded-[var(--radius-sm)] px-2 py-1 -mx-2 -my-1 transition-colors" : "cursor-default"}`}
             title={canEdit ? "Click to edit vessel" : undefined}>
             <Ship className="h-3.5 w-3.5 text-[var(--color-text-tertiary)]" />
-            <span className="text-sm font-medium text-[var(--color-text-primary)]">{linkage.vesselName || "TBN"}</span>
+            <span className="text-sm font-medium text-[var(--color-text-primary)]">{formatVesselName(linkage.vesselName)}</span>
             {linkage.vesselImo && <span className="text-xs font-mono text-[var(--color-text-tertiary)] ml-1">IMO {linkage.vesselImo}</span>}
             {linkage.vesselMmsi && <span className="text-xs font-mono text-sky-400 ml-1">MMSI {linkage.vesselMmsi}</span>}
             {canEdit && <Pencil className="h-3 w-3 text-[var(--color-text-tertiary)] opacity-60" />}
@@ -844,8 +848,8 @@ function VesselSection({ linkage, steps, docs, canEdit, onUpdated }: {
   const [addingStep, setAddingStep] = useState(false);
   const [newStepName, setNewStepName] = useState("");
 
-  const vesselDisplay = linkage.vesselName || "TBN";
-  const imoDisplay = linkage.vesselImo || "—";
+  const vesselDisplay = formatVesselName(linkage.vesselName);
+  const imoDisplay = formatVesselImo(linkage.vesselImo);
   const hasVessel = Boolean(linkage.vesselName);
   const q88Docs = docs.filter((d) => d.fileType === "q88");
   const cpDocs = docs.filter((d) => d.fileType === "cp_recap");
@@ -2276,6 +2280,175 @@ function AddDealMenu({ linkageId, linkageCode, side, variant, siblingDeals = [] 
         </button>
       )}
     </div>
+  );
+}
+
+// ── Merge Linkage Button ─────────────────────────────────────
+//
+// Operator opens THIS linkage's view, picks ANOTHER ongoing linkage from
+// the modal, and the two are merged: every deal moves under the target,
+// the source linkage is deleted. Backend = POST /api/linkages/:id/merge
+// where :id is the TARGET. From the user's perspective the picker chooses
+// "merge this one INTO that one", so the chosen target becomes the new
+// home and we redirect there afterwards.
+
+interface MergeCandidate {
+  id: string;
+  linkageNumber: string | null;
+  tempName: string | null;
+  vesselName: string | null;
+  dealCount: number;
+}
+
+function MergeLinkageButton({
+  currentLinkageId,
+  currentDisplayName,
+  onMerged,
+}: {
+  currentLinkageId: string;
+  currentDisplayName: string;
+  onMerged: (targetLinkageId: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [candidates, setCandidates] = useState<MergeCandidate[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [targetId, setTargetId] = useState<string | null>(null);
+  const [keepCurrentNumber, setKeepCurrentNumber] = useState(false);
+  const [merging, setMerging] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    setLoading(true);
+    fetch(`/api/linkages?status=ongoing&_t=${Date.now()}`, { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((rows: MergeCandidate[]) => {
+        setCandidates((Array.isArray(rows) ? rows : []).filter((l) => l.id !== currentLinkageId));
+      })
+      .finally(() => setLoading(false));
+  }, [open, currentLinkageId]);
+
+  const handleMerge = async () => {
+    if (!targetId) return;
+    setMerging(true);
+    try {
+      const res = await fetch(`/api/linkages/${targetId}/merge`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sourceLinkageId: currentLinkageId,
+          // "source" = keep the current page's linkage number on the
+          // merged result; "target" = adopt the picked linkage's number.
+          keepNumber: keepCurrentNumber ? "source" : "target",
+        }),
+      });
+      if (res.ok) {
+        toast.success("Linkages merged");
+        onMerged(targetId);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.error || "Failed to merge");
+      }
+    } finally {
+      setMerging(false);
+    }
+  };
+
+  return (
+    <>
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => setOpen(true)}
+        className="text-[var(--color-text-secondary)] hover:text-[var(--color-accent-text)] hover:bg-[var(--color-accent)]/10"
+      >
+        <Link2 className="h-3.5 w-3.5" /> Merge with…
+      </Button>
+      {open && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+          onClick={() => !merging && setOpen(false)}
+        >
+          <div
+            className="bg-[var(--color-surface-1)] border border-[var(--color-border-default)] rounded-[var(--radius-lg)] p-5 max-w-md w-full mx-4 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-base font-semibold text-[var(--color-text-primary)] mb-1">
+              Merge {currentDisplayName} into another linkage
+            </h3>
+            <p className="text-xs text-[var(--color-text-secondary)] mb-3">
+              Every deal under this linkage moves to the picked target.
+              {currentDisplayName} is deleted afterwards.
+            </p>
+
+            <div className="max-h-60 overflow-y-auto border border-[var(--color-border-subtle)] rounded mb-3">
+              {loading ? (
+                <div className="p-3 text-xs text-[var(--color-text-tertiary)]">Loading…</div>
+              ) : candidates.length === 0 ? (
+                <div className="p-3 text-xs text-[var(--color-text-tertiary)]">
+                  No other ongoing linkages to merge with.
+                </div>
+              ) : (
+                candidates.map((c) => {
+                  const name = c.linkageNumber ?? c.tempName ?? "Unnamed";
+                  const selected = targetId === c.id;
+                  return (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => setTargetId(c.id)}
+                      className={`w-full text-left px-3 py-2 border-b border-[var(--color-border-subtle)] last:border-b-0 text-xs transition-colors ${
+                        selected
+                          ? "bg-[var(--color-accent)]/15 text-[var(--color-text-primary)]"
+                          : "hover:bg-[var(--color-surface-2)] text-[var(--color-text-secondary)]"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium font-mono">{name}</span>
+                        <span className="text-[var(--color-text-tertiary)] text-[10px]">
+                          {c.dealCount} deal{c.dealCount === 1 ? "" : "s"}
+                        </span>
+                      </div>
+                      {c.vesselName && c.vesselName !== "null" && (
+                        <div className="text-[10px] text-[var(--color-text-tertiary)] mt-0.5">
+                          🚢 {c.vesselName}
+                        </div>
+                      )}
+                    </button>
+                  );
+                })
+              )}
+            </div>
+
+            <label className="flex items-center gap-2 text-[11px] text-[var(--color-text-secondary)] mb-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={keepCurrentNumber}
+                onChange={(e) => setKeepCurrentNumber(e.target.checked)}
+                className="h-3 w-3"
+              />
+              Keep <span className="font-mono">{currentDisplayName}</span> as the kept number (otherwise the target's number wins)
+            </label>
+
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setOpen(false)}
+                disabled={merging}
+                className="px-3 py-1.5 text-xs rounded-[var(--radius-md)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-3)] cursor-pointer disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleMerge}
+                disabled={!targetId || merging}
+                className="px-3 py-1.5 text-xs rounded-[var(--radius-md)] bg-[var(--color-accent)] text-[var(--color-text-inverse)] cursor-pointer disabled:opacity-50"
+              >
+                {merging ? "Merging…" : "Merge"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
