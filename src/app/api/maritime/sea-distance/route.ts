@@ -9,7 +9,7 @@ import {
   getPortCoords,
   type RouteOptions,
 } from "@/lib/maritime/sea-distance";
-import { parseWaypoint, formatCustomLabel } from "@/lib/maritime/sea-distance/waypoints";
+import { parseWaypoint, formatCustomLabel, haversineNm } from "@/lib/maritime/sea-distance/waypoints";
 import { routeThroughGraph, type Waypoint } from "@/lib/maritime/sea-distance/providers/ocean-routing/graph-runtime";
 
 function parseAvoid(params: URLSearchParams): RouteOptions {
@@ -123,32 +123,56 @@ export async function GET(req: NextRequest) {
         avoidPanama: opts.avoidPanama,
         avoidedChainIds: opts.avoidedChainIds,
       });
-      if (!routed) {
-        return NextResponse.json({ error: "Route unreachable" }, { status: 500 });
+      if (routed) {
+        // Match the shape the client expects (from getMultiStopDistance
+        // result) — totalNm + per-leg distance.
+        return NextResponse.json({
+          totalNm: routed.totalNm,
+          legs: routed.legs.map((l) => ({
+            from: l.from,
+            to: l.to,
+            distanceNm: l.distanceNm,
+          })),
+          source: "ocean_routing_runtime",
+          speedKnots: speed,
+          etaDays: calculateETA(routed.totalNm, speed),
+          etaDisplay: formatETA(calculateETA(routed.totalNm, speed)),
+          avoid: opts,
+        });
       }
-
-      // Match the shape the client expects (from getMultiStopDistance
-      // result) — totalNm + per-leg distance.
-      return NextResponse.json({
-        totalNm: routed.totalNm,
-        legs: routed.legs.map((l) => ({
-          from: l.from,
-          to: l.to,
-          distanceNm: l.distanceNm,
-        })),
-        source: "ocean_routing_runtime",
-        speedKnots: speed,
-        etaDays: calculateETA(routed.totalNm, speed),
-        etaDisplay: formatETA(calculateETA(routed.totalNm, speed)),
-        avoid: opts,
-      });
+      // Fall through to haversine fallback below — see comment.
     } catch (err) {
-      console.error("[sea-distance] runtime graph failed:", err);
-      return NextResponse.json(
-        { error: err instanceof Error ? err.message : "Routing failed" },
-        { status: 500 }
-      );
+      console.error("[sea-distance] runtime graph failed, falling back to haversine:", err);
+      // Fall through to haversine fallback below.
     }
+
+    // Haversine fallback — used when the ocean-routing graph can't reach
+    // a custom waypoint (typically because the operator clicked a vessel
+    // whose AIS position is at a port quay deep inside an estuary, e.g.
+    // Antwerp on the Schelde, where every "nearest graph node" is the
+    // wrong side of a peninsula). Returns straight great-circle distance
+    // per leg with a flag the client can show as a "approximate" badge.
+    // The polyline will cut across land but the total NM is still close
+    // to the real ocean route for short hops, and far better than a 500.
+    const hLegs = [];
+    let hTotal = 0;
+    for (let i = 0; i < waypoints.length - 1; i++) {
+      const a = waypoints[i];
+      const b = waypoints[i + 1];
+      const d = haversineNm(a.lat, a.lon, b.lat, b.lon);
+      hLegs.push({ from: a.label, to: b.label, distanceNm: Math.round(d * 10) / 10 });
+      hTotal += d;
+    }
+    return NextResponse.json({
+      totalNm: hTotal,
+      legs: hLegs,
+      source: "haversine_fallback",
+      approximate: true,
+      speedKnots: speed,
+      etaDays: calculateETA(hTotal, speed),
+      etaDisplay: formatETA(calculateETA(hTotal, speed)),
+      avoid: opts,
+    });
   }
 
   // Two-port mode
