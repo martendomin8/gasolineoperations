@@ -518,6 +518,17 @@ export const POST = withAuth(
           secondaryOperatorId: validated.secondaryOperatorId ?? null,
           pricingFormula: validated.pricingFormula ?? null,
           pricingType: validated.pricingType ?? null,
+          // Structured period fields were missing from this insert payload —
+          // Zod accepted them, the parse confirm modal sent them, but they
+          // never landed in the DB. The Excel PRICING column then rendered
+          // an em-dash for every freshly-parsed deal because the cell only
+          // reads structured fields, not pricingFormula.
+          pricingPeriodType: validated.pricingPeriodType ?? null,
+          pricingPeriodValue: validated.pricingPeriodValue ?? null,
+          pricingConfirmed: validated.pricingConfirmed ?? false,
+          estimatedBlNorDate: validated.estimatedBlNorDate ?? null,
+          loadedQuantityMt:
+            validated.loadedQuantityMt != null ? String(validated.loadedQuantityMt) : null,
           pricingEstimatedDate: validated.pricingEstimatedDate ?? null,
           specialInstructions: validated.specialInstructions ?? null,
           sourceRawText: validated.sourceRawText ?? null,

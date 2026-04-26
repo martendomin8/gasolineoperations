@@ -25,6 +25,10 @@ import {
 import Link from "next/link";
 import { Dialog } from "@/components/ui/dialog";
 import { FileDropZone } from "@/components/ui/file-drop-zone";
+import {
+  PricingPeriodInput,
+  type PricingPeriodType,
+} from "@/components/pricing-period-input";
 
 // ============================================================
 // TYPES
@@ -538,6 +542,7 @@ export default function ParseDealPage() {
 
   // Duplicate detection state
   const [duplicates, setDuplicates] = useState<any[]>([]);
+  const [oppositeMatches, setOppositeMatches] = useState<any[]>([]);
   const [showDupDialog, setShowDupDialog] = useState(false);
   const [dupChoice, setDupChoice] = useState<"ai" | "manual" | "new">("ai");
   const [manualLinkageCode, setManualLinkageCode] = useState("");
@@ -758,11 +763,21 @@ export default function ParseDealPage() {
       });
 
       if (dupRes.ok) {
-        const { duplicates: dups } = await dupRes.json();
-        if (dups.length > 0) {
+        const { duplicates: dups, oppositeMatches: opps } = await dupRes.json();
+        const oppList: any[] = opps ?? [];
+        if (dups.length > 0 || oppList.length > 0) {
           setDuplicates(dups);
+          setOppositeMatches(oppList);
           setPendingPayload(payload);
-          setDupChoice("ai");
+          // Default to back-to-back link when only opposite matches exist
+          // (user already saw a same-direction match for "duplicate" intent;
+          // an opposite match is a different question — link it to the
+          // existing voyage's linkage as the other side of the trade).
+          if (dups.length === 0 && oppList.length > 0) {
+            setDupChoice("ai");
+          } else {
+            setDupChoice("ai");
+          }
           setManualLinkageCode("");
           // Fetch active linkage codes for manual selection
           fetch("/api/deals?perPage=200")
@@ -1145,9 +1160,21 @@ Price: Platts CIF NWE -$5/MT`}
                 <FieldRow label="Vessel IMO"    fieldKey="vessel_imo"    value={editedFields.vessel_imo    ?? ""} score={result.confidenceScores.vessel_imo    ?? 0} onChange={updateField} />
 
                 <p className="text-[0.6875rem] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider mt-3 mb-1">Additional</p>
-                <FieldRow label="Pricing Formula"   fieldKey="pricing_formula"     value={editedFields.pricing_formula     ?? ""} score={result.confidenceScores.pricing_formula     ?? 0} onChange={updateField} />
-                <FieldRow label="Pricing Period"    fieldKey="pricing_period_type" value={editedFields.pricing_period_type ?? ""} score={result.confidenceScores.pricing_period_type ?? 0} onChange={updateField} type="select" options={["BL", "NOR", "Fixed", "EFP"]} />
-                <FieldRow label="Period Value"      fieldKey="pricing_period_value" value={editedFields.pricing_period_value ?? ""} score={result.confidenceScores.pricing_period_value ?? 0} onChange={updateField} />
+                {/* Pricing Formula intentionally hidden from ops — it's an
+                    invoice-desk field. The AI still parses it into
+                    `pricing_formula` for the back office; ops just never
+                    sees or edits it. Operators care only about the
+                    structured pricing period (BL / NOR / Fixed / EFP). */}
+                <div className="py-2">
+                  <PricingPeriodInput
+                    type={(editedFields.pricing_period_type ?? "") as PricingPeriodType}
+                    value={editedFields.pricing_period_value ?? ""}
+                    onChange={({ type, value }) => {
+                      updateField("pricing_period_type", type);
+                      updateField("pricing_period_value", value);
+                    }}
+                  />
+                </div>
                 <FieldRow label="External Ref"      fieldKey="external_ref"        value={editedFields.external_ref        ?? ""} score={result.confidenceScores.external_ref        ?? 0} onChange={updateField} />
                 <FieldRow label="Special Instr."    fieldKey="special_instructions" value={editedFields.special_instructions ?? ""} score={result.confidenceScores.special_instructions ?? 0} onChange={updateField} />
               </div>
@@ -1334,58 +1361,112 @@ Price: Platts CIF NWE -$5/MT`}
       <Dialog
         open={showDupDialog}
         onClose={() => { setShowDupDialog(false); setCreating(false); }}
-        title="Potential Duplicate Found"
-        description="A matching deal already exists. How would you like to proceed?"
+        title={
+          duplicates.length > 0 && oppositeMatches.length > 0
+            ? "Existing Matches Found"
+            : duplicates.length > 0
+              ? "Potential Duplicate Found"
+              : "Possible Back-to-Back Match"
+        }
+        description={
+          oppositeMatches.length > 0 && duplicates.length === 0
+            ? "Found an existing opposite-side deal with the same product + quantity. Is this the back-to-back trade — or a separate, coincidentally similar one?"
+            : "A matching deal already exists. How would you like to proceed?"
+        }
       >
-        {/* Matched deal summary */}
-        <div className="space-y-2 mb-4">
-          {duplicates.map((dup) => (
-            <div
-              key={dup.id}
-              className="flex items-center gap-3 p-3 rounded-[var(--radius-md)] bg-[var(--color-warning-muted)] border border-[var(--color-warning)]"
-            >
-              <AlertTriangle className="h-4 w-4 text-[var(--color-warning)] flex-shrink-0" />
-              <div className="text-sm">
-                <span className="font-medium text-[var(--color-text-primary)]">{dup.counterparty}</span>
-                <span className="text-[var(--color-text-secondary)]">
-                  {" "}{dup.direction.toUpperCase()} {dup.product} — {Number(dup.quantityMt).toLocaleString()} MT
-                </span>
-                {dup.linkageCode && (
-                  <span className="ml-2 text-xs font-mono px-1.5 py-0.5 rounded bg-[var(--color-surface-3)] text-[var(--color-accent-text)]">
-                    {dup.linkageCode}
+        {/* Same-direction duplicate matches */}
+        {duplicates.length > 0 && (
+          <div className="space-y-2 mb-3">
+            <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-tertiary)]">
+              Same-direction duplicates
+            </p>
+            {duplicates.map((dup) => (
+              <div
+                key={dup.id}
+                className="flex items-center gap-3 p-3 rounded-[var(--radius-md)] bg-[var(--color-warning-muted)] border border-[var(--color-warning)]"
+              >
+                <AlertTriangle className="h-4 w-4 text-[var(--color-warning)] flex-shrink-0" />
+                <div className="text-sm">
+                  <span className="font-medium text-[var(--color-text-primary)]">{dup.counterparty}</span>
+                  <span className="text-[var(--color-text-secondary)]">
+                    {" "}{dup.direction.toUpperCase()} {dup.product} — {Number(dup.quantityMt).toLocaleString()} MT
                   </span>
-                )}
-                <span className="text-xs text-[var(--color-text-tertiary)] ml-2">
-                  {dup.laycanStart}
-                </span>
+                  {dup.linkageCode && (
+                    <span className="ml-2 text-xs font-mono px-1.5 py-0.5 rounded bg-[var(--color-surface-3)] text-[var(--color-accent-text)]">
+                      {dup.linkageCode}
+                    </span>
+                  )}
+                  <span className="text-xs text-[var(--color-text-tertiary)] ml-2">
+                    {dup.laycanStart}
+                  </span>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
+
+        {/* Opposite-direction back-to-back candidates */}
+        {oppositeMatches.length > 0 && (
+          <div className="space-y-2 mb-3">
+            <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-tertiary)]">
+              Possible back-to-back (opposite side already exists)
+            </p>
+            {oppositeMatches.map((m) => (
+              <div
+                key={m.id}
+                className="flex items-center gap-3 p-3 rounded-[var(--radius-md)] bg-[var(--color-info-muted,rgba(59,130,246,0.1))] border border-blue-500/40"
+              >
+                <Link2 className="h-4 w-4 text-blue-400 flex-shrink-0" />
+                <div className="text-sm">
+                  <span className="font-medium text-[var(--color-text-primary)]">{m.counterparty}</span>
+                  <span className="text-[var(--color-text-secondary)]">
+                    {" "}{m.direction.toUpperCase()} {m.product} — {Number(m.quantityMt).toLocaleString()} MT
+                  </span>
+                  {m.linkageCode && (
+                    <span className="ml-2 text-xs font-mono px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-300">
+                      {m.linkageCode}
+                    </span>
+                  )}
+                  <span className="text-xs text-[var(--color-text-tertiary)] ml-2">
+                    {m.laycanStart}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Three options */}
         <div className="space-y-2 mb-4">
-          {/* Option 1: AI suggestion — link to matched deal */}
-          {duplicates.length > 0 && duplicates[0].linkageCode && (
-            <button
-              onClick={() => setDupChoice("ai")}
-              className={`w-full flex items-start gap-3 p-3 rounded-[var(--radius-md)] border text-left transition-colors ${
-                dupChoice === "ai"
-                  ? "border-[var(--color-accent)] bg-[var(--color-accent-muted)]"
-                  : "border-[var(--color-border-default)] hover:bg-[var(--color-surface-3)]"
-              }`}
-            >
-              <Link2 className="h-4 w-4 mt-0.5 flex-shrink-0 text-[var(--color-accent)]" />
-              <div>
-                <p className="text-sm font-medium text-[var(--color-text-primary)]">
-                  Link to {duplicates[0].counterparty} — {duplicates[0].linkageCode}
-                </p>
-                <p className="text-xs text-[var(--color-text-secondary)] mt-0.5">
-                  Set this deal&apos;s linkage code to match the existing deal
-                </p>
-              </div>
-            </button>
-          )}
+          {/* Option 1: AI suggestion — prefer opposite-direction back-to-back
+              link when present, otherwise link to same-direction duplicate. */}
+          {(() => {
+            const suggested = oppositeMatches[0] ?? duplicates[0];
+            if (!suggested?.linkageCode) return null;
+            const isBackToBack = oppositeMatches.length > 0;
+            return (
+              <button
+                onClick={() => setDupChoice("ai")}
+                className={`w-full flex items-start gap-3 p-3 rounded-[var(--radius-md)] border text-left transition-colors ${
+                  dupChoice === "ai"
+                    ? "border-[var(--color-accent)] bg-[var(--color-accent-muted)]"
+                    : "border-[var(--color-border-default)] hover:bg-[var(--color-surface-3)]"
+                }`}
+              >
+                <Link2 className="h-4 w-4 mt-0.5 flex-shrink-0 text-[var(--color-accent)]" />
+                <div>
+                  <p className="text-sm font-medium text-[var(--color-text-primary)]">
+                    {isBackToBack ? "Link as back-to-back to" : "Link to"} {suggested.counterparty} — {suggested.linkageCode}
+                  </p>
+                  <p className="text-xs text-[var(--color-text-secondary)] mt-0.5">
+                    {isBackToBack
+                      ? "Add this deal under the existing voyage's linkage as the other side of the trade"
+                      : "Set this deal's linkage code to match the existing deal"}
+                  </p>
+                </div>
+              </button>
+            );
+          })()}
 
           {/* Option 2: Manual linkage selection */}
           <button
@@ -1444,8 +1525,14 @@ Price: Platts CIF NWE -$5/MT`}
             onClick={() => {
               setShowDupDialog(false);
               const updatedPayload = { ...pendingPayload };
-              if (dupChoice === "ai" && duplicates[0]?.linkageCode) {
-                updatedPayload.linkageCode = duplicates[0].linkageCode;
+              const aiSuggested = oppositeMatches[0] ?? duplicates[0];
+              if (dupChoice === "ai" && aiSuggested?.linkageCode) {
+                updatedPayload.linkageCode = aiSuggested.linkageCode;
+                if (aiSuggested.linkageId) {
+                  // Pin by FK so the deal lands inside the exact same
+                  // linkage row even if the operator races a linkage rename.
+                  updatedPayload.linkageId = aiSuggested.linkageId;
+                }
               } else if (dupChoice === "manual" && manualLinkageCode) {
                 updatedPayload.linkageCode = manualLinkageCode;
               }

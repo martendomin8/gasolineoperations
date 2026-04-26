@@ -22,27 +22,46 @@ export function isValidTransition(from: DealStatus, to: DealStatus): boolean {
 
 // === Zod helpers ===
 
-// Coerce empty strings to null for optional numeric fields
+// IMPORTANT: every optional* preprocess preserves `undefined` (= "key absent
+// in body, leave the column alone") and only coerces "" / null to null
+// (= "operator explicitly cleared this"). See
+// memory/feedback_zod_preserve_undefined.md — coercing undefined → null
+// silently nukes columns on partial PUTs and has bitten us twice already
+// (voyage timeline ETA preservation, deal pricing formula clobber).
+
 const optionalPositiveNumber = z.preprocess(
-  (val) => (val === "" || val === null || val === undefined ? null : Number(val)),
+  (val) => {
+    if (val === undefined) return undefined;
+    if (val === "" || val === null) return null;
+    return Number(val);
+  },
   z.number().positive().nullable().optional()
 );
 
-// Coerce empty strings to null for optional date fields
 const optionalDateString = z.preprocess(
-  (val) => (val === "" || val === null || val === undefined ? null : val),
+  (val) => {
+    if (val === undefined) return undefined;
+    if (val === "" || val === null) return null;
+    return val;
+  },
   z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional()
 );
 
-// Coerce empty strings to null for optional UUID fields
 const optionalUuid = z.preprocess(
-  (val) => (val === "" || val === null || val === undefined ? null : val),
+  (val) => {
+    if (val === undefined) return undefined;
+    if (val === "" || val === null) return null;
+    return val;
+  },
   z.string().uuid().nullable().optional()
 );
 
-// Coerce empty strings to null for optional string fields
 const optionalString = z.preprocess(
-  (val) => (val === "" || val === null || val === undefined ? null : val),
+  (val) => {
+    if (val === undefined) return undefined;
+    if (val === "" || val === null) return null;
+    return val;
+  },
   z.string().nullable().optional()
 );
 
@@ -91,7 +110,11 @@ export const createDealSchema = z
     secondaryOperatorId: optionalUuid,
     pricingFormula: optionalString,
     pricingType: z.preprocess(
-      (val) => (val === "" || val === null || val === undefined ? null : val),
+      (val) => {
+        if (val === undefined) return undefined;
+        if (val === "" || val === null) return null;
+        return val;
+      },
       z.string().max(20).nullable().optional()
     ),
     pricingEstimatedDate: optionalDateString,
@@ -133,7 +156,11 @@ export const importDealSchema = z
     secondaryOperatorId: optionalUuid,
     pricingFormula: optionalString,
     pricingType: z.preprocess(
-      (val) => (val === "" || val === null || val === undefined ? null : val),
+      (val) => {
+        if (val === undefined) return undefined;
+        if (val === "" || val === null) return null;
+        return val;
+      },
       z.string().max(20).nullable().optional()
     ),
     pricingEstimatedDate: optionalDateString,
@@ -192,7 +219,11 @@ export const updateDealSchema = z.object({
   secondaryOperatorId: optionalUuid,
   pricingFormula: optionalString,
   pricingType: z.preprocess(
-    (val) => (val === "" || val === null || val === undefined ? null : val),
+    (val) => {
+      if (val === undefined) return undefined;
+      if (val === "" || val === null) return null;
+      return val;
+    },
     z.string().max(20).nullable().optional()
   ),
   pricingEstimatedDate: optionalDateString,

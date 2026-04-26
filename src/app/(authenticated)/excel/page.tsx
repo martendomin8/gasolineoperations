@@ -746,6 +746,11 @@ function PricingCell({ deal, onUpdate }: { deal: DealRow; onUpdate: () => void }
     bgColor = confirmed ? "bg-green-900/30" : "bg-yellow-400/60";
   }
 
+  // PRICING column always shows the period (BL / NOR / Fixed / EFP + the
+  // 0-1-5 day window) — never the pricingFormula text. Per CLAUDE.md +
+  // operator confirmation: formulas like "Platts FOB Baltic +$5.50/MT"
+  // are invoice-desk concerns, not ops, so we deliberately don't surface
+  // them on the ops grid.
   const displayText =
     periodType === "Fixed"
       ? periodValue ? `Fixed: ${periodValue}` : "Fixed"
@@ -753,7 +758,9 @@ function PricingCell({ deal, onUpdate }: { deal: DealRow; onUpdate: () => void }
       ? periodValue ? `EFP: ${periodValue}` : "EFP"
       : periodType && periodValue
       ? `${periodType} ${periodValue}`
-      : periodType || "\u2014";
+      : periodType
+      ? periodType
+      : "\u2014";
 
   // Format date as "4 Feb" (no year)
   const formatShortDate = (iso: string | null): string => {

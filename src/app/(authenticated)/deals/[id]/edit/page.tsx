@@ -7,6 +7,10 @@ import { PortSelect } from "@/components/ui/port-select";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  PricingPeriodInput,
+  type PricingPeriodType,
+} from "@/components/pricing-period-input";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
@@ -51,14 +55,22 @@ export default function EditDealPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [operators, setOperators] = useState<Array<{ id: string; name: string }>>([]);
-  const [pricingPeriodType, setPricingPeriodType] = useState("");
+  const [pricingPeriodType, setPricingPeriodType] = useState<PricingPeriodType>("");
+  const [pricingPeriodValue, setPricingPeriodValue] = useState("");
   const [editLoadport, setEditLoadport] = useState("");
   const [editDischargePort, setEditDischargePort] = useState("");
 
   useEffect(() => {
     fetch(`/api/deals/${id}`)
       .then((r) => r.json())
-      .then((data) => { setDeal(data); setPricingPeriodType(data?.pricingPeriodType || data?.pricingType || ""); setEditLoadport(data?.loadport || ""); setEditDischargePort(data?.dischargePort || ""); setLoading(false); })
+      .then((data) => {
+        setDeal(data);
+        setPricingPeriodType((data?.pricingPeriodType || data?.pricingType || "") as PricingPeriodType);
+        setPricingPeriodValue(data?.pricingPeriodValue || "");
+        setEditLoadport(data?.loadport || "");
+        setEditDischargePort(data?.dischargePort || "");
+        setLoading(false);
+      })
       .catch(() => setLoading(false));
     fetch("/api/users?role=operator")
       .then((r) => r.json())
@@ -327,20 +339,28 @@ export default function EditDealPage() {
           <Card>
             <CardHeader><CardTitle>Additional</CardTitle></CardHeader>
             <div className="space-y-4">
-              <Input label="Pricing Formula" name="pricingFormula" defaultValue={deal.pricingFormula || ""} />
-              <div className="grid grid-cols-3 gap-4">
-                <Select
-                  label="Pricing Period Type"
-                  name="pricingPeriodType"
-                  options={pricingPeriodTypeOptions}
-                  defaultValue={deal.pricingPeriodType || deal.pricingType || ""}
-                  onChange={(e) => setPricingPeriodType(e.target.value)}
+              {/* Pricing Formula intentionally hidden from ops UI — it's
+                  an invoice-desk field. Stored but not editable here. */}
+              <PricingPeriodInput
+                type={pricingPeriodType}
+                value={pricingPeriodValue}
+                onChange={({ type, value }) => {
+                  setPricingPeriodType(type);
+                  setPricingPeriodValue(value);
+                }}
+              />
+              {/* Hidden mirrors keep the existing FormData submit path working
+                  without rewriting the handleSubmit FormData reads. */}
+              <input type="hidden" name="pricingPeriodType" value={pricingPeriodType} />
+              <input type="hidden" name="pricingPeriodValue" value={pricingPeriodValue} />
+              {(pricingPeriodType === "BL" || pricingPeriodType === "NOR") && (
+                <Input
+                  label="Est. BL/NOR Date"
+                  name="pricingEstimatedDate"
+                  type="date"
+                  defaultValue={deal.pricingEstimatedDate || ""}
                 />
-                <Input label="Pricing Period Value" name="pricingPeriodValue" defaultValue={deal.pricingPeriodValue || ""} placeholder="e.g. 0-1-5 or 1-15 Mar" />
-                {(pricingPeriodType === "BL" || pricingPeriodType === "NOR") && (
-                  <Input label="Est. BL/NOR Date" name="pricingEstimatedDate" type="date" defaultValue={deal.pricingEstimatedDate || ""} />
-                )}
-              </div>
+              )}
               <Textarea label="Special Instructions" name="specialInstructions" defaultValue={deal.specialInstructions || ""} rows={3} />
             </div>
           </Card>

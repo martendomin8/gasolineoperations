@@ -15,6 +15,10 @@ import { useState, useEffect, type FormEvent } from "react";
 import { toast } from "sonner";
 import { createDealSchema } from "@/lib/types/deal";
 import { z } from "zod";
+import {
+  PricingPeriodInput,
+  type PricingPeriodType,
+} from "@/components/pricing-period-input";
 
 const directionOptions = [
   { value: "buy", label: "Buy" },
@@ -51,7 +55,8 @@ export default function NewDealPage() {
   const [dupChoice, setDupChoice] = useState<"ai" | "manual" | "new">("ai");
   const [manualLinkageCode, setManualLinkageCode] = useState("");
   const [activeLinkageCodes, setActiveLinkageCodes] = useState<string[]>([]);
-  const [pricingPeriodType, setPricingPeriodType] = useState("");
+  const [pricingPeriodType, setPricingPeriodType] = useState<PricingPeriodType>("");
+  const [pricingPeriodValue, setPricingPeriodValue] = useState("");
   const [loadport, setLoadport] = useState("");
   const [dischargePort, setDischargePort] = useState("");
 
@@ -268,19 +273,23 @@ export default function NewDealPage() {
             <Badge variant="muted">Optional</Badge>
           </CardHeader>
           <div className="space-y-4">
-            <Input label="Pricing Formula" name="pricingFormula" placeholder="e.g. Platts CIF NWE -$5/MT" />
-            <div className="grid grid-cols-3 gap-4">
-              <Select
-                label="Pricing Period Type"
-                name="pricingPeriodType"
-                options={pricingPeriodTypeOptions}
-                onChange={(e) => setPricingPeriodType(e.target.value)}
-              />
-              <Input label="Pricing Period Value" name="pricingPeriodValue" placeholder="e.g. 0-1-5 or 1-15 Mar" />
-              {(pricingPeriodType === "BL" || pricingPeriodType === "NOR") && (
-                <Input label="Est. BL/NOR Date" name="pricingEstimatedDate" type="date" />
-              )}
-            </div>
+            {/* Pricing Formula intentionally hidden from ops UI — invoice-
+                desk concern. Operators only set the structured period. */}
+            <PricingPeriodInput
+              type={pricingPeriodType}
+              value={pricingPeriodValue}
+              onChange={({ type, value }) => {
+                setPricingPeriodType(type);
+                setPricingPeriodValue(value);
+              }}
+            />
+            {/* Hidden mirrors so the existing FormData submit path keeps
+                working without rewriting getFormData(). */}
+            <input type="hidden" name="pricingPeriodType" value={pricingPeriodType} />
+            <input type="hidden" name="pricingPeriodValue" value={pricingPeriodValue} />
+            {(pricingPeriodType === "BL" || pricingPeriodType === "NOR") && (
+              <Input label="Est. BL/NOR Date" name="pricingEstimatedDate" type="date" />
+            )}
             <Textarea label="Special Instructions" name="specialInstructions" placeholder="Any special requirements..." rows={3} />
           </div>
         </Card>
