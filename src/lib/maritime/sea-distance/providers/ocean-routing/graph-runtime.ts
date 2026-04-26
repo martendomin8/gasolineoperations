@@ -1326,6 +1326,49 @@ export function routeThroughGraph(
       );
     }
 
+    // Sanity-check the Dijkstra result against the great-circle.
+    // Symptom that motivated this: a Polish-coast → Gdansk-approach
+    // hop (~100 NM direct) routed through 162 NM of north-Baltic
+    // detour because the ocean-routing graph has sparse coastal
+    // nodes. The direct-first check at the top of the loop missed it
+    // (`isArcClearOfLand` was conservative about the Hel peninsula),
+    // and Dijkstra obediently took the only available path through
+    // the few nodes it had.
+    //
+    // Heuristic: if the chosen path is materially longer than the
+    // great-circle on a SHORT hop (< 300 NM direct), the discrepancy
+    // is almost certainly graph-density artifact rather than a
+    // legitimate land-avoiding detour. Replace with the direct line.
+    // Long legs (Iberia rounding, English Channel transit, etc.) keep
+    // their Dijkstra-routed path because direct lines there really
+    // would cut continents.
+    //
+    // Numbers picked empirically:
+    //   direct < 300 NM   — Baltic / North Sea / Med inter-port hops
+    //   ratio  > 1.3      — 30% detour is noticeable, anything below
+    //                       is likely real terrain following
+    if (fromCoord && toCoord) {
+      const directNm = haversineNm(
+        fromCoord.lat,
+        fromCoord.lon,
+        toCoord.lat,
+        toCoord.lon,
+      );
+      if (directNm < 300 && legDistance > directNm * 1.3) {
+        legs.push({
+          from: from.label,
+          to: to.label,
+          coordinates: [
+            [fromCoord.lat, fromCoord.lon],
+            [toCoord.lat, toCoord.lon],
+          ],
+          distanceNm: Math.round(directNm * 10) / 10,
+        });
+        totalNm += directNm;
+        continue;
+      }
+    }
+
     legs.push({
       from: from.label,
       to: to.label,
