@@ -1082,14 +1082,32 @@ export function dijkstra(
 
 // ── Custom-waypoint injection helpers ────────────────────────
 
-const CUSTOM_NEAREST_K = 20;  // connect custom waypoint to 20 nearest graph nodes
-// Bumped from 5 → 20 so Dijkstra has more direction options when a
-// custom waypoint lands in a sparse coastal area. With K=5 the five
-// nearest graph nodes can all sit in one direction (e.g. north of a
-// Baltic-Sea custom point), forcing every route through that
-// direction and producing the visible "loop north then south to
-// destination" zigzag. K=20 typically spreads across all four
-// quadrants and lets Dijkstra pick the actually-shorter direction.
+const CUSTOM_NEAREST_K = 50;  // connect custom waypoint to 50 nearest graph nodes
+// Bumped 5 → 20 → 50 progressively. Each increase improves Dijkstra's
+// chance of finding the right route option without altering the
+// graph's land-safety contract:
+//
+//   K=5  — original. Too few; in sparse coastal areas (Polish Baltic,
+//          Bay of Biscay etc.) the 5 nearest can all sit in one
+//          direction and force a zigzag.
+//   K=20 — better quadrant coverage but still missed pre-curated
+//          chains: the 20 nearest base nodes can dominate, leaving
+//          chain entry points (gdansk, antwerp-fix, etc.) outside
+//          the cut even when they're the right answer.
+//   K=50 — chain endpoints almost always land inside the top-50 by
+//          haversine distance from any custom waypoint within ~150
+//          NM of a port. Custom + chain endpoint edge becomes
+//          available; sticky chain weighting (0.3× internal) makes
+//          Dijkstra prefer the curated approach over the sparse
+//          base-node zigzag.
+//
+// We deliberately do NOT widen the chain-hook radius (kept at 60 NM)
+// or globally densify coastal anchors. Both of those would attract
+// trans-ocean voyages onto coastal chains and reintroduce the
+// "graze the coastline of Canada" pattern. Wider K only changes
+// what's visible from the CUSTOM waypoint — the chain itself stays
+// locally connected to base nodes within 60 NM, so a vessel mid-
+// Atlantic still sees only open-ocean Marnet base nodes around it.
 
 export interface CustomWaypoint {
   lat: number;
