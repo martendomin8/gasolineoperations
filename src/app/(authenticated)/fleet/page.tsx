@@ -21,6 +21,11 @@ import { buildLinkageCards } from "@/app/(authenticated)/dashboard/page";
 import { findPortCoordinates } from "@/lib/geo/ports";
 import { computeMockPosition } from "@/lib/geo/mock-positions";
 import { findPort, getSeaRoutePath, getSeaDistance } from "@/lib/maritime/sea-distance";
+import {
+  resolveVoyageTimeline,
+  type VoyageDealInput,
+} from "@/lib/maritime/voyage-timeline/resolver";
+import { deriveVoyageState } from "@/lib/maritime/voyage-timeline/state";
 import { STATUS_COLORS, STATUS_LABELS } from "./fleet-map-maplibre";
 import type { FleetVessel, PlannerRouteLeg } from "./fleet-map-maplibre";
 import { WorldscalePanel } from "./worldscale-panel";
@@ -133,6 +138,49 @@ interface LinkageRow {
    *  operator has accepted the parse results. Fleet planner uses the
    *  shape keys it cares about (dwt, loa, vesselType) for Kwon. */
   vesselParticulars?: Record<string, unknown> | null;
+}
+
+// ── Voyage timeline helpers ─────────────────────────────────
+
+/**
+ * Pick the most accurate "sailing started" timestamp for a card so the Fleet
+ * map's `computeMockPosition` interpolates from operator-confirmed reality
+ * rather than the laycan_end stand-in. Order: manual ETS override → arrival
+ * + qty/load-rate + setup → laycan_end fallback.
+ *
+ * Multi-load voyages: the LAST loadport (highest sortOrder) is the one that
+ * sets sailing time — vessel only starts the disport leg after the final
+ * load completes.
+ */
+function computeSailingDepartureIso(
+  buys: DealItem[],
+  fallbackPool: DealItem[]
+): string | null {
+  if (buys.length > 0) {
+    const sorted = [...buys].sort(
+      (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)
+    );
+    const last = sorted[sorted.length - 1];
+    if (last.departureOverride) return last.departureOverride;
+    if (last.arrivalAt) {
+      const qty = parseFloat(last.quantityMt) || 0;
+      // Mirror voyage-timeline constants. Hardcoded here to avoid pulling
+      // server-side modules into the Fleet page bundle; these numbers are
+      // unlikely to drift independently because they're the canonical
+      // shipping rule (800 MT/h LOAD, 8h berth setup additive).
+      const portStayHours = 8 + qty / 800;
+      const arrivalMs = new Date(last.arrivalAt).getTime();
+      if (Number.isFinite(arrivalMs)) {
+        return new Date(arrivalMs + portStayHours * 3_600_000).toISOString();
+      }
+    }
+  }
+  // Final fallback: latest laycan_end across all card deals.
+  const laycanEnds = fallbackPool
+    .map((d) => d.laycanEnd)
+    .filter(Boolean)
+    .sort();
+  return laycanEnds[laycanEnds.length - 1] ?? null;
 }
 
 // ── Geo helpers ──────────────────────────────────────────────
@@ -625,6 +673,27 @@ export default function FleetPage() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
+  // Auto-refresh on tab return + after the voyage-strip saves a sailing
+  // event. Without this the Fleet map keeps the stale `vessels` snapshot
+  // from page mount, so a vessel marker won't reposition until the
+  // operator hard-reloads even though the underlying arrival_at /
+  // departure_override / cp_speed_kn just changed in another tab or in
+  // the linkage view they came from.
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible") fetchData();
+    };
+    const onDealUpdated = () => fetchData();
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("deal:updated", onDealUpdated);
+    window.addEventListener("linkage:deal-added", onDealUpdated);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("deal:updated", onDealUpdated);
+      window.removeEventListener("linkage:deal-added", onDealUpdated);
+    };
+  }, [fetchData]);
+
   // Planner: search ports as user types
   useEffect(() => {
     if (!plannerSearch.trim() || plannerSearch.length < 2) {
@@ -745,12 +814,80 @@ export default function FleetPage() {
       }
     }
 
-    // Departure date estimate = latest laycan_end across the card's deals.
-    const laycanEnds = allCardDeals.map((d) => (d as DealItem).laycanEnd).filter(Boolean).sort();
-    const estimatedDeparture = laycanEnds[laycanEnds.length - 1] ?? null;
+    // Departure anchor: voyage-timeline event if the operator has entered
+    // one, otherwise the last loadport's laycan_end as before. Order of
+    // preference (most accurate first):
+    //
+    //   1. last buy's `departureOverride` — operator pinned ETS manually
+    //   2. last buy's `arrivalAt` + portStay (qty / LOAD_RATE + MIN_BERTH)
+    //   3. latest laycan_end across all card deals
+    //
+    // The "last buy" is the LATEST loadport in sortOrder — for multi-load
+    // voyages (LOAD #1 → LOAD #2 → DISCH) the sailing leg starts from
+    // LOAD #2, not LOAD #1.
+    //
+    // We still compute `laycanEnds` separately because the FleetVessel
+    // payload exposes `latestLaycanEnd` for downstream consumers (e.g.
+    // ETA banner) that want the contractual-window value, not the
+    // operator-supplied sailing-event value.
+    const laycanEnds = allCardDeals
+      .map((d) => (d as DealItem).laycanEnd)
+      .filter(Boolean)
+      .sort();
+    const estimatedDeparture = computeSailingDepartureIso(card.buys, allCardDeals);
+
+    // Effective vessel phase (loading / sailing / discharging / completed)
+    // is now derived from arrival/departure timestamps via the voyage
+    // timeline rather than the legacy operator-set linkage.status. Manual
+    // `status === "completed"` still wins (operator's archive flag), but
+    // every intermediate state comes from the data.
+    const cardBuysAsInputs: VoyageDealInput[] = card.buys.map((d) => ({
+      id: d.id,
+      direction: "buy",
+      port: d.loadport,
+      quantityMt: parseFloat(d.quantityMt) || 0,
+      arrivalAt: d.arrivalAt ? new Date(d.arrivalAt) : null,
+      arrivalIsActual: d.arrivalIsActual ?? false,
+      departureOverride: d.departureOverride ? new Date(d.departureOverride) : null,
+    }));
+    const cardSellsAsInputs: VoyageDealInput[] = card.sells
+      .filter((d) => Boolean(d.dischargePort))
+      .map((d) => ({
+        id: d.id,
+        direction: "sell",
+        port: d.dischargePort!,
+        quantityMt: parseFloat(d.quantityMt) || 0,
+        arrivalAt: d.arrivalAt ? new Date(d.arrivalAt) : null,
+        arrivalIsActual: d.arrivalIsActual ?? false,
+        departureOverride: d.departureOverride ? new Date(d.departureOverride) : null,
+      }));
+    const stops = resolveVoyageTimeline({
+      buyDeals: cardBuysAsInputs,
+      sellDeals: cardSellsAsInputs,
+      cpSpeedKn: 12, // The state derivation only consumes timestamps, not speed.
+      getDistanceNm: () => null,
+    });
+    const derivedState = deriveVoyageState(stops);
+
+    let effectiveStatus: string;
+    if (card.status === "completed") {
+      effectiveStatus = "completed";
+    } else if (derivedState.phase === "completed") {
+      effectiveStatus = "completed";
+    } else if (derivedState.phase === "sailing") {
+      effectiveStatus = "sailing";
+    } else if (
+      derivedState.phase === "at_port" &&
+      derivedState.atStopIdx !== null &&
+      stops[derivedState.atStopIdx]?.role === "discharge"
+    ) {
+      effectiveStatus = "discharging";
+    } else {
+      effectiveStatus = "loading"; // pre_voyage + at_port(load) → at loadport
+    }
 
     const position = computeMockPosition(
-      card.status,
+      effectiveStatus,
       card.vessel + card.id,
       loadCoords,
       dischCoords,
@@ -773,7 +910,7 @@ export default function FleetPage() {
       vesselName: card.vessel,
       vesselImo: (linkageRow as LinkageRow)?.vesselImo ?? null,
       linkageCode: card.displayName,
-      status: card.status,
+      status: effectiveStatus,
       position: { lat: position.lat, lng: position.lng },
       heading: position.heading,
       loadport, dischargePort,
@@ -784,7 +921,7 @@ export default function FleetPage() {
       assignedOperatorName: card.assignedOperatorName,
       product: card.product,
       isUrgent,
-      etaHours: (card.status === "sailing" && dischCoords)
+      etaHours: (effectiveStatus === "sailing" && dischCoords)
         ? Math.round(distanceNM(position.lat, position.lng, dischCoords.lat, dischCoords.lng) / TANKER_SPEED_KN)
         : null,
       vesselParticulars: (linkageRow as LinkageRow)?.vesselParticulars ?? null,

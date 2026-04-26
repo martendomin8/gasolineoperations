@@ -36,6 +36,13 @@ interface DealItem {
   pricingType: string | null;
   pricingFormula: string | null;
   pricingEstimatedDate: string | null;
+  // Voyage-timeline fields. Threaded down to the Fleet map so vessel
+  // positions interpolate from the operator-confirmed sailing event when
+  // available, rather than the laycan_end hack.
+  arrivalAt: string | null;
+  arrivalIsActual: boolean;
+  departureOverride: string | null;
+  sortOrder?: number;
 }
 
 interface LinkageRow {

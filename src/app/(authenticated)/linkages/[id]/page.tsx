@@ -23,7 +23,6 @@ import {
   Plus,
   Link2,
   Ship,
-  Package,
   Users,
   DollarSign,
   Save,
@@ -34,11 +33,7 @@ import {
   ChevronDown,
   ChevronUp,
   Anchor,
-  Play,
-  Waves,
   CircleDot,
-  CheckCircle2,
-  ChevronRight,
   Layers,
   Loader2,
   GripVertical,
@@ -47,6 +42,8 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
+import { VoyageStrip, type VoyageStripDeal } from "./voyage-strip";
+import { VoyageProgressBar, type VoyageProgressBarDeal } from "./voyage-progress-bar";
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -81,6 +78,7 @@ interface VesselParticulars {
   coating?: string | null;
   segregations?: number | null;
   pumpType?: string | null;
+  serviceSpeedLadenKn?: number | null;
   tanks?: VesselTank[];
   loadlines?: VesselLoadline[];
   parsedAt?: string;
@@ -96,6 +94,8 @@ interface LinkageData {
   vesselImo: string | null;
   vesselMmsi: string | null;
   vesselParticulars: VesselParticulars | null;
+  cpSpeedKn: string | number | null;
+  cpSpeedSource: string | null;
   assignedOperatorId: string | null;
   secondaryOperatorId: string | null;
   notes: string | null;
@@ -127,6 +127,14 @@ interface DealSummary {
   dealType: string;
   vesselName: string | null;
   sortOrder: number;
+  /** Voyage-timeline fields. arrivalAt is the operator-entered ETA/ATA at
+   *  this deal's port; arrivalIsActual flips ETA → ATA semantically.
+   *  departureOverride pins ETS manually instead of qty-driven auto-calc. */
+  arrivalAt: string | null;
+  arrivalIsActual: boolean;
+  departureOverride: string | null;
+  /** Optimistic-locking version, threaded into voyage-strip PUT payloads. */
+  version: number;
   /** 1 for single-parcel (the common case), 2+ for multi-grade deals. */
   parcelCount?: number;
   /**
@@ -161,6 +169,38 @@ interface LinkageDoc {
   fileType: string;
   storagePath: string | null;
   createdAt: string;
+}
+
+// Adapter: dashboard's DealSummary → voyage-strip input shape. Keeps the
+// VoyageStrip prop contract narrow (only the fields it actually reads) and
+// quietly drops anything the strip doesn't care about.
+function toVoyageStripDeal(d: DealSummary): VoyageStripDeal {
+  return {
+    id: d.id,
+    direction: d.direction === "buy" ? "buy" : "sell",
+    loadport: d.loadport,
+    dischargePort: d.dischargePort,
+    quantityMt: d.quantityMt,
+    arrivalAt: d.arrivalAt ?? null,
+    arrivalIsActual: d.arrivalIsActual ?? false,
+    departureOverride: d.departureOverride ?? null,
+    version: d.version ?? 1,
+  };
+}
+
+// Same adapter shape, minus the version field — the progress bar never
+// writes deals, only renders state derived from them.
+function toVoyageProgressBarDeal(d: DealSummary): VoyageProgressBarDeal {
+  return {
+    id: d.id,
+    direction: d.direction === "buy" ? "buy" : "sell",
+    loadport: d.loadport,
+    dischargePort: d.dischargePort,
+    quantityMt: d.quantityMt,
+    arrivalAt: d.arrivalAt ?? null,
+    arrivalIsActual: d.arrivalIsActual ?? false,
+    departureOverride: d.departureOverride ?? null,
+  };
 }
 
 // ── Page ─────────────────────────────────────────────────────
@@ -358,6 +398,36 @@ export default function LinkageDetailPage() {
         onUpdated={fetchData}
       />
 
+      {/* Voyage Progress bar (auto-derived state from timeline events) +
+          Voyage Timeline strip (data entry). Both surface the same data;
+          the bar visualises "where is the vessel now", the strip is for
+          editing arrival/departure times. */}
+      {(buyDeals.length > 0 || sellDeals.length > 0) && (
+        <>
+          <VoyageProgressBar
+            linkageId={linkage.id}
+            linkageStatus={linkage.status}
+            cpSpeedKn={linkage.cpSpeedKn}
+            cpSpeedSource={linkage.cpSpeedSource}
+            vesselParticulars={linkage.vesselParticulars}
+            buyDeals={buyDeals.map(toVoyageProgressBarDeal)}
+            sellDeals={sellDeals.map(toVoyageProgressBarDeal)}
+            canEdit={isOperator}
+            onUpdated={fetchData}
+          />
+          <VoyageStrip
+            linkageId={linkage.id}
+            cpSpeedKn={linkage.cpSpeedKn}
+            cpSpeedSource={linkage.cpSpeedSource}
+            vesselParticulars={linkage.vesselParticulars}
+            buyDeals={buyDeals.map(toVoyageStripDeal)}
+            sellDeals={sellDeals.map(toVoyageStripDeal)}
+            canEdit={isOperator}
+            onUpdated={fetchData}
+          />
+        </>
+      )}
+
       {/* Notes */}
       <NotesSection
         linkageId={linkage.id}
@@ -377,7 +447,6 @@ export default function LinkageDetailPage() {
             Balance: ~{Math.abs(buyTotal - sellTotal).toLocaleString()} MT
           </span>
           <span className="flex-1" />
-          <LinkageStatusStepper linkageId={linkage.id} status={linkage.status} canEdit={isOperator} onUpdated={fetchData} />
         </div>
       )}
 
@@ -735,96 +804,6 @@ function NotesSection({ linkageId, notes, canEdit, onSaved }: {
       ) : (
         <p className="text-sm text-[var(--color-text-secondary)] whitespace-pre-wrap">{notes || "No notes"}</p>
       ))}
-    </div>
-  );
-}
-
-// ── Status Toggle ────────────────────────────────────────────
-
-const LINKAGE_STATUS_STEPS: Array<{ status: string; label: string; icon: React.ElementType }> = [
-  { status: "active",      label: "Active",      icon: Play },
-  { status: "loading",     label: "Loading",     icon: Package },
-  { status: "sailing",     label: "Sailing",     icon: Ship },
-  { status: "discharging", label: "Discharging", icon: Waves },
-  { status: "completed",   label: "Completed",   icon: CheckCircle2 },
-];
-
-const NEXT_LINKAGE_STATUS: Record<string, string> = {
-  active:      "loading",
-  loading:     "sailing",
-  sailing:     "discharging",
-  discharging: "completed",
-};
-
-const PREV_LINKAGE_STATUS: Record<string, string> = {
-  loading:     "active",
-  sailing:     "loading",
-  discharging: "sailing",
-  completed:   "discharging",
-};
-
-function LinkageStatusStepper({ linkageId, status, canEdit, onUpdated }: {
-  linkageId: string; status: string; canEdit: boolean; onUpdated: () => void;
-}) {
-  const [advancing, setAdvancing] = useState(false);
-  const currentIdx = LINKAGE_STATUS_STEPS.findIndex((s) => s.status === status);
-  const nextStatus = NEXT_LINKAGE_STATUS[status];
-  const prevStatus = PREV_LINKAGE_STATUS[status];
-
-  const handleSetStatus = async (newStatus: string) => {
-    if (!canEdit || advancing) return;
-    setAdvancing(true);
-    const res = await fetch(`/api/linkages/${linkageId}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: newStatus }),
-    });
-    setAdvancing(false);
-    if (res.ok) {
-      toast.success(`Voyage status: ${newStatus}`);
-      onUpdated();
-    } else {
-      toast.error("Failed to update status");
-    }
-  };
-
-  return (
-    <div className="flex items-center gap-1.5 flex-wrap">
-      {LINKAGE_STATUS_STEPS.map((step, idx) => {
-        const Icon = step.icon;
-        const isPast = idx < currentIdx;
-        const isCurrent = idx === currentIdx;
-        const isNext = nextStatus === step.status;
-        const isPrev = prevStatus === step.status;
-
-        return (
-          <div key={step.status} className="flex items-center gap-1.5">
-            {idx > 0 && (
-              <ChevronRight className={`h-3 w-3 flex-shrink-0 ${isPast || isCurrent ? "text-[var(--color-accent)]" : "text-[var(--color-border-subtle)]"}`} />
-            )}
-            <button
-              onClick={(isNext || isPrev) && canEdit ? () => handleSetStatus(step.status) : undefined}
-              disabled={(!isNext && !isPrev) || !canEdit || advancing}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-all ${
-                isCurrent
-                  ? "bg-[var(--color-accent)] text-[var(--color-text-inverse)] shadow-sm"
-                  : isPast
-                  ? "bg-[var(--color-success-muted)] text-[var(--color-success)] cursor-pointer hover:opacity-80"
-                  : isNext && canEdit
-                  ? "bg-[var(--color-surface-3)] text-[var(--color-text-secondary)] hover:bg-[var(--color-accent-muted)] hover:text-[var(--color-accent-text)] cursor-pointer border border-dashed border-[var(--color-border-default)]"
-                  : "bg-[var(--color-surface-2)] text-[var(--color-text-tertiary)] cursor-default opacity-50"
-              }`}
-            >
-              {isCurrent && advancing ? (
-                <div className="h-3 w-3 rounded-full border-2 border-current border-t-transparent animate-spin" />
-              ) : (
-                <Icon className="h-3 w-3" />
-              )}
-              {step.label}
-            </button>
-          </div>
-        );
-      })}
     </div>
   );
 }
