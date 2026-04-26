@@ -256,6 +256,22 @@ export default function FleetPage() {
   const [plannerSearch, setPlannerSearch] = useState("");
   const [plannerResults, setPlannerResults] = useState<Array<{ name: string; lat: number; lon: number }>>([]);
   const [plannerSpeed, setPlannerSpeed] = useState(12);
+  /**
+   * Where the Planner anchors its first waypoint when a vessel is selected.
+   *
+   *   "vessel"    — vessel's current map position (operator-relevant
+   *                 ETA, "remaining time"). Default. Switches the row
+   *                 #1 label to "Vessel position (live AIS / ...)".
+   *   "loadport"  — the contracted route's first loadport. Used when
+   *                 the operator wants to set/inspect a Worldscale
+   *                 rate, port-cost data, or simply see the original
+   *                 voyage. Restores row #1 to the loadport name so
+   *                 it can be clicked, edited, or have rates attached.
+   *
+   * Keyed into `selectionKey` so the planner-build effect re-runs on
+   * every flip without needing manual refresh.
+   */
+  const [plannerStartMode, setPlannerStartMode] = useState<"vessel" | "loadport">("vessel");
   const [plannerDistance, setPlannerDistance] = useState<{
     totalNm: number;
     legs: Array<{ from: string; to: string; distanceNm: number }>;
@@ -950,7 +966,7 @@ export default function FleetPage() {
   const selectionKey = selectedDisplayVessel
     ? `${selectedDisplayVessel.id}|${selectedDisplayVessel.aisMode ?? "none"}|${
         selectedDisplayVessel.position?.lat?.toFixed(1) ?? "x"
-      },${selectedDisplayVessel.position?.lng?.toFixed(1) ?? "x"}`
+      },${selectedDisplayVessel.position?.lng?.toFixed(1) ?? "x"}|${plannerStartMode}`
     : null;
   useEffect(() => {
     if (!selectedVesselId || selectionKey === prevSelectedRef.current) return;
@@ -987,7 +1003,9 @@ export default function FleetPage() {
     })();
 
     const liveWaypoint =
-      v.position?.lat != null && v.position?.lng != null
+      plannerStartMode === "vessel" &&
+      v.position?.lat != null &&
+      v.position?.lng != null
         ? {
             name: positionLabel,
             lat: v.position.lat,
@@ -1594,6 +1612,41 @@ export default function FleetPage() {
                       {compareMode && `Route ${activeRoute} — `}
                       Waypoints ({activePorts.length})
                     </div>
+
+                    {/* Route source toggle — only shown when a vessel is
+                        selected (otherwise the planner is in pure-manual
+                        mode and the toggle has nothing to switch on).
+                        "Vessel position" gives the operator-relevant
+                        remaining-time view; "Loadport" rebuilds the
+                        contracted route so they can attach Worldscale
+                        rates / port costs / compare alternates against
+                        the original voyage. */}
+                    {selectedVesselId !== null && activeRoute === "A" && (
+                      <div className="mb-2 flex items-center gap-1 p-0.5 rounded-[var(--radius-sm)] bg-[var(--color-surface-2)]">
+                        <button
+                          onClick={() => setPlannerStartMode("vessel")}
+                          className={`flex-1 px-2 py-1 text-[0.65rem] font-medium rounded-[var(--radius-sm)] transition-colors cursor-pointer ${
+                            plannerStartMode === "vessel"
+                              ? "bg-cyan-500/20 text-cyan-300"
+                              : "text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]"
+                          }`}
+                          title="Anchor route at the vessel's current position — gives remaining-time ETA from where the marker is right now."
+                        >
+                          From vessel
+                        </button>
+                        <button
+                          onClick={() => setPlannerStartMode("loadport")}
+                          className={`flex-1 px-2 py-1 text-[0.65rem] font-medium rounded-[var(--radius-sm)] transition-colors cursor-pointer ${
+                            plannerStartMode === "loadport"
+                              ? "bg-cyan-500/20 text-cyan-300"
+                              : "text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]"
+                          }`}
+                          title="Rebuild the contracted loadport → discharge route — needed to attach Worldscale rates or port costs."
+                        >
+                          Contracted route
+                        </button>
+                      </div>
+                    )}
                     {activePorts.length === 0 ? (
                       <div className="text-xs text-[var(--color-text-tertiary)] italic py-4 text-center">
                         Search + add, or click a port / empty sea on the map
