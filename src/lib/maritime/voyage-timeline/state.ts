@@ -6,8 +6,8 @@
 //
 // The output drives:
 //   - The Fleet map vessel marker (at port vs interpolated mid-route)
-//   - The VoyageProgressBar in the linkage view (which segment is "past",
-//     where the vessel diamond sits, which segments are "future")
+//   - The VoyageSchematicBar in the linkage view (which segment is "past",
+//     where the vessel marker sits, which segments are "future")
 
 import type { ResolvedPort } from "./resolver";
 

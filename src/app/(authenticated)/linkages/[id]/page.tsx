@@ -43,7 +43,10 @@ import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { VoyageStrip, type VoyageStripDeal } from "./voyage-strip";
-import { VoyageProgressBar, type VoyageProgressBarDeal } from "./voyage-progress-bar";
+import {
+  VoyageSchematicBarWrapper,
+  type VoyageSchematicBarDeal,
+} from "./voyage-schematic-bar-wrapper";
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -188,15 +191,19 @@ function toVoyageStripDeal(d: DealSummary): VoyageStripDeal {
   };
 }
 
-// Same adapter shape, minus the version field — the progress bar never
-// writes deals, only renders state derived from them.
-function toVoyageProgressBarDeal(d: DealSummary): VoyageProgressBarDeal {
+// Adapter for the schematic bar — needs product + laycan window in addition
+// to the timeline events so the header can render "5,000 MT EBOB · LAYCAN
+// 23–27 APR" without an extra fetch.
+function toVoyageSchematicBarDeal(d: DealSummary): VoyageSchematicBarDeal {
   return {
     id: d.id,
     direction: d.direction === "buy" ? "buy" : "sell",
     loadport: d.loadport,
     dischargePort: d.dischargePort,
+    product: d.product,
     quantityMt: d.quantityMt,
+    laycanStart: d.laycanStart,
+    laycanEnd: d.laycanEnd,
     arrivalAt: d.arrivalAt ?? null,
     arrivalIsActual: d.arrivalIsActual ?? false,
     departureOverride: d.departureOverride ?? null,
@@ -398,20 +405,22 @@ export default function LinkageDetailPage() {
         onUpdated={fetchData}
       />
 
-      {/* Voyage Progress bar (auto-derived state from timeline events) +
-          Voyage Timeline strip (data entry). Both surface the same data;
-          the bar visualises "where is the vessel now", the strip is for
-          editing arrival/departure times. */}
+      {/* Voyage schematic bar (presentation; auto-derived state) +
+          Voyage timeline strip (compact data-entry table). Both surface
+          the same arrival/departure events. */}
       {(buyDeals.length > 0 || sellDeals.length > 0) && (
         <>
-          <VoyageProgressBar
+          <VoyageSchematicBarWrapper
             linkageId={linkage.id}
+            linkageNumber={linkage.linkageNumber}
+            linkageTempName={linkage.tempName}
             linkageStatus={linkage.status}
+            vesselName={linkage.vesselName}
             cpSpeedKn={linkage.cpSpeedKn}
             cpSpeedSource={linkage.cpSpeedSource}
             vesselParticulars={linkage.vesselParticulars}
-            buyDeals={buyDeals.map(toVoyageProgressBarDeal)}
-            sellDeals={sellDeals.map(toVoyageProgressBarDeal)}
+            buyDeals={buyDeals.map(toVoyageSchematicBarDeal)}
+            sellDeals={sellDeals.map(toVoyageSchematicBarDeal)}
             canEdit={isOperator}
             onUpdated={fetchData}
           />
