@@ -1045,16 +1045,21 @@ export default function FleetPage() {
     // Direction-aware collection. The voyage timeline is:
     //   buy.loadport(s)  →  sell.dischargePort(s)
     //
-    // Anything else is noise:
-    //   - A BUY's `dischargePort` is the OTHER side of the same trade
-    //     (where the cargo will eventually be sold/discharged) — NOT a
-    //     stop in this vessel's actual voyage. Bayonne→Bayonne BUY
-    //     deals (own-terminal-buy patterns) used to inject "Bayonne"
-    //     in the middle of a vessel→Gdansk route, ballooning ETA from
-    //     2 d to 8 d.
-    //   - A SELL's `loadport` is where the cargo was previously loaded
-    //     (same physical port as the BUY's loadport, not a separate
-    //     stop). The vessel only visits that port once.
+    // A BUY's `dischargePort` is normally trade-counterparty metadata
+    // (where the cargo will eventually be sold/discharged), NOT a stop
+    // for this vessel — the actual discharge stop comes from the SELL
+    // deal that gets attached later. Same goes for a SELL's loadport:
+    // it's where the cargo was previously loaded (same physical port
+    // as the buy's loadport), not a separate vessel visit.
+    //
+    // BUT: a brand-new linkage that has only a BUY recap (no sell yet
+    // and no "discharge to own terminal" yet) still needs SOMETHING as
+    // the route endpoint, otherwise the planner card has nowhere to
+    // route to. In that bootstrap window we fall back to the BUY's
+    // own dischargePort if it's set. As soon as any sell-side deal
+    // appears (regular SELL or terminal-operation SELL — both have
+    // `direction === "sell"`), we drop the buy's disport and use the
+    // sell's, which is the operator-authoritative discharge point.
     //
     // Skip loadports entirely when liveWaypoint exists — the vessel is
     // already past them. In "Contracted route" mode (no liveWaypoint),
@@ -1064,8 +1069,18 @@ export default function FleetPage() {
         if (d.direction === "buy") collect(d.loadport);
       }
     }
+    const hasSell = linkageDeals.some((d) => d.direction === "sell");
     for (const d of linkageDeals) {
       if (d.direction === "sell") collect(d.dischargePort);
+    }
+    if (!hasSell) {
+      // Bootstrap: linkage has buys but no sells (regular or terminal-
+      // op). The buy's dischargePort is the only signal we have for
+      // where the vessel is heading. Use it; it'll be replaced the
+      // moment the operator attaches a sell deal.
+      for (const d of linkageDeals) {
+        if (d.direction === "buy") collect(d.dischargePort);
+      }
     }
 
     // Fallback: an empty linkage (no deals yet, or every deal has NULL
