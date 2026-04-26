@@ -1082,7 +1082,14 @@ export function dijkstra(
 
 // ── Custom-waypoint injection helpers ────────────────────────
 
-const CUSTOM_NEAREST_K = 5;  // connect custom waypoint to 5 nearest graph nodes
+const CUSTOM_NEAREST_K = 20;  // connect custom waypoint to 20 nearest graph nodes
+// Bumped from 5 → 20 so Dijkstra has more direction options when a
+// custom waypoint lands in a sparse coastal area. With K=5 the five
+// nearest graph nodes can all sit in one direction (e.g. north of a
+// Baltic-Sea custom point), forcing every route through that
+// direction and producing the visible "loop north then south to
+// destination" zigzag. K=20 typically spreads across all four
+// quadrants and lets Dijkstra pick the actually-shorter direction.
 
 export interface CustomWaypoint {
   lat: number;
@@ -1126,17 +1133,39 @@ export function buildCustomExtras(
     }
   }
 
-  // NOTE: we intentionally do NOT add direct custom↔custom edges.
-  // Earlier version did — rationale was "let Dijkstra chain customs
-  // without bouncing off a base node between them" — but that
-  // reintroduced the exact bug this whole module was built to fix:
-  // haversine-shortest is straight-line, so Dijkstra would always
-  // pick the direct custom-A→custom-B edge over the (longer) via-
-  // graph path, even when the direct edge crosses continents.
-  // Every custom-to-custom leg MUST be forced through base graph
-  // nodes to guarantee land-safety. If two customs happen to sit
-  // next to each other in open ocean, they'll still meet at a
-  // nearby base node and the via-graph detour is ≤ ~100 NM.
+  // Direct custom↔custom edges, gated by land-safety.
+  //
+  // The earlier version blanket-disabled these connections because an
+  // older bug had Dijkstra picking direct custom-A → custom-B edges
+  // that cut continents. The fix back then was "force every leg
+  // through the graph". That was a sledgehammer — it also disables
+  // legitimate open-water hops where two custom points sit in clear
+  // sea (Baltic, North Sea, Mediterranean inter-port). For those
+  // cases the via-graph path can detour 60–100% extra because the
+  // graph's coastal node density isn't fine enough to express the
+  // direct line.
+  //
+  // Surgical fix: re-enable direct edges, but only when
+  // `isArcClearOfLand` confirms the great-circle between the pair
+  // is fully water. Atlantic-spanning custom pairs (the case the
+  // original blanket-disable was protecting) still go through the
+  // graph because their arcs clip Iberia / NA / etc. Same-sea
+  // pairs in clear water get the direct edge they should have had
+  // all along.
+  //
+  // GitHub reconnaissance (searoute, ocean-router, eurostat
+  // searoute, etc.) confirms this is the standard approach across
+  // similar libraries — none of them blanket-disable custom-pair
+  // edges. The land-clear check is the contract.
+  for (let i = 0; i < customs.length; i++) {
+    for (let j = i + 1; j < customs.length; j++) {
+      const a = customs[i];
+      const b = customs[j];
+      if (!isArcClearOfLand(a.lat, a.lon, b.lat, b.lon)) continue;
+      const dist = haversineNm(a.lat, a.lon, b.lat, b.lon);
+      addEdge(customIds[i], customIds[j], dist);
+    }
+  }
 
   return { extras: { extraNodes, extraEdges }, customIds };
 }
