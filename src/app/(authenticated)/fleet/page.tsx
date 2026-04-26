@@ -792,17 +792,28 @@ export default function FleetPage() {
       // Compute the remaining-route override: for LIVE / DEAD_RECK
       // vessels, trim the planned polyline at whichever waypoint is
       // nearest to the current AIS position and prepend the AIS
-      // point itself. PREDICTED vessels (no AIS message yet) stick
-      // with the full planned route — we don't actually know where
-      // they are, so "remaining" is meaningless.
+      // point itself.
+      //
+      // We now run this trim for PREDICTED mode too. The earlier
+      // version restricted it to live + dead_reck on the assumption
+      // that "predicted" only meant "no AIS at all → vessel pinned at
+      // loadport". That's no longer true — the resolver also returns
+      // mode=predicted in branch 4 (stale AIS fix > 2h, great-circle
+      // projection from the last anchor toward discharge). In that
+      // case the projected position is NOT on the route polyline and
+      // skipping the trim caused the time-slider to interpolate
+      // linearly between vessel-pos and loadport — a straight line
+      // that cuts across the continent. Trimming snaps to the nearest
+      // route waypoint so the slider walks the actual ocean route
+      // forward from "where the vessel is now", not back to the
+      // start. For the at-loadport predicted case the trim is a no-op
+      // (nearest waypoint is the first one, slice(1) leaves the rest
+      // of the route intact, vessel-pos≈loadport so the prepended
+      // segment is zero-length).
       let routeOverride: [number, number][] | null = null;
       const plannedRoute = vesselRoutesById.get(v.id);
       const aisPos: [number, number] = [ais.position.lat, ais.position.lon];
-      if (
-        plannedRoute !== undefined &&
-        plannedRoute.length >= 2 &&
-        (ais.position.mode === "live" || ais.position.mode === "dead_reck")
-      ) {
+      if (plannedRoute !== undefined && plannedRoute.length >= 2) {
         routeOverride = trimRouteFromNearest(plannedRoute, aisPos);
         // Feed the trimmed route back into vesselRoutesById so the
         // time-slider projection below walks the right geometry.
