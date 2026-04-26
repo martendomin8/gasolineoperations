@@ -1038,19 +1038,47 @@ export default function FleetPage() {
     };
 
     const portNames: string[] = [];
-    // Skip the loadport whenever we have a vessel-position waypoint —
-    // we'd be routing from the vessel through its origin, which is
-    // either zero distance (vessel at loadport) or backwards (vessel
-    // already at sea).
-    if (!liveWaypoint) collect(v.loadport);
-    collect(v.dischargePort);
-
     const linkageDeals = allDeals
       .filter((d) => d.linkageId === v.id)
       .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+
+    // Direction-aware collection. The voyage timeline is:
+    //   buy.loadport(s)  →  sell.dischargePort(s)
+    //
+    // Anything else is noise:
+    //   - A BUY's `dischargePort` is the OTHER side of the same trade
+    //     (where the cargo will eventually be sold/discharged) — NOT a
+    //     stop in this vessel's actual voyage. Bayonne→Bayonne BUY
+    //     deals (own-terminal-buy patterns) used to inject "Bayonne"
+    //     in the middle of a vessel→Gdansk route, ballooning ETA from
+    //     2 d to 8 d.
+    //   - A SELL's `loadport` is where the cargo was previously loaded
+    //     (same physical port as the BUY's loadport, not a separate
+    //     stop). The vessel only visits that port once.
+    //
+    // Skip loadports entirely when liveWaypoint exists — the vessel is
+    // already past them. In "Contracted route" mode (no liveWaypoint),
+    // every BUY's loadport joins the route in order.
+    if (!liveWaypoint) {
+      for (const d of linkageDeals) {
+        if (d.direction === "buy") collect(d.loadport);
+      }
+    }
     for (const d of linkageDeals) {
-      if (!liveWaypoint) collect(d.loadport);
-      collect(d.dischargePort);
+      if (d.direction === "sell") collect(d.dischargePort);
+    }
+
+    // Fallback: an empty linkage (no deals yet, or every deal has NULL
+    // ports) still wants SOMETHING in the planner so the operator can
+    // see the vessel and start adding waypoints manually. Use the
+    // FleetVessel's denormalised loadport/dischargePort here — they may
+    // still be wrong-direction (the synthesis in the parent picks the
+    // first non-null on each field) but they're better than zero
+    // waypoints. If even those are null, the planner stays empty and
+    // the operator searches a port manually.
+    if (portNames.length === 0) {
+      if (!liveWaypoint) collect(v.loadport);
+      collect(v.dischargePort);
     }
 
     if (!liveWaypoint && portNames.length === 0) {
