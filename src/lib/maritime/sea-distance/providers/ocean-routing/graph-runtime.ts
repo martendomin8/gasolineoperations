@@ -1144,9 +1144,32 @@ export function buildCustomExtras(
     customIds.push(id);
     extraNodes.set(id, { lat: c.lat, lon: c.lon });
 
-    // Wire custom → k nearest base-graph nodes
+    // Wire custom → k nearest base-graph nodes, but skip any edge
+    // whose great-circle line cuts across land. The K=50 cut casts a
+    // wider net than K=5 / K=20, which is great for finding chain
+    // entry points but also picks up base nodes on the opposite side
+    // of peninsulas (Hel, Cape Cod, etc.) — the haversine edge to
+    // those crosses ~50 km of land, Dijkstra happily takes it as
+    // cheap, and the rendered polyline shows a straight line through
+    // the peninsula.
+    //
+    // The land check costs ~30 ms per edge in pathological cases but
+    // we only run it K times per leg per custom (typically once or
+    // twice), so total overhead is tens of ms — invisible to the
+    // operator.
+    //
+    // If every nearest edge is land-blocked (custom waypoint sits
+    // deep inside an estuary), we keep the unfiltered set so the
+    // graph stays reachable. The post-Dijkstra haversine fallback in
+    // the API route then handles the visual; better a degraded
+    // approximation than an unreachable error.
     const nearest = findNearestNodes(graph, c.lat, c.lon, CUSTOM_NEAREST_K);
-    for (const { id: nearId, distanceNm } of nearest) {
+    const waterClear = nearest.filter(({ id: nearId }) => {
+      const node = graph.nodes[nearId];
+      return isArcClearOfLand(c.lat, c.lon, node.lat, node.lon);
+    });
+    const edgesToAdd = waterClear.length > 0 ? waterClear : nearest;
+    for (const { id: nearId, distanceNm } of edgesToAdd) {
       addEdge(id, nearId, distanceNm);
     }
   }
