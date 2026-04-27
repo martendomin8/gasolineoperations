@@ -6,6 +6,14 @@ import * as schema from "./schema";
 
 const connectionString = process.env.DATABASE_URL || "postgresql://nomengine:nomengine123@localhost:5432/nominationengine";
 const structuralOnly = process.argv.includes("--structural-only");
+// Default behaviour for a full reset is CATALOG ONLY — tenant, users,
+// parties, email templates and workflow templates. NO deals, NO linkages,
+// NO workflow instances. Operators build reality from real recaps.
+//
+// Set SEED_INCLUDE_DEMO_DEALS=yes to additionally generate ~10 demo deals,
+// linkages, audit logs and the Shell/Vitol/Trafigura cargo-chain showcase.
+// Useful for screen-recordings and client demos; bad for production.
+const includeDemoDeals = process.env.SEED_INCLUDE_DEMO_DEALS === "yes";
 
 async function seed() {
   // === PRODUCTION SAFETY GUARD ===
@@ -15,8 +23,9 @@ async function seed() {
     console.error("   Use --structural-only to seed parties/templates without deleting deals.");
     console.error("");
     console.error("   Examples:");
-    console.error("     SEED_CONFIRM=yes npm run db:seed          # Full reset");
-    console.error("     npm run db:seed -- --structural-only      # Safe: parties + templates only");
+    console.error("     SEED_CONFIRM=yes npm run db:seed                              # Catalog-only reset (no deals/linkages)");
+    console.error("     SEED_INCLUDE_DEMO_DEALS=yes SEED_CONFIRM=yes npm run db:seed  # + demo deals/linkages for showcase");
+    console.error("     npm run db:seed -- --structural-only                          # Safe: parties + templates only");
     process.exit(1);
   }
 
@@ -36,7 +45,10 @@ async function seed() {
     await sql`DELETE FROM parties WHERE tenant_id IS NOT NULL`;
     console.log("  Cleared structural data (parties, templates, workflows).\n");
   } else {
-    console.log("Seeding database (FULL RESET)...\n");
+    console.log("Seeding database (FULL RESET)...");
+    console.log(includeDemoDeals
+      ? "  Mode: catalog + demo deals (SEED_INCLUDE_DEMO_DEALS=yes)\n"
+      : "  Mode: catalog only — no demo deals or linkages will be created.\n");
 
     // Check for real data before truncating
     const [{ count }] = await sql`SELECT COUNT(*) as count FROM deals`;
@@ -153,13 +165,766 @@ async function seed() {
   }
   console.log(`\n  Parties: ${partiesData.length} created (3 terminals, 3 agents, 3 inspectors, 2 brokers)`);
 
-  // --- Deals (skip in structural-only mode) ---
+  // --- Email Templates ---
+  // Catalog item — always created on every reset (full or structural-only).
+  // Templates must exist before deals are created because the workflow engine
+  // attaches them to workflow steps at instantiation time.
+  const emailTemplatesData = [
+    {
+      name: "Terminal Nomination — FOB Sale",
+      partyType: "terminal" as const,
+      incoterm: "FOB" as const,
+      region: "ARA",
+      subjectTemplate: "Nomination — {{counterparty}} / {{product}} / {{external_ref}}",
+      bodyTemplate: `Dear Sirs,
+
+Please find below our nomination for the following cargo:
+
+Seller:       EuroGas Trading BV
+Counterparty: {{counterparty}}
+Product:      {{product}}
+Quantity:     {{quantity_mt}} MT
+Incoterm:     {{incoterm}}
+Loadport:     {{loadport}}
+Laycan:       {{laycan_start}} / {{laycan_end}}
+Vessel:       {{vessel_name}} (IMO {{vessel_imo}})
+
+Documentary instructions to follow separately.
+
+Please confirm receipt and berth availability.
+
+Best regards,
+EuroGas Trading BV — Operations`,
+      mergeFields: ["counterparty", "product", "quantity_mt", "incoterm", "loadport", "laycan_start", "laycan_end", "vessel_name", "vessel_imo", "external_ref"],
+    },
+    {
+      name: "Terminal Nomination + Doc Instructions — CIF/CFR Sale",
+      partyType: "terminal" as const,
+      incoterm: "CIF" as const,
+      region: "ARA",
+      subjectTemplate: "Nomination & Documentary Instructions — {{counterparty}} / {{product}} / {{external_ref}}",
+      bodyTemplate: `Dear Sirs,
+
+We are pleased to nominate the following vessel and provide documentary instructions for the below cargo:
+
+CARGO DETAILS
+Seller:             EuroGas Trading BV
+Buyer:              {{counterparty}}
+Product:            {{product}}
+Quantity:           {{quantity_mt}} MT
+Incoterm:           {{incoterm}}
+Load Port:          {{loadport}}
+Discharge Port:     {{discharge_port}}
+Laycan:             {{laycan_start}} / {{laycan_end}}
+Pricing:            {{pricing_formula}}
+
+VESSEL DETAILS
+Vessel Name:        {{vessel_name}}
+IMO Number:         {{vessel_imo}}
+
+DOCUMENTARY INSTRUCTIONS
+Please make out Bills of Lading as follows:
+  Consignee:      To Order
+  Notify Party:   {{counterparty}}
+  Description:    As per Charter Party
+
+Please confirm receipt and berth availability at your earliest convenience.
+
+Best regards,
+EuroGas Trading BV — Operations`,
+      mergeFields: ["counterparty", "product", "quantity_mt", "incoterm", "loadport", "discharge_port", "laycan_start", "laycan_end", "vessel_name", "vessel_imo", "pricing_formula", "external_ref"],
+    },
+    {
+      name: "Vessel Clearance Request — CIF/CFR/DAP Sale",
+      partyType: "broker" as const,
+      incoterm: "CIF" as const,
+      region: null,
+      subjectTemplate: "Vessel Clearance Request — {{product}} / {{external_ref}}",
+      bodyTemplate: `Dear Sirs,
+
+We are pleased to inform you of the following cargo and request vessel clearance for the nominated vessel:
+
+CARGO DETAILS
+Product:            {{product}}
+Quantity:           {{quantity_mt}} MT
+Incoterm:           {{incoterm}}
+Load Port:          {{loadport}}
+Discharge Port:     {{discharge_port}}
+Laycan:             {{laycan_start}} / {{laycan_end}}
+
+VESSEL NOMINATION
+Vessel Name:        {{vessel_name}}
+IMO Number:         {{vessel_imo}}
+
+Please confirm vessel clearance and provide your documentary instructions (consignee, notify party, B/L marks, and any special requirements).
+
+Best regards,
+EuroGas Trading BV — Operations`,
+      mergeFields: ["counterparty", "product", "quantity_mt", "incoterm", "loadport", "discharge_port", "laycan_start", "laycan_end", "vessel_name", "vessel_imo"],
+    },
+    {
+      name: "Inspector Appointment — Loadport",
+      partyType: "inspector" as const,
+      incoterm: null,
+      region: null,
+      subjectTemplate: "Inspector Appointment — {{product}} / {{loadport}} / {{laycan_start}}",
+      bodyTemplate: `Dear Sirs,
+
+We hereby appoint you as our inspector for the following cargo:
+
+CARGO DETAILS
+Product:        {{product}}
+Quantity:       {{quantity_mt}} MT
+Incoterm:       {{incoterm}}
+Load Port:      {{loadport}}
+Laycan:         {{laycan_start}} / {{laycan_end}}
+Vessel:         {{vessel_name}}
+
+SCOPE OF APPOINTMENT
+- Quantity determination (draft survey and/or flow meter)
+- Quality certification (collect representative samples, issue Certificate of Quality)
+- Time sheets
+
+Please confirm appointment and advise your local contact details.
+
+Best regards,
+EuroGas Trading BV — Operations`,
+      mergeFields: ["product", "quantity_mt", "incoterm", "loadport", "laycan_start", "laycan_end", "vessel_name"],
+    },
+    {
+      name: "Agent Appointment — Loadport",
+      partyType: "agent" as const,
+      incoterm: null,
+      region: null,
+      subjectTemplate: "Agent Appointment — {{vessel_name}} / {{loadport}} / {{laycan_start}}",
+      bodyTemplate: `Dear Sirs,
+
+We hereby appoint you as our agent for the following vessel call:
+
+VESSEL DETAILS
+Vessel:         {{vessel_name}} (IMO {{vessel_imo}})
+Port:           {{loadport}}
+Estimated ETA:  {{laycan_start}}
+
+CARGO
+Product:        {{product}}
+Quantity:       {{quantity_mt}} MT
+
+INSTRUCTIONS
+- Arrange berth nomination with terminal
+- Coordinate vessel arrival with port authority
+- Attend to all port formalities
+- Report NOR tendering time immediately upon receipt
+
+Please confirm acceptance and provide your proforma disbursements.
+
+Best regards,
+EuroGas Trading BV — Operations`,
+      mergeFields: ["vessel_name", "vessel_imo", "loadport", "laycan_start", "product", "quantity_mt"],
+    },
+    {
+      name: "Voyage Orders — Chartering Broker",
+      partyType: "broker" as const,
+      incoterm: null,
+      region: null,
+      subjectTemplate: "Voyage Orders — {{vessel_name}} / {{product}} / {{external_ref}}",
+      bodyTemplate: `Dear Sirs,
+
+Please find below voyage orders for the above vessel:
+
+VESSEL:             {{vessel_name}} (IMO {{vessel_imo}})
+CARGO:              {{product}}
+QUANTITY:           {{quantity_mt}} MT
+INCOTERM:           {{incoterm}}
+
+LOAD PORT:          {{loadport}}
+  Laycan:           {{laycan_start}} / {{laycan_end}}
+
+DISCHARGE PORT:     {{discharge_port}}
+
+INSTRUCTIONS
+1. Proceed with all dispatch to load port.
+2. Tender NOR on arrival.
+3. Load full cargo in accordance with terminal instructions.
+4. On completion of loading, proceed to discharge port.
+
+Please acknowledge receipt and pass these orders to the vessel Master.
+
+Best regards,
+EuroGas Trading BV — Operations`,
+      mergeFields: ["vessel_name", "vessel_imo", "product", "quantity_mt", "incoterm", "loadport", "laycan_start", "laycan_end", "discharge_port"],
+    },
+    {
+      name: "Vessel Nomination — FOB Purchase",
+      partyType: "broker" as const,
+      incoterm: "FOB" as const,
+      region: null,
+      subjectTemplate: "Vessel Nomination — {{product}} / {{external_ref}}",
+      bodyTemplate: `Dear Sirs,
+
+In accordance with our agreement, we hereby nominate the following vessel for the below cargo:
+
+CARGO DETAILS
+Product:            {{product}}
+Quantity:           {{quantity_mt}} MT
+Incoterm:           {{incoterm}}
+Load Port:          {{loadport}}
+Laycan:             {{laycan_start}} / {{laycan_end}}
+
+VESSEL NOMINATION
+Vessel Name:        {{vessel_name}}
+IMO Number:         {{vessel_imo}}
+
+Please confirm acceptance and provide your documentary instructions.
+
+Best regards,
+EuroGas Trading BV — Operations`,
+      mergeFields: ["product", "quantity_mt", "incoterm", "loadport", "laycan_start", "laycan_end", "vessel_name", "vessel_imo", "external_ref"],
+    },
+    // ── Phase 1 chip-workflow templates (FOB Sale) ─────────────────────
+    {
+      name: "Terminal Vetting Request — FOB Sale",
+      partyType: "terminal" as const,
+      incoterm: "FOB" as const,
+      region: null,
+      subjectTemplate: "Vetting Request — {{vessel_name}} / {{loadport}} / {{external_ref}}",
+      bodyTemplate: `Dear Sirs,
+
+Please find attached the Q88 for the following vessel and kindly confirm vetting acceptance for loading at your terminal.
+
+VESSEL
+Name:       {{vessel_name}}
+IMO:        {{vessel_imo}}
+
+CARGO
+Product:    {{product}}
+Quantity:   {{quantity_mt}} MT
+Loadport:   {{loadport}}
+Laycan:     {{laycan_start}} / {{laycan_end}}
+
+Q88 attached for your review. Please advise vetting outcome at your earliest convenience.
+
+Best regards,
+EuroGas Trading BV — Operations`,
+      mergeFields: ["vessel_name", "vessel_imo", "product", "quantity_mt", "loadport", "laycan_start", "laycan_end", "external_ref"],
+    },
+    {
+      name: "VAT + Transport Request — Buyer",
+      partyType: "counterparty" as const,
+      incoterm: "FOB" as const,
+      region: null,
+      subjectTemplate: "VAT + Transport Confirmation — {{product}} / {{external_ref}}",
+      bodyTemplate: `Dear Sirs,
+
+For invoicing purposes, please confirm the following for the captioned cargo:
+
+1. VAT number to be used on the invoice
+2. Whether transport (vessel + downstream logistics) is arranged by yourselves
+
+CARGO REFERENCE
+Product:    {{product}}
+Quantity:   {{quantity_mt}} MT
+Loadport:   {{loadport}}
+Vessel:     {{vessel_name}}
+Laycan:     {{laycan_start}} / {{laycan_end}}
+
+Kindly revert at your earliest convenience to enable timely invoicing.
+
+Best regards,
+EuroGas Trading BV — Operations`,
+      mergeFields: ["product", "quantity_mt", "loadport", "vessel_name", "laycan_start", "laycan_end", "external_ref"],
+    },
+    {
+      name: "Supervision Order — Inspector",
+      partyType: "inspector" as const,
+      incoterm: "FOB" as const,
+      region: null,
+      subjectTemplate: "Supervision Order — {{vessel_name}} / {{loadport}} / {{laycan_start}}",
+      bodyTemplate: `Dear Sirs,
+
+Following our nomination, please find below the supervision order for the captioned loading:
+
+VESSEL & CARGO
+Vessel:     {{vessel_name}} (IMO {{vessel_imo}})
+Product:    {{product}}
+Quantity:   {{quantity_mt}} MT
+Loadport:   {{loadport}}
+Laycan:     {{laycan_start}} / {{laycan_end}}
+
+SUPERVISION SCOPE
+- Quantity determination (shore tank gauging, ullage, draft survey)
+- Quality sampling at all relevant stages (shore tank, ship's manifold, composite)
+- Issue Certificate of Quality and Quantity
+- Time sheets covering vessel arrival, NOR, all-fast, hose-on, commencement, completion, hose-off, all-clear
+- Witness B/L figures vs ship's figures
+
+Please proceed and revert with attendance confirmation and your local point of contact.
+
+Best regards,
+EuroGas Trading BV — Operations`,
+      mergeFields: ["vessel_name", "vessel_imo", "product", "quantity_mt", "loadport", "laycan_start", "laycan_end"],
+    },
+    {
+      name: "Missing-Info Request — Buyer",
+      partyType: "counterparty" as const,
+      incoterm: "FOB" as const,
+      region: null,
+      subjectTemplate: "Outstanding Items — {{product}} / {{external_ref}}",
+      bodyTemplate: `Dear Sirs,
+
+To complete loading preparations for the captioned cargo, kindly revert with the following outstanding items:
+
+{{missing_items_bulleted}}
+
+CARGO REFERENCE
+Product:    {{product}}
+Quantity:   {{quantity_mt}} MT
+Vessel:     {{vessel_name}}
+Loadport:   {{loadport}}
+Laycan:     {{laycan_start}} / {{laycan_end}}
+
+Your prompt response is appreciated to avoid any delay at the loadport.
+
+Best regards,
+EuroGas Trading BV — Operations`,
+      mergeFields: ["missing_items_bulleted", "product", "quantity_mt", "vessel_name", "loadport", "laycan_start", "laycan_end", "external_ref"],
+    },
+  ];
+
+  const createdEmailTemplates: { name: string; id: string }[] = [];
+  for (const et of emailTemplatesData) {
+    const [tmpl] = await db
+      .insert(schema.emailTemplates)
+      .values({
+        tenantId: tenantId,
+        name: et.name,
+        partyType: et.partyType,
+        incoterm: et.incoterm ?? undefined,
+        region: et.region ?? undefined,
+        subjectTemplate: et.subjectTemplate,
+        bodyTemplate: et.bodyTemplate,
+        mergeFields: et.mergeFields,
+        createdBy: admin.id,
+      })
+      .returning();
+    createdEmailTemplates.push({ name: tmpl.name, id: tmpl.id });
+  }
+  console.log(`  Email Templates: ${createdEmailTemplates.length} created`);
+
+  const tmplByName = Object.fromEntries(createdEmailTemplates.map((t) => [t.name, t.id]));
+
+  // --- Workflow Templates ---
+  // Catalog item — always created. The workflow engine matches a template
+  // to each new deal at instantiation time, so all templates that operators
+  // might need must be present before any deal is created.
+  const workflowTemplatesData: Array<{
+    name: string;
+    incoterm: "FOB" | "CIF" | "CFR" | "DAP" | null;
+    direction: "buy" | "sell" | null;
+    regionPattern: string | null;
+    steps: schema.WorkflowTemplateStep[];
+  }> = [
+    // ── FOB Sale — Lauri-style chip workflow (Arne-pruned to 6 chips) ──
+    // Each chip = one operator-clickable email-drafting action. The chip
+    // names omit "Send" (it's implied — clicking a chip drafts an email
+    // for review). Receive/gate/auto events are NOT chips — they happen
+    // in the background and the parser fills the deal data.
+    //
+    // Region intentionally null so this template matches FOB sells at any
+    // port until incoterm-specific regional variants are introduced.
+    {
+      name: "FOB Sale",
+      incoterm: "FOB",
+      direction: "sell",
+      regionPattern: null,
+      steps: [
+        {
+          order: 1,
+          name: "Terminal vetting request",
+          stepType: "nomination",
+          recipientPartyType: "terminal",
+          emailTemplateId: tmplByName["Terminal Vetting Request — FOB Sale"],
+          description: "Send Q88 to loadport terminal for vetting acceptance. Q88 attached automatically from linkage documents.",
+        },
+        {
+          order: 2,
+          name: "VAT + transport request to buyer",
+          stepType: "instruction",
+          recipientPartyType: "counterparty",
+          emailTemplateId: tmplByName["VAT + Transport Request — Buyer"],
+          description: "Ask buyer to confirm VAT number for invoicing and whether transport is arranged by themselves.",
+        },
+        {
+          order: 3,
+          name: "Terminal nomination",
+          stepType: "nomination",
+          recipientPartyType: "terminal",
+          emailTemplateId: tmplByName["Terminal Nomination — FOB Sale"],
+          description: "Send formal loading nomination to terminal. CC loadport agent + inspector. Includes vessel, cargo, laycan, doc instructions.",
+        },
+        {
+          order: 4,
+          name: "Loadport inspector nomination",
+          stepType: "appointment",
+          recipientPartyType: "inspector",
+          emailTemplateId: tmplByName["Inspector Appointment — Loadport"],
+          description: "Appoint Q&Q inspector at loadport.",
+        },
+        {
+          order: 5,
+          name: "Supervision Order to inspector",
+          stepType: "instruction",
+          recipientPartyType: "inspector",
+          emailTemplateId: tmplByName["Supervision Order — Inspector"],
+          recommendedAfterStep: 4,
+          description: "After inspector confirms attendance, send detailed supervision order covering quantity, quality, time sheets and B/L witnessing.",
+        },
+        {
+          order: 6,
+          name: "Missing-info request to buyer",
+          stepType: "instruction",
+          recipientPartyType: "counterparty",
+          emailTemplateId: tmplByName["Missing-Info Request — Buyer"],
+          description: "Conditional — only fires when post-parse the deal still has empty required fields (CN code, MSDS, VAT, etc.). Lists the missing items in the email body.",
+        },
+      ],
+    },
+    {
+      name: "CIF Sale — ARA",
+      incoterm: "CIF",
+      direction: "sell",
+      regionPattern: "Amsterdam|Antwerp|Rotterdam",
+      steps: [
+        {
+          order: 1,
+          name: "Vessel Clearance Request to Buyer",
+          stepType: "nomination",
+          recipientPartyType: "broker",
+          emailTemplateId: tmplByName["Vessel Clearance Request — CIF/CFR/DAP Sale"],
+          isExternalWait: true,
+          description: "Send vessel clearance request to buyer. WAIT for buyer to return clearance confirmation and documentary instructions before proceeding.",
+        },
+        {
+          order: 2,
+          name: "Nomination + Doc Instructions to Terminal",
+          stepType: "nomination",
+          recipientPartyType: "terminal",
+          emailTemplateId: tmplByName["Terminal Nomination + Doc Instructions — CIF/CFR Sale"],
+          recommendedAfterStep: 1,
+          description: "Send vessel nomination and documentary instructions to loading terminal. Blocked until buyer clearance received.",
+        },
+        {
+          order: 3,
+          name: "Inspector Appointment — Loadport",
+          stepType: "appointment",
+          recipientPartyType: "inspector",
+          emailTemplateId: tmplByName["Inspector Appointment — Loadport"],
+          recommendedAfterStep: 1,
+          description: "Appoint Q&Q inspector at loadport.",
+        },
+        {
+          order: 4,
+          name: "Agent Appointment — Loadport",
+          stepType: "appointment",
+          recipientPartyType: "agent",
+          emailTemplateId: tmplByName["Agent Appointment — Loadport"],
+          recommendedAfterStep: 1,
+          description: "Appoint loadport agent to coordinate vessel arrival.",
+        },
+        {
+          order: 5,
+          name: "Voyage Orders to Chartering Broker",
+          stepType: "order",
+          recipientPartyType: "broker",
+          emailTemplateId: tmplByName["Voyage Orders — Chartering Broker"],
+          recommendedAfterStep: 1,
+          description: "Issue voyage orders to chartering broker. Blocked until buyer clearance received.",
+        },
+      ],
+    },
+    {
+      name: "FOB Purchase — Lavera",
+      incoterm: "FOB",
+      direction: "buy",
+      regionPattern: "Lavera|Lav",
+      steps: [
+        {
+          order: 1,
+          name: "Vessel Nomination to Seller",
+          stepType: "nomination",
+          recipientPartyType: "broker",
+          emailTemplateId: tmplByName["Vessel Nomination — FOB Purchase"],
+          description: "Nominate vessel to seller within contractual deadline.",
+        },
+        {
+          order: 2,
+          name: "Inspector Appointment — Loadport",
+          stepType: "appointment",
+          recipientPartyType: "inspector",
+          emailTemplateId: tmplByName["Inspector Appointment — Loadport"],
+          recommendedAfterStep: 1,
+          description: "Appoint Q&Q inspector at Lavera loadport. Cost shared 50/50 with seller.",
+        },
+        {
+          order: 3,
+          name: "Agent Appointment — Loadport",
+          stepType: "appointment",
+          recipientPartyType: "agent",
+          emailTemplateId: tmplByName["Agent Appointment — Loadport"],
+          recommendedAfterStep: 1,
+          description: "Appoint loadport agent in Lavera.",
+        },
+      ],
+    },
+    {
+      name: "CIF Sale — Lavera",
+      incoterm: "CIF",
+      direction: "sell",
+      regionPattern: "Lavera|Lav",
+      steps: [
+        {
+          order: 1,
+          name: "Vessel Clearance Request to Buyer",
+          stepType: "nomination",
+          recipientPartyType: "broker",
+          emailTemplateId: tmplByName["Vessel Clearance Request — CIF/CFR/DAP Sale"],
+          isExternalWait: true,
+          description: "Send vessel clearance request to buyer. WAIT for buyer clearance and documentary instructions.",
+        },
+        {
+          order: 2,
+          name: "Nomination + Doc Instructions to Terminal",
+          stepType: "nomination",
+          recipientPartyType: "terminal",
+          emailTemplateId: tmplByName["Terminal Nomination + Doc Instructions — CIF/CFR Sale"],
+          recommendedAfterStep: 1,
+          description: "Send nomination and documentary instructions to Lavera terminal.",
+        },
+        {
+          order: 3,
+          name: "Inspector Appointment — Loadport",
+          stepType: "appointment",
+          recipientPartyType: "inspector",
+          emailTemplateId: tmplByName["Inspector Appointment — Loadport"],
+          recommendedAfterStep: 1,
+          description: "Appoint Q&Q inspector at Lavera.",
+        },
+        {
+          order: 4,
+          name: "Agent Appointment — Loadport",
+          stepType: "appointment",
+          recipientPartyType: "agent",
+          emailTemplateId: tmplByName["Agent Appointment — Loadport"],
+          recommendedAfterStep: 1,
+          description: "Appoint loadport agent in Lavera.",
+        },
+        {
+          order: 5,
+          name: "Voyage Orders to Chartering Broker",
+          stepType: "order",
+          recipientPartyType: "broker",
+          emailTemplateId: tmplByName["Voyage Orders — Chartering Broker"],
+          recommendedAfterStep: 1,
+          description: "Issue voyage orders to chartering broker.",
+        },
+      ],
+    },
+    {
+      name: "DAP Sale — Generic",
+      incoterm: "DAP",
+      direction: "sell",
+      regionPattern: null,
+      steps: [
+        {
+          order: 1,
+          name: "Vessel Clearance Request to Buyer",
+          stepType: "nomination",
+          recipientPartyType: "broker",
+          emailTemplateId: tmplByName["Vessel Clearance Request — CIF/CFR/DAP Sale"],
+          isExternalWait: true,
+          description: "Send vessel clearance request to buyer. WAIT for buyer clearance and documentary instructions.",
+        },
+        {
+          order: 2,
+          name: "Nomination + Doc Instructions to Terminal",
+          stepType: "nomination",
+          recipientPartyType: "terminal",
+          emailTemplateId: tmplByName["Terminal Nomination + Doc Instructions — CIF/CFR Sale"],
+          recommendedAfterStep: 1,
+          description: "Send nomination and documentary instructions to loading terminal.",
+        },
+        {
+          order: 3,
+          name: "Inspector Appointment — Loadport",
+          stepType: "appointment",
+          recipientPartyType: "inspector",
+          emailTemplateId: tmplByName["Inspector Appointment — Loadport"],
+          recommendedAfterStep: 1,
+          description: "Appoint loadport inspector. Under DAP, seller bears inspection cost.",
+        },
+        {
+          order: 4,
+          name: "Agent Appointment — Loadport",
+          stepType: "appointment",
+          recipientPartyType: "agent",
+          emailTemplateId: tmplByName["Agent Appointment — Loadport"],
+          recommendedAfterStep: 1,
+          description: "Appoint loadport agent.",
+        },
+        {
+          order: 5,
+          name: "Voyage Orders to Chartering Broker",
+          stepType: "order",
+          recipientPartyType: "broker",
+          emailTemplateId: tmplByName["Voyage Orders — Chartering Broker"],
+          recommendedAfterStep: 1,
+          description: "Issue voyage orders to chartering broker.",
+        },
+        {
+          order: 6,
+          name: "Discharge Agent Appointment",
+          stepType: "appointment",
+          recipientPartyType: "agent",
+          emailTemplateId: tmplByName["Agent Appointment — Loadport"],
+          recommendedAfterStep: 1,
+          description: "Appoint discharge port agent (DAP — seller coordinates discharge).",
+        },
+      ],
+    },
+    // ── CFR Sale — Generic (same steps as CIF, no discharge agent) ───
+    {
+      name: "CFR Sale — Generic",
+      incoterm: "CFR",
+      direction: "sell",
+      regionPattern: null,
+      steps: [
+        {
+          order: 1,
+          name: "Vessel Clearance Request to Buyer",
+          stepType: "nomination",
+          recipientPartyType: "broker",
+          emailTemplateId: tmplByName["Vessel Clearance Request — CIF/CFR/DAP Sale"],
+          isExternalWait: true,
+          description: "Send vessel clearance request to buyer. WAIT for buyer clearance and documentary instructions.",
+        },
+        {
+          order: 2,
+          name: "Nomination + Doc Instructions to Terminal",
+          stepType: "nomination",
+          recipientPartyType: "terminal",
+          emailTemplateId: tmplByName["Terminal Nomination + Doc Instructions — CIF/CFR Sale"],
+          recommendedAfterStep: 1,
+          description: "Send vessel nomination and documentary instructions to loading terminal. Wait for buyer clearance first.",
+        },
+        {
+          order: 3,
+          name: "Inspector Appointment — Loadport",
+          stepType: "appointment",
+          recipientPartyType: "inspector",
+          emailTemplateId: tmplByName["Inspector Appointment — Loadport"],
+          recommendedAfterStep: 1,
+          description: "Appoint Q&Q inspector at loadport.",
+        },
+        {
+          order: 4,
+          name: "Agent Appointment — Loadport",
+          stepType: "appointment",
+          recipientPartyType: "agent",
+          emailTemplateId: tmplByName["Agent Appointment — Loadport"],
+          recommendedAfterStep: 1,
+          description: "Appoint loadport agent to coordinate vessel arrival.",
+        },
+        {
+          order: 5,
+          name: "Voyage Orders to Chartering Broker",
+          stepType: "order",
+          recipientPartyType: "broker",
+          emailTemplateId: tmplByName["Voyage Orders — Chartering Broker"],
+          recommendedAfterStep: 1,
+          description: "Issue voyage orders to chartering broker.",
+        },
+      ],
+    },
+    // ── FOB Purchase — Generic (no region lock — matches any FOB buy) ─
+    {
+      name: "FOB Purchase — Generic",
+      incoterm: "FOB",
+      direction: "buy",
+      regionPattern: null,
+      steps: [
+        {
+          order: 1,
+          name: "Vessel Nomination to Seller",
+          stepType: "nomination",
+          recipientPartyType: "broker",
+          emailTemplateId: tmplByName["Vessel Nomination — FOB Purchase"],
+          description: "Nominate vessel to seller within contractual deadline.",
+        },
+        {
+          order: 2,
+          name: "Inspector Appointment — Loadport",
+          stepType: "appointment",
+          recipientPartyType: "inspector",
+          emailTemplateId: tmplByName["Inspector Appointment — Loadport"],
+          recommendedAfterStep: 1,
+          description: "Appoint Q&Q inspector at loadport.",
+        },
+        {
+          order: 3,
+          name: "Agent Appointment — Loadport",
+          stepType: "appointment",
+          recipientPartyType: "agent",
+          emailTemplateId: tmplByName["Agent Appointment — Loadport"],
+          recommendedAfterStep: 1,
+          description: "Appoint loadport agent.",
+        },
+      ],
+    },
+  ];
+
+  for (const wt of workflowTemplatesData) {
+    await db.insert(schema.workflowTemplates).values({
+      tenantId: tenantId,
+      name: wt.name,
+      incoterm: wt.incoterm ?? undefined,
+      direction: wt.direction ?? undefined,
+      regionPattern: wt.regionPattern ?? undefined,
+      steps: wt.steps,
+    });
+  }
+  console.log(`  Workflow Templates: ${workflowTemplatesData.length} created`);
+
+  // --- Catalog complete ---
+  // Short-circuit when no deals are needed: structural-only mode AND
+  // catalog-only full reset (the default). Demo deals are opt-in via
+  // SEED_INCLUDE_DEMO_DEALS=yes.
   if (structuralOnly) {
-    console.log("\n  Skipping deals (structural-only mode).");
-    console.log("\n=== Structural seed complete! ===");
+    console.log("\n=== Structural seed complete (catalog only). ===");
     await sql.end();
     return;
   }
+
+  if (!includeDemoDeals) {
+    console.log("\n=== Seed complete! Catalog only — no demo deals or linkages. ===\n");
+    console.log("Test accounts (all passwords: password123):");
+    console.log("  Admin:    marten@nefgo.com");
+    console.log("  Operator: arne@nefgo.com");
+    console.log("  Operator: lauri@nefgo.com");
+    console.log("  Operator: kristjan@nefgo.com");
+    console.log("");
+    console.log("To include demo deals/linkages for a showcase:");
+    console.log("  SEED_INCLUDE_DEMO_DEALS=yes SEED_CONFIRM=yes npm run db:seed");
+    await sql.end();
+    process.exit(0);
+  }
+
+  // ────────────────────────────────────────────────────────────────────────
+  // BELOW THIS LINE: opt-in demo dataset (SEED_INCLUDE_DEMO_DEALS=yes)
+  // Generates ~10 deals across cargo-chain showcases (Vitol/Shell, Trafigura
+  // /TotalEnergies/NNPC, Repsol/BP) plus standalones, with realistic audit
+  // trails and a couple of mid-flight workflow states (Shell acknowledged,
+  // Vitol pending re-nomination after vessel swap).
+  // ────────────────────────────────────────────────────────────────────────
 
   const dealsData = [
     // ── PURCHASE+SALE #1 — 086412GSS (ops has entered the linkage number) ───
@@ -531,582 +1296,7 @@ async function seed() {
     ]);
   }
 
-
   console.log("  Change logs and audit entries added\n");
-
-  // --- Email Templates ---
-  const emailTemplatesData = [
-    {
-      name: "Terminal Nomination — FOB Sale",
-      partyType: "terminal" as const,
-      incoterm: "FOB" as const,
-      region: "ARA",
-      subjectTemplate: "Nomination — {{counterparty}} / {{product}} / {{external_ref}}",
-      bodyTemplate: `Dear Sirs,
-
-Please find below our nomination for the following cargo:
-
-Seller:       EuroGas Trading BV
-Counterparty: {{counterparty}}
-Product:      {{product}}
-Quantity:     {{quantity_mt}} MT
-Incoterm:     {{incoterm}}
-Loadport:     {{loadport}}
-Laycan:       {{laycan_start}} / {{laycan_end}}
-Vessel:       {{vessel_name}} (IMO {{vessel_imo}})
-
-Documentary instructions to follow separately.
-
-Please confirm receipt and berth availability.
-
-Best regards,
-EuroGas Trading BV — Operations`,
-      mergeFields: ["counterparty", "product", "quantity_mt", "incoterm", "loadport", "laycan_start", "laycan_end", "vessel_name", "vessel_imo", "external_ref"],
-    },
-    {
-      name: "Terminal Nomination + Doc Instructions — CIF/CFR Sale",
-      partyType: "terminal" as const,
-      incoterm: "CIF" as const,
-      region: "ARA",
-      subjectTemplate: "Nomination & Documentary Instructions — {{counterparty}} / {{product}} / {{external_ref}}",
-      bodyTemplate: `Dear Sirs,
-
-We are pleased to nominate the following vessel and provide documentary instructions for the below cargo:
-
-CARGO DETAILS
-Seller:             EuroGas Trading BV
-Buyer:              {{counterparty}}
-Product:            {{product}}
-Quantity:           {{quantity_mt}} MT
-Incoterm:           {{incoterm}}
-Load Port:          {{loadport}}
-Discharge Port:     {{discharge_port}}
-Laycan:             {{laycan_start}} / {{laycan_end}}
-Pricing:            {{pricing_formula}}
-
-VESSEL DETAILS
-Vessel Name:        {{vessel_name}}
-IMO Number:         {{vessel_imo}}
-
-DOCUMENTARY INSTRUCTIONS
-Please make out Bills of Lading as follows:
-  Consignee:      To Order
-  Notify Party:   {{counterparty}}
-  Description:    As per Charter Party
-
-Please confirm receipt and berth availability at your earliest convenience.
-
-Best regards,
-EuroGas Trading BV — Operations`,
-      mergeFields: ["counterparty", "product", "quantity_mt", "incoterm", "loadport", "discharge_port", "laycan_start", "laycan_end", "vessel_name", "vessel_imo", "pricing_formula", "external_ref"],
-    },
-    {
-      name: "Vessel Clearance Request — CIF/CFR/DAP Sale",
-      partyType: "broker" as const,
-      incoterm: "CIF" as const,
-      region: null,
-      subjectTemplate: "Vessel Clearance Request — {{product}} / {{external_ref}}",
-      bodyTemplate: `Dear Sirs,
-
-We are pleased to inform you of the following cargo and request vessel clearance for the nominated vessel:
-
-CARGO DETAILS
-Product:            {{product}}
-Quantity:           {{quantity_mt}} MT
-Incoterm:           {{incoterm}}
-Load Port:          {{loadport}}
-Discharge Port:     {{discharge_port}}
-Laycan:             {{laycan_start}} / {{laycan_end}}
-
-VESSEL NOMINATION
-Vessel Name:        {{vessel_name}}
-IMO Number:         {{vessel_imo}}
-
-Please confirm vessel clearance and provide your documentary instructions (consignee, notify party, B/L marks, and any special requirements).
-
-Best regards,
-EuroGas Trading BV — Operations`,
-      mergeFields: ["counterparty", "product", "quantity_mt", "incoterm", "loadport", "discharge_port", "laycan_start", "laycan_end", "vessel_name", "vessel_imo"],
-    },
-    {
-      name: "Inspector Appointment — Loadport",
-      partyType: "inspector" as const,
-      incoterm: null,
-      region: null,
-      subjectTemplate: "Inspector Appointment — {{product}} / {{loadport}} / {{laycan_start}}",
-      bodyTemplate: `Dear Sirs,
-
-We hereby appoint you as our inspector for the following cargo:
-
-CARGO DETAILS
-Product:        {{product}}
-Quantity:       {{quantity_mt}} MT
-Incoterm:       {{incoterm}}
-Load Port:      {{loadport}}
-Laycan:         {{laycan_start}} / {{laycan_end}}
-Vessel:         {{vessel_name}}
-
-SCOPE OF APPOINTMENT
-- Quantity determination (draft survey and/or flow meter)
-- Quality certification (collect representative samples, issue Certificate of Quality)
-- Time sheets
-
-Please confirm appointment and advise your local contact details.
-
-Best regards,
-EuroGas Trading BV — Operations`,
-      mergeFields: ["product", "quantity_mt", "incoterm", "loadport", "laycan_start", "laycan_end", "vessel_name"],
-    },
-    {
-      name: "Agent Appointment — Loadport",
-      partyType: "agent" as const,
-      incoterm: null,
-      region: null,
-      subjectTemplate: "Agent Appointment — {{vessel_name}} / {{loadport}} / {{laycan_start}}",
-      bodyTemplate: `Dear Sirs,
-
-We hereby appoint you as our agent for the following vessel call:
-
-VESSEL DETAILS
-Vessel:         {{vessel_name}} (IMO {{vessel_imo}})
-Port:           {{loadport}}
-Estimated ETA:  {{laycan_start}}
-
-CARGO
-Product:        {{product}}
-Quantity:       {{quantity_mt}} MT
-
-INSTRUCTIONS
-- Arrange berth nomination with terminal
-- Coordinate vessel arrival with port authority
-- Attend to all port formalities
-- Report NOR tendering time immediately upon receipt
-
-Please confirm acceptance and provide your proforma disbursements.
-
-Best regards,
-EuroGas Trading BV — Operations`,
-      mergeFields: ["vessel_name", "vessel_imo", "loadport", "laycan_start", "product", "quantity_mt"],
-    },
-    {
-      name: "Voyage Orders — Chartering Broker",
-      partyType: "broker" as const,
-      incoterm: null,
-      region: null,
-      subjectTemplate: "Voyage Orders — {{vessel_name}} / {{product}} / {{external_ref}}",
-      bodyTemplate: `Dear Sirs,
-
-Please find below voyage orders for the above vessel:
-
-VESSEL:             {{vessel_name}} (IMO {{vessel_imo}})
-CARGO:              {{product}}
-QUANTITY:           {{quantity_mt}} MT
-INCOTERM:           {{incoterm}}
-
-LOAD PORT:          {{loadport}}
-  Laycan:           {{laycan_start}} / {{laycan_end}}
-
-DISCHARGE PORT:     {{discharge_port}}
-
-INSTRUCTIONS
-1. Proceed with all dispatch to load port.
-2. Tender NOR on arrival.
-3. Load full cargo in accordance with terminal instructions.
-4. On completion of loading, proceed to discharge port.
-
-Please acknowledge receipt and pass these orders to the vessel Master.
-
-Best regards,
-EuroGas Trading BV — Operations`,
-      mergeFields: ["vessel_name", "vessel_imo", "product", "quantity_mt", "incoterm", "loadport", "laycan_start", "laycan_end", "discharge_port"],
-    },
-    {
-      name: "Vessel Nomination — FOB Purchase",
-      partyType: "broker" as const,
-      incoterm: "FOB" as const,
-      region: null,
-      subjectTemplate: "Vessel Nomination — {{product}} / {{external_ref}}",
-      bodyTemplate: `Dear Sirs,
-
-In accordance with our agreement, we hereby nominate the following vessel for the below cargo:
-
-CARGO DETAILS
-Product:            {{product}}
-Quantity:           {{quantity_mt}} MT
-Incoterm:           {{incoterm}}
-Load Port:          {{loadport}}
-Laycan:             {{laycan_start}} / {{laycan_end}}
-
-VESSEL NOMINATION
-Vessel Name:        {{vessel_name}}
-IMO Number:         {{vessel_imo}}
-
-Please confirm acceptance and provide your documentary instructions.
-
-Best regards,
-EuroGas Trading BV — Operations`,
-      mergeFields: ["product", "quantity_mt", "incoterm", "loadport", "laycan_start", "laycan_end", "vessel_name", "vessel_imo", "external_ref"],
-    },
-  ];
-
-  const createdEmailTemplates: { name: string; id: string }[] = [];
-  for (const et of emailTemplatesData) {
-    const [tmpl] = await db
-      .insert(schema.emailTemplates)
-      .values({
-        tenantId: tenantId,
-        name: et.name,
-        partyType: et.partyType,
-        incoterm: et.incoterm ?? undefined,
-        region: et.region ?? undefined,
-        subjectTemplate: et.subjectTemplate,
-        bodyTemplate: et.bodyTemplate,
-        mergeFields: et.mergeFields,
-        createdBy: admin.id,
-      })
-      .returning();
-    createdEmailTemplates.push({ name: tmpl.name, id: tmpl.id });
-  }
-  console.log(`  Email Templates: ${createdEmailTemplates.length} created`);
-
-  const tmplByName = Object.fromEntries(createdEmailTemplates.map((t) => [t.name, t.id]));
-
-  // --- Workflow Templates ---
-  const workflowTemplatesData: Array<{
-    name: string;
-    incoterm: "FOB" | "CIF" | "CFR" | "DAP" | null;
-    direction: "buy" | "sell" | null;
-    regionPattern: string | null;
-    steps: schema.WorkflowTemplateStep[];
-  }> = [
-    {
-      name: "FOB Sale — ARA",
-      incoterm: "FOB",
-      direction: "sell",
-      regionPattern: "Amsterdam|Antwerp|Rotterdam",
-      steps: [
-        {
-          order: 1,
-          name: "Loading Instructions to Terminal",
-          stepType: "instruction",
-          recipientPartyType: "terminal",
-          emailTemplateId: tmplByName["Terminal Nomination — FOB Sale"],
-          description: "Send loading instructions to the terminal. Include cargo details and vessel nomination.",
-        },
-        {
-          order: 2,
-          name: "Inspector Appointment — Loadport",
-          stepType: "appointment",
-          recipientPartyType: "inspector",
-          emailTemplateId: tmplByName["Inspector Appointment — Loadport"],
-          description: "Appoint Q&Q inspector at loadport.",
-        },
-      ],
-    },
-    {
-      name: "CIF Sale — ARA",
-      incoterm: "CIF",
-      direction: "sell",
-      regionPattern: "Amsterdam|Antwerp|Rotterdam",
-      steps: [
-        {
-          order: 1,
-          name: "Vessel Clearance Request to Buyer",
-          stepType: "nomination",
-          recipientPartyType: "broker",
-          emailTemplateId: tmplByName["Vessel Clearance Request — CIF/CFR/DAP Sale"],
-          isExternalWait: true,
-          description: "Send vessel clearance request to buyer. WAIT for buyer to return clearance confirmation and documentary instructions before proceeding.",
-        },
-        {
-          order: 2,
-          name: "Nomination + Doc Instructions to Terminal",
-          stepType: "nomination",
-          recipientPartyType: "terminal",
-          emailTemplateId: tmplByName["Terminal Nomination + Doc Instructions — CIF/CFR Sale"],
-          recommendedAfterStep: 1,
-          description: "Send vessel nomination and documentary instructions to loading terminal. Blocked until buyer clearance received.",
-        },
-        {
-          order: 3,
-          name: "Inspector Appointment — Loadport",
-          stepType: "appointment",
-          recipientPartyType: "inspector",
-          emailTemplateId: tmplByName["Inspector Appointment — Loadport"],
-          recommendedAfterStep: 1,
-          description: "Appoint Q&Q inspector at loadport.",
-        },
-        {
-          order: 4,
-          name: "Agent Appointment — Loadport",
-          stepType: "appointment",
-          recipientPartyType: "agent",
-          emailTemplateId: tmplByName["Agent Appointment — Loadport"],
-          recommendedAfterStep: 1,
-          description: "Appoint loadport agent to coordinate vessel arrival.",
-        },
-        {
-          order: 5,
-          name: "Voyage Orders to Chartering Broker",
-          stepType: "order",
-          recipientPartyType: "broker",
-          emailTemplateId: tmplByName["Voyage Orders — Chartering Broker"],
-          recommendedAfterStep: 1,
-          description: "Issue voyage orders to chartering broker. Blocked until buyer clearance received.",
-        },
-      ],
-    },
-    {
-      name: "FOB Purchase — Lavera",
-      incoterm: "FOB",
-      direction: "buy",
-      regionPattern: "Lavera|Lav",
-      steps: [
-        {
-          order: 1,
-          name: "Vessel Nomination to Seller",
-          stepType: "nomination",
-          recipientPartyType: "broker",
-          emailTemplateId: tmplByName["Vessel Nomination — FOB Purchase"],
-          description: "Nominate vessel to seller within contractual deadline.",
-        },
-        {
-          order: 2,
-          name: "Inspector Appointment — Loadport",
-          stepType: "appointment",
-          recipientPartyType: "inspector",
-          emailTemplateId: tmplByName["Inspector Appointment — Loadport"],
-          recommendedAfterStep: 1,
-          description: "Appoint Q&Q inspector at Lavera loadport. Cost shared 50/50 with seller.",
-        },
-        {
-          order: 3,
-          name: "Agent Appointment — Loadport",
-          stepType: "appointment",
-          recipientPartyType: "agent",
-          emailTemplateId: tmplByName["Agent Appointment — Loadport"],
-          recommendedAfterStep: 1,
-          description: "Appoint loadport agent in Lavera.",
-        },
-      ],
-    },
-    {
-      name: "CIF Sale — Lavera",
-      incoterm: "CIF",
-      direction: "sell",
-      regionPattern: "Lavera|Lav",
-      steps: [
-        {
-          order: 1,
-          name: "Vessel Clearance Request to Buyer",
-          stepType: "nomination",
-          recipientPartyType: "broker",
-          emailTemplateId: tmplByName["Vessel Clearance Request — CIF/CFR/DAP Sale"],
-          isExternalWait: true,
-          description: "Send vessel clearance request to buyer. WAIT for buyer clearance and documentary instructions.",
-        },
-        {
-          order: 2,
-          name: "Nomination + Doc Instructions to Terminal",
-          stepType: "nomination",
-          recipientPartyType: "terminal",
-          emailTemplateId: tmplByName["Terminal Nomination + Doc Instructions — CIF/CFR Sale"],
-          recommendedAfterStep: 1,
-          description: "Send nomination and documentary instructions to Lavera terminal.",
-        },
-        {
-          order: 3,
-          name: "Inspector Appointment — Loadport",
-          stepType: "appointment",
-          recipientPartyType: "inspector",
-          emailTemplateId: tmplByName["Inspector Appointment — Loadport"],
-          recommendedAfterStep: 1,
-          description: "Appoint Q&Q inspector at Lavera.",
-        },
-        {
-          order: 4,
-          name: "Agent Appointment — Loadport",
-          stepType: "appointment",
-          recipientPartyType: "agent",
-          emailTemplateId: tmplByName["Agent Appointment — Loadport"],
-          recommendedAfterStep: 1,
-          description: "Appoint loadport agent in Lavera.",
-        },
-        {
-          order: 5,
-          name: "Voyage Orders to Chartering Broker",
-          stepType: "order",
-          recipientPartyType: "broker",
-          emailTemplateId: tmplByName["Voyage Orders — Chartering Broker"],
-          recommendedAfterStep: 1,
-          description: "Issue voyage orders to chartering broker.",
-        },
-      ],
-    },
-    {
-      name: "DAP Sale — Generic",
-      incoterm: "DAP",
-      direction: "sell",
-      regionPattern: null,
-      steps: [
-        {
-          order: 1,
-          name: "Vessel Clearance Request to Buyer",
-          stepType: "nomination",
-          recipientPartyType: "broker",
-          emailTemplateId: tmplByName["Vessel Clearance Request — CIF/CFR/DAP Sale"],
-          isExternalWait: true,
-          description: "Send vessel clearance request to buyer. WAIT for buyer clearance and documentary instructions.",
-        },
-        {
-          order: 2,
-          name: "Nomination + Doc Instructions to Terminal",
-          stepType: "nomination",
-          recipientPartyType: "terminal",
-          emailTemplateId: tmplByName["Terminal Nomination + Doc Instructions — CIF/CFR Sale"],
-          recommendedAfterStep: 1,
-          description: "Send nomination and documentary instructions to loading terminal.",
-        },
-        {
-          order: 3,
-          name: "Inspector Appointment — Loadport",
-          stepType: "appointment",
-          recipientPartyType: "inspector",
-          emailTemplateId: tmplByName["Inspector Appointment — Loadport"],
-          recommendedAfterStep: 1,
-          description: "Appoint loadport inspector. Under DAP, seller bears inspection cost.",
-        },
-        {
-          order: 4,
-          name: "Agent Appointment — Loadport",
-          stepType: "appointment",
-          recipientPartyType: "agent",
-          emailTemplateId: tmplByName["Agent Appointment — Loadport"],
-          recommendedAfterStep: 1,
-          description: "Appoint loadport agent.",
-        },
-        {
-          order: 5,
-          name: "Voyage Orders to Chartering Broker",
-          stepType: "order",
-          recipientPartyType: "broker",
-          emailTemplateId: tmplByName["Voyage Orders — Chartering Broker"],
-          recommendedAfterStep: 1,
-          description: "Issue voyage orders to chartering broker.",
-        },
-        {
-          order: 6,
-          name: "Discharge Agent Appointment",
-          stepType: "appointment",
-          recipientPartyType: "agent",
-          emailTemplateId: tmplByName["Agent Appointment — Loadport"],
-          recommendedAfterStep: 1,
-          description: "Appoint discharge port agent (DAP — seller coordinates discharge).",
-        },
-      ],
-    },
-    // ── CFR Sale — Generic (same steps as CIF, no discharge agent) ───
-    {
-      name: "CFR Sale — Generic",
-      incoterm: "CFR",
-      direction: "sell",
-      regionPattern: null,
-      steps: [
-        {
-          order: 1,
-          name: "Vessel Clearance Request to Buyer",
-          stepType: "nomination",
-          recipientPartyType: "broker",
-          emailTemplateId: tmplByName["Vessel Clearance Request — CIF/CFR/DAP Sale"],
-          isExternalWait: true,
-          description: "Send vessel clearance request to buyer. WAIT for buyer clearance and documentary instructions.",
-        },
-        {
-          order: 2,
-          name: "Nomination + Doc Instructions to Terminal",
-          stepType: "nomination",
-          recipientPartyType: "terminal",
-          emailTemplateId: tmplByName["Terminal Nomination + Doc Instructions — CIF/CFR Sale"],
-          recommendedAfterStep: 1,
-          description: "Send vessel nomination and documentary instructions to loading terminal. Wait for buyer clearance first.",
-        },
-        {
-          order: 3,
-          name: "Inspector Appointment — Loadport",
-          stepType: "appointment",
-          recipientPartyType: "inspector",
-          emailTemplateId: tmplByName["Inspector Appointment — Loadport"],
-          recommendedAfterStep: 1,
-          description: "Appoint Q&Q inspector at loadport.",
-        },
-        {
-          order: 4,
-          name: "Agent Appointment — Loadport",
-          stepType: "appointment",
-          recipientPartyType: "agent",
-          emailTemplateId: tmplByName["Agent Appointment — Loadport"],
-          recommendedAfterStep: 1,
-          description: "Appoint loadport agent to coordinate vessel arrival.",
-        },
-        {
-          order: 5,
-          name: "Voyage Orders to Chartering Broker",
-          stepType: "order",
-          recipientPartyType: "broker",
-          emailTemplateId: tmplByName["Voyage Orders — Chartering Broker"],
-          recommendedAfterStep: 1,
-          description: "Issue voyage orders to chartering broker.",
-        },
-      ],
-    },
-    // ── FOB Purchase — Generic (no region lock — matches any FOB buy) ─
-    {
-      name: "FOB Purchase — Generic",
-      incoterm: "FOB",
-      direction: "buy",
-      regionPattern: null,
-      steps: [
-        {
-          order: 1,
-          name: "Vessel Nomination to Seller",
-          stepType: "nomination",
-          recipientPartyType: "broker",
-          emailTemplateId: tmplByName["Vessel Nomination — FOB Purchase"],
-          description: "Nominate vessel to seller within contractual deadline.",
-        },
-        {
-          order: 2,
-          name: "Inspector Appointment — Loadport",
-          stepType: "appointment",
-          recipientPartyType: "inspector",
-          emailTemplateId: tmplByName["Inspector Appointment — Loadport"],
-          recommendedAfterStep: 1,
-          description: "Appoint Q&Q inspector at loadport.",
-        },
-        {
-          order: 3,
-          name: "Agent Appointment — Loadport",
-          stepType: "appointment",
-          recipientPartyType: "agent",
-          emailTemplateId: tmplByName["Agent Appointment — Loadport"],
-          recommendedAfterStep: 1,
-          description: "Appoint loadport agent.",
-        },
-      ],
-    },
-  ];
-
-  for (const wt of workflowTemplatesData) {
-    await db.insert(schema.workflowTemplates).values({
-      tenantId: tenantId,
-      name: wt.name,
-      incoterm: wt.incoterm ?? undefined,
-      direction: wt.direction ?? undefined,
-      regionPattern: wt.regionPattern ?? undefined,
-      steps: wt.steps,
-    });
-  }
-  console.log(`  Workflow Templates: ${workflowTemplatesData.length} created`);
 
   // --- Instantiate workflows for active/loading/sailing deals ---
   const { matchTemplate, instantiateWorkflow, advanceStep } = await import("../workflow-engine/index");
@@ -1261,7 +1451,7 @@ EuroGas Trading BV — Operations`,
 
   console.log();
 
-  console.log("=== Seed complete! ===\n");
+  console.log("=== Seed complete (with demo deals)! ===\n");
   console.log("Test accounts (all passwords: password123):");
   console.log("  Admin:    marten@nefgo.com");
   console.log("  Operator: arne@nefgo.com");

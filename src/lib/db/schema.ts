@@ -96,7 +96,12 @@ export const dealStatusEnum = pgEnum("deal_status", [
   "completed",
   "cancelled",
 ]);
-export const partyTypeEnum = pgEnum("party_type", ["terminal", "agent", "inspector", "broker"]);
+// "counterparty" represents the deal's buyer/seller (deals.counterparty text
+// field). Chips like "VAT + transport request to buyer" or "Missing-info
+// request to buyer" target the counterparty directly. Parties table never
+// holds rows with type="counterparty" — buyers/sellers live on the deal,
+// not in the contacts catalog.
+export const partyTypeEnum = pgEnum("party_type", ["terminal", "agent", "inspector", "broker", "counterparty"]);
 export const workflowStepStatusEnum = pgEnum("workflow_step_status", [
   "pending",
   "blocked",
@@ -603,6 +608,11 @@ export const linkageSteps = pgTable(
 );
 
 // --- Documents ---
+// Holds every uploaded file attached to a deal or a linkage. Phase 0
+// covered Q88 + CP recap + BL + COA + other; Phase 1 widens fileType
+// (see DocumentFileType union below) and adds AI-parser metadata so the
+// chip-workflow drop zone can stash classifier confidence + the parser's
+// structured output alongside the raw bytes.
 export const documents = pgTable(
   "documents",
   {
@@ -615,14 +625,27 @@ export const documents = pgTable(
     linkageId: uuid("linkage_id")
       .references(() => linkages.id, { onDelete: "cascade" }),
     filename: varchar("filename", { length: 255 }).notNull(),
-    fileType: varchar("file_type", { length: 50 }).notNull(), // q88, cp_recap, bl, coa, other
+    /** See DocumentFileType — plain varchar so we extend without migrations. */
+    fileType: varchar("file_type", { length: 50 }).notNull(),
     storagePath: text("storage_path").notNull(),
+    /** Browser-reported MIME, recorded for content-disposition + parser dispatch hints. */
+    mimeType: varchar("mime_type", { length: 100 }),
+    sizeBytes: integer("size_bytes"),
+    /** Parser output, type-specific shape per fileType (e.g. SOF events array, Q88 vessel particulars). */
+    parsedData: jsonb("parsed_data"),
+    /** Overall parser confidence on the structured output (0.00 – 1.00). */
+    parserConfidence: decimal("parser_confidence", { precision: 3, scale: 2 }),
+    /** What the AI classifier called this doc — may differ from fileType if the operator overrode. */
+    parserClassifierLabel: varchar("parser_classifier_label", { length: 40 }),
+    parserClassifierConfidence: decimal("parser_classifier_confidence", { precision: 3, scale: 2 }),
     uploadedBy: uuid("uploaded_by").references(() => users.id),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
     index("documents_deal_idx").on(table.dealId),
     index("documents_linkage_idx").on(table.linkageId),
+    index("documents_file_type_idx").on(table.fileType),
   ]
 );
 
@@ -1043,7 +1066,7 @@ export type UserRole = "operator" | "trader" | "admin";
 export type DealDirection = "buy" | "sell";
 export type DealIncoterm = "FOB" | "CIF" | "CFR" | "DAP";
 export type DealStatus = "draft" | "active" | "loading" | "sailing" | "discharging" | "completed" | "cancelled";
-export type PartyType = "terminal" | "agent" | "inspector" | "broker";
+export type PartyType = "terminal" | "agent" | "inspector" | "broker" | "counterparty";
 
 export type WorkflowTemplate = typeof workflowTemplates.$inferSelect;
 export type WorkflowInstance = typeof workflowInstances.$inferSelect;
@@ -1055,6 +1078,30 @@ export type Document = typeof documents.$inferSelect;
 export type NewDocument = typeof documents.$inferInsert;
 export type LinkageStep = typeof linkageSteps.$inferSelect;
 export type NewLinkageStep = typeof linkageSteps.$inferInsert;
+
+/**
+ * documents.file_type values the AI classifier can pick and the parsers
+ * can handle. Stored as plain varchar so we can extend without migrations.
+ * The classifier picks one of these labels; the appropriate parser runs
+ * against the file content.
+ *
+ * Originally limited to q88|cp_recap|bl|coa|other (Phase 0 scope); Phase 1
+ * widens it for the chip-workflow drop-zone (SOF/NOR/vessel_nomination etc).
+ */
+export type DocumentFileType =
+  | "cp_recap"
+  | "q88"
+  | "sof"
+  | "nor"
+  | "vessel_nomination"
+  | "doc_instructions"
+  | "bl"
+  | "coa"
+  | "stock_report"
+  | "gtc"
+  | "spa"
+  | "deal_recap"
+  | "other";
 
 export type WorkflowStepStatus = "pending" | "blocked" | "ready" | "draft_generated" | "sent" | "acknowledged" | "needs_update" | "received" | "done" | "na" | "cancelled";
 export type WorkflowStepType = "nomination" | "instruction" | "order" | "appointment";
