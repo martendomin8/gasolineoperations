@@ -155,10 +155,11 @@ interface DealSummary {
   parcels?: DealParcelSummary[];
 }
 
-// Mirrors the shape coming from /api/deals/:id/workflow.
-// Wider than the DB row because we additionally surface stepOrder,
-// description and sentAt for the chip stack — the chips need them to
-// order, render and show "last sent" hints.
+// Mirrors the shape coming from /api/deals/:id/workflow. Wider than the
+// DB row because we additionally surface stepOrder, description, sentAt
+// and emailDraftId for the chip stack — chips need them to order, render,
+// show "last sent" hints and load the existing draft when an operator
+// re-opens a step that was already drafted.
 interface WorkflowStep {
   id: string;
   stepName: string;
@@ -168,6 +169,9 @@ interface WorkflowStep {
   stepOrder: number;
   description?: string | null;
   sentAt?: string | null;
+  emailDraftId?: string | null;
+  emailTemplateId?: string | null;
+  assignedPartyId?: string | null;
 }
 
 interface LinkageStepData {
@@ -524,7 +528,7 @@ export default function LinkageDetailPage() {
                       <GripVertical className="h-4 w-4" />
                     </div>
                   )}
-                  <DealCard deal={d} steps={workflows[d.id] ?? []} onDeleted={fetchData} canDelete={isOperator} />
+                  <DealCard deal={d} steps={workflows[d.id] ?? []} onDeleted={fetchData} onUpdated={fetchData} canDelete={isOperator} />
                 </div>
               ))}
               {isOperator && (
@@ -570,7 +574,7 @@ export default function LinkageDetailPage() {
                       <GripVertical className="h-4 w-4" />
                     </div>
                   )}
-                  <DealCard deal={d} steps={workflows[d.id] ?? []} onDeleted={fetchData} canDelete={isOperator} />
+                  <DealCard deal={d} steps={workflows[d.id] ?? []} onDeleted={fetchData} onUpdated={fetchData} canDelete={isOperator} />
                 </div>
               ))}
               {isOperator && (
@@ -1724,7 +1728,7 @@ function StepStatusBadge({ status, label: customLabel }: { status: string; label
 
 // ── Deal Card ────────────────────────────────────────────────
 
-function DealCard({ deal, steps, onDeleted, canDelete }: { deal: DealSummary; steps: WorkflowStep[]; onDeleted: () => void; canDelete: boolean }) {
+function DealCard({ deal, steps, onDeleted, onUpdated, canDelete }: { deal: DealSummary; steps: WorkflowStep[]; onDeleted: () => void; onUpdated: () => void; canDelete: boolean }) {
   const [deleting, setDeleting] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
 
@@ -1800,10 +1804,10 @@ function DealCard({ deal, steps, onDeleted, canDelete }: { deal: DealSummary; st
           </div>
         )}
         {/* Workflow chips — Lauri-style clickable action stack.
-            Replaces the previous flat status-pill row. Each chip is a
-            button that opens an action panel; Phase 1.10 will wire the
-            email-draft generation behind the panel's CTA. */}
-        <WorkflowChips dealId={deal.id} steps={steps} />
+            Each chip opens a panel that fetches/generates the email
+            draft via the workflow engine + lets the operator copy it
+            to Outlook and mark the step as sent. */}
+        <WorkflowChips dealId={deal.id} steps={steps} onUpdated={onUpdated} />
       </Card>
 
       {/* Delete confirmation */}
