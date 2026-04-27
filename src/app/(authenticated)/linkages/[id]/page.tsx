@@ -47,6 +47,7 @@ import {
   type VoyageSchematicBarDeal,
 } from "./voyage-schematic-bar-wrapper";
 import { CostsSection } from "./costs-section";
+import { DocumentsSection } from "./documents-section";
 import { WorkflowChips } from "./workflow-chips";
 import { formatVesselName, formatVesselImo } from "@/lib/utils/vessel-display";
 
@@ -443,6 +444,11 @@ export default function LinkageDetailPage() {
             freightDeductBrokerage={linkage.freightDeductBrokerage}
             freightBrokeragePct={linkage.freightBrokeragePct}
             deals={deals.map((d) => ({ direction: d.direction === "buy" ? "buy" : "sell", incoterm: d.incoterm }))}
+            canEdit={isOperator}
+            onUpdated={fetchData}
+          />
+          <DocumentsSection
+            linkageId={linkage.id}
             canEdit={isOperator}
             onUpdated={fetchData}
           />

@@ -2,30 +2,53 @@ import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/lib/middleware/with-auth";
 import { getDb } from "@/lib/db";
 import * as schema from "@/lib/db/schema";
+import type { DocumentFileType } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import path from "path";
 import { uploadDocument } from "@/lib/storage/documents";
 import { isEmailFile, parseEmail, type AttachmentClassification } from "@/lib/ai/parse-email";
+import { extractDocumentText } from "@/lib/ai/extract-document-text";
+import { classifyDocument } from "@/lib/ai/classify-document";
 import {
   extractCpRecapText,
   extractWarrantedSpeedFromText,
 } from "@/lib/maritime/voyage-timeline/cp-speed";
 
 // ---------------------------------------------------------------------------
-// Accepted Q88 / CP Recap formats. Real Q88s arrive as PDF or Word.
-// .msg / .eml allowed for CP Recaps that come via email.
+// Accepted formats. Phase 0 = Q88 + CP recap (PDF/DOC/DOCX/MSG/EML). Phase 1
+// widens to anything the chip-workflow drop zone accepts; the AI classifier
+// detects the type so the operator no longer pre-labels every drop.
 // ---------------------------------------------------------------------------
-const ACCEPTED_EXT = new Set([".pdf", ".doc", ".docx", ".msg", ".eml"]);
+const ACCEPTED_EXT = new Set([".pdf", ".doc", ".docx", ".msg", ".eml", ".txt"]);
 const ACCEPTED_MIME = new Set([
   "application/pdf",
   "application/msword",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   "application/vnd.ms-outlook",
   "message/rfc822",
+  "text/plain",
   "application/octet-stream", // some browsers send .msg / .eml as octet-stream
 ]);
 const MAX_BYTES = 20 * 1024 * 1024; // 20 MB
-const VALID_FILE_TYPES = new Set(["q88", "cp_recap", "bl", "coa", "other"] as const);
+
+// Phase 1 widening of fileType. Includes "auto" which tells the upload
+// route to run the AI classifier instead of trusting the form value.
+const VALID_FILE_TYPES = new Set<DocumentFileType | "auto">([
+  "auto",
+  "q88",
+  "cp_recap",
+  "sof",
+  "nor",
+  "vessel_nomination",
+  "doc_instructions",
+  "bl",
+  "coa",
+  "stock_report",
+  "gtc",
+  "spa",
+  "deal_recap",
+  "other",
+]);
 
 function sanitiseFilename(name: string): string {
   // Strip path components, collapse whitespace, drop anything outside [A-Za-z0-9._-]
@@ -46,8 +69,15 @@ export const GET = withAuth(
         filename: schema.documents.filename,
         fileType: schema.documents.fileType,
         storagePath: schema.documents.storagePath,
+        mimeType: schema.documents.mimeType,
+        sizeBytes: schema.documents.sizeBytes,
+        parsedData: schema.documents.parsedData,
+        parserConfidence: schema.documents.parserConfidence,
+        parserClassifierLabel: schema.documents.parserClassifierLabel,
+        parserClassifierConfidence: schema.documents.parserClassifierConfidence,
         uploadedBy: schema.documents.uploadedBy,
         createdAt: schema.documents.createdAt,
+        updatedAt: schema.documents.updatedAt,
       })
       .from(schema.documents)
       .where(
@@ -120,14 +150,51 @@ export const POST = withAuth(
       const buf = Buffer.from(await fileField.arrayBuffer());
       const storagePath = await uploadDocument(key, buf, fileField.type || undefined);
 
+      // -------------------------------------------------------------------
+      // AI auto-classification (Phase 1 chip-workflow drop zone).
+      //
+      // When the operator drops a file with fileType="auto" (or omits it),
+      // run the classifier to pick a doc type. The operator confirms /
+      // overrides in the confirm modal, so a wrong classification is never
+      // silently destructive.
+      //
+      // Failures (no API key in dev, network error, etc.) fall back to
+      // "other" with confidence 0 so the upload itself never fails just
+      // because the AI side is down.
+      // -------------------------------------------------------------------
+      let finalFileType: DocumentFileType = (
+        fileTypeField === "auto" ? "other" : (fileTypeField as DocumentFileType)
+      );
+      let classifierLabel: DocumentFileType | null = null;
+      let classifierConfidence: number | null = null;
+
+      if (fileTypeField === "auto") {
+        try {
+          const extracted = await extractDocumentText(buf, fileField.name, fileField.type || undefined);
+          if (extracted.text.trim().length > 0) {
+            const classification = await classifyDocument(extracted.text);
+            finalFileType = classification.type;
+            classifierLabel = classification.type;
+            classifierConfidence = classification.confidence;
+          }
+        } catch (err) {
+          console.warn(`[documents] auto-classify failed for ${fileField.name}:`, err);
+          // finalFileType stays "other"; operator picks the right type in the modal.
+        }
+      }
+
       const [doc] = await db
         .insert(schema.documents)
         .values({
           tenantId,
           linkageId: id,
           filename: fileField.name,
-          fileType: fileTypeField as "q88" | "cp_recap" | "bl" | "coa" | "other",
+          fileType: finalFileType,
           storagePath,
+          mimeType: fileField.type || null,
+          sizeBytes: fileField.size,
+          parserClassifierLabel: classifierLabel,
+          parserClassifierConfidence: classifierConfidence !== null ? String(classifierConfidence) : null,
           uploadedBy: session.user.id,
         })
         .returning();
@@ -150,7 +217,7 @@ export const POST = withAuth(
         classification: AttachmentClassification;
       }> = [];
 
-      if (fileTypeField === "cp_recap" && isEmailFile(fileField.name)) {
+      if (finalFileType === "cp_recap" && isEmailFile(fileField.name)) {
         try {
           const parsed = await parseEmail(buf);
 
@@ -200,7 +267,7 @@ export const POST = withAuth(
       // the value manually. CP-clause source beats Q88; only writes when
       // the linkage doesn't already carry a manual override.
       // -------------------------------------------------------------------
-      if (fileTypeField === "cp_recap") {
+      if (finalFileType === "cp_recap") {
         try {
           const recapText = await extractCpRecapText(buf, fileField.name);
           const speedKn = extractWarrantedSpeedFromText(recapText);
@@ -243,7 +310,14 @@ export const POST = withAuth(
       }
 
       return NextResponse.json(
-        { document: doc, autoImported },
+        {
+          document: doc,
+          autoImported,
+          classification:
+            classifierLabel !== null
+              ? { type: classifierLabel, confidence: classifierConfidence }
+              : null,
+        },
         { status: 201 }
       );
     }
@@ -264,7 +338,7 @@ export const POST = withAuth(
         tenantId,
         linkageId: id,
         filename,
-        fileType: fileType as "q88" | "cp_recap" | "bl" | "coa" | "other",
+        fileType: fileType as DocumentFileType,
         storagePath,
         uploadedBy: session.user.id,
       })
