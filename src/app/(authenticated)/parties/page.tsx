@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
-import { Plus, Search, Building2, User, Microscope, Ship } from "lucide-react";
+import { Plus, Search, Building2, User, Microscope, Ship, Handshake } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
@@ -19,11 +19,18 @@ const partyTypeOptions = [
   { value: "broker", label: "Broker" },
 ];
 
+// "counterparty" is not stored as a parties row (buyers/sellers live on
+// deals.counterparty text, not in the contacts catalog), but the icon +
+// badge maps must cover every PartyType union case so chip-side code that
+// renders a recipient label using these maps doesn't blow up. The Parties
+// page itself never displays a counterparty row — the UI dropdown only
+// offers terminal/agent/inspector/broker.
 const typeIcons: Record<PartyType, typeof Building2> = {
   terminal: Building2,
   agent: User,
   inspector: Microscope,
   broker: Ship,
+  counterparty: Handshake,
 };
 
 const typeBadgeVariant: Record<PartyType, "accent" | "info" | "warning" | "success"> = {
@@ -31,6 +38,7 @@ const typeBadgeVariant: Record<PartyType, "accent" | "info" | "warning" | "succe
   agent: "info",
   inspector: "warning",
   broker: "success",
+  counterparty: "info",
 };
 
 export default function PartiesPage() {

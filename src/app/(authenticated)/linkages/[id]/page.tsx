@@ -47,6 +47,7 @@ import {
   type VoyageSchematicBarDeal,
 } from "./voyage-schematic-bar-wrapper";
 import { CostsSection } from "./costs-section";
+import { WorkflowChips } from "./workflow-chips";
 import { formatVesselName, formatVesselImo } from "@/lib/utils/vessel-display";
 
 // ── Types ────────────────────────────────────────────────────
@@ -153,12 +154,19 @@ interface DealSummary {
   parcels?: DealParcelSummary[];
 }
 
+// Mirrors the shape coming from /api/deals/:id/workflow.
+// Wider than the DB row because we additionally surface stepOrder,
+// description and sentAt for the chip stack — the chips need them to
+// order, render and show "last sent" hints.
 interface WorkflowStep {
   id: string;
   stepName: string;
   status: string;
   stepType: string;
   recipientPartyType: string | null;
+  stepOrder: number;
+  description?: string | null;
+  sentAt?: string | null;
 }
 
 interface LinkageStepData {
@@ -1785,45 +1793,11 @@ function DealCard({ deal, steps, onDeleted, canDelete }: { deal: DealSummary; st
             ))}
           </div>
         )}
-        {/* Workflow steps */}
-        {steps.length > 0 && (() => {
-          const doneCount = steps.filter((s) => s.status === "sent" || s.status === "done" || s.status === "received").length;
-          const needsUpdateCount = steps.filter((s) => s.status === "needs_update").length;
-          const pct = Math.round((doneCount / steps.length) * 100);
-          return (
-            <div className="px-4 pb-3 pt-2 border-t border-[var(--color-border-subtle)]">
-              {/* Progress header */}
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide">
-                  Workflow
-                </span>
-                <div className="flex items-center gap-2">
-                  {needsUpdateCount > 0 && (
-                    <span className="text-xs font-medium text-red-400">
-                      {needsUpdateCount} needs re-send
-                    </span>
-                  )}
-                  <span className="text-xs font-mono text-[var(--color-text-tertiary)]">
-                    {doneCount}/{steps.length}
-                  </span>
-                </div>
-              </div>
-              {/* Progress bar */}
-              <div className="h-1.5 rounded-full bg-[var(--color-surface-3)] mb-3 overflow-hidden">
-                <div
-                  className={`h-full rounded-full transition-all duration-500 ${needsUpdateCount > 0 ? "bg-red-500" : "bg-green-500"}`}
-                  style={{ width: `${pct}%` }}
-                />
-              </div>
-              {/* Step chips */}
-              <div className="flex flex-wrap gap-1.5">
-                {steps.map((s) => (
-                  <StepStatusBadge key={s.id} status={s.status} label={s.stepName} />
-                ))}
-              </div>
-            </div>
-          );
-        })()}
+        {/* Workflow chips — Lauri-style clickable action stack.
+            Replaces the previous flat status-pill row. Each chip is a
+            button that opens an action panel; Phase 1.10 will wire the
+            email-draft generation behind the panel's CTA. */}
+        <WorkflowChips dealId={deal.id} steps={steps} />
       </Card>
 
       {/* Delete confirmation */}
